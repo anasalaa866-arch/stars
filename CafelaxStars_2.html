@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Cafelax Stars</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%230a0a0a'/%3E%3Cpath d='M50 20L58 40L80 42L62 56L68 78L50 66L32 78L38 56L20 42L42 40Z' fill='%23d4af37'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0a0a0a;
+  --card:#1a1a1a;
+  --elev:#242424;
+  --border:#2a2a2a;
+  --gold:#d4af37;
+  --gold-dim:#b8901f;
+  --text:#f5f5f5;
+  --muted:#888;
+  --success:#10b981;
+  --danger:#ef4444;
+  --warn:#f59e0b;
+  --info:#3b82f6;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+
+/* ===== LOGIN SCREEN ===== */
+#login-screen{position:fixed;inset:0;background:linear-gradient(180deg,#000 0%,#0a0a0a 50%,#1a1a1a 100%);display:flex;align-items:center;justify-content:center;padding:24px;z-index:1000}
+.login-box{width:100%;max-width:360px;text-align:center}
+.logo-wrap{margin-bottom:40px}
+.logo-star{font-size:60px;color:var(--gold);margin-bottom:14px;filter:drop-shadow(0 0 20px rgba(212,175,55,.4))}
+.logo-name{font-size:28px;font-weight:900;letter-spacing:2px;background:linear-gradient(135deg,var(--gold) 0%,#fef3c7 50%,var(--gold) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.logo-sub{font-size:12px;color:var(--muted);letter-spacing:4px;text-transform:uppercase}
+.login-input{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;font-size:15px;margin-bottom:12px;color:var(--text);transition:border-color .2s}
+.login-input:focus{outline:none;border-color:var(--gold)}
+.login-input::placeholder{color:var(--muted)}
+.login-btn{width:100%;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-dim) 100%);color:#000;padding:16px;border-radius:14px;font-size:16px;font-weight:800;margin-top:8px;letter-spacing:.5px;box-shadow:0 4px 20px rgba(212,175,55,.3);transition:all .2s}
+.login-btn:active{transform:scale(.98)}
+.login-btn:disabled{opacity:.6}
+.login-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
+
+/* ===== APP LAYOUT ===== */
+#app{display:none;min-height:100vh;padding-bottom:80px}
+#app.active{display:block}
+
+.topbar{position:sticky;top:0;background:rgba(10,10,10,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;z-index:100}
+.topbar-title{display:flex;align-items:center;gap:8px}
+.topbar-title .star{color:var(--gold);font-size:18px}
+.topbar-title h1{font-size:16px;font-weight:800;letter-spacing:1px}
+.topbar-user{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.topbar-logout{color:var(--muted);padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;cursor:pointer}
+.topbar-logout:active{background:var(--elev)}
+
+.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:57px;z-index:99}
+.tab{flex:1;padding:14px 8px;text-align:center;font-size:13px;font-weight:700;color:var(--muted);position:relative;cursor:pointer;transition:color .2s}
+.tab.active{color:var(--gold)}
+.tab.active::after{content:'';position:absolute;bottom:0;right:20%;left:20%;height:2px;background:var(--gold);border-radius:2px}
+.tab-badge{display:inline-block;background:var(--gold);color:#000;font-size:11px;font-weight:800;padding:1px 7px;border-radius:10px;margin-right:4px;min-width:18px}
+.tab:not(.active) .tab-badge{background:var(--elev);color:var(--muted)}
+
+.content{padding:14px}
+.empty{text-align:center;color:var(--muted);padding:60px 20px}
+.empty-icon{font-size:56px;margin-bottom:12px;opacity:.4}
+.empty-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px}
+.empty-sub{font-size:13px;color:var(--muted)}
+
+/* ===== ORDER CARD ===== */
+.order-card{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+.order-card.pending-pickup{border-color:rgba(245,158,11,.3);background:linear-gradient(180deg,rgba(245,158,11,.05),var(--card))}
+.order-card-head{padding:12px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:pointer}
+.order-card-head:active{background:var(--elev)}
+.order-id{font-size:12px;color:var(--muted);font-family:monospace;font-weight:600}
+.order-name{font-size:15px;font-weight:700;margin-top:2px}
+.order-area{font-size:12px;color:var(--gold);margin-top:2px}
+.order-badges{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0}
+.badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;white-space:nowrap}
+.badge-cod{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
+.badge-paid{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
+.badge-express{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+.badge-pending{background:rgba(245,158,11,.2);color:#fcd34d;border:1px solid rgba(245,158,11,.4)}
+.order-card-body{padding:0 14px 14px;display:none}
+.order-card.open .order-card-body{display:block}
+.order-card.open .order-card-head{border-bottom:1px solid var(--border)}
+.order-field{display:flex;gap:10px;margin-bottom:8px;font-size:13px;align-items:flex-start}
+.order-field-label{color:var(--muted);min-width:60px;flex-shrink:0}
+.order-field-value{flex:1;word-break:break-word}
+.order-note-box{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px}
+.order-note-label{font-size:10px;color:var(--warn);font-weight:700;margin-bottom:4px}
+.actions-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.act-btn{flex:1;min-width:calc(50% - 4px);padding:12px 10px;border-radius:10px;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--border);background:var(--elev);color:var(--text);transition:all .15s}
+.act-btn:active{transform:scale(.97)}
+.act-btn.primary{background:var(--gold);color:#000;border-color:var(--gold)}
+.act-btn.success{background:var(--success);color:#fff;border-color:var(--success)}
+.act-btn.danger{background:transparent;color:#fca5a5;border-color:rgba(239,68,68,.3)}
+.act-btn.info{background:var(--info);color:#fff;border-color:var(--info)}
+.act-btn.full{min-width:100%;flex-basis:100%}
+
+/* ===== BOTTOM NAV ===== */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:rgba(26,26,26,.95);backdrop-filter:blur(10px);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.nav-item{flex:1;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer;transition:color .15s}
+.nav-item .nav-ico{font-size:20px}
+.nav-item.active{color:var(--gold)}
+
+/* ===== PAGES ===== */
+.page{display:none}
+.page.active{display:block}
+
+/* ===== STATEMENT PAGE ===== */
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+.stat-row:not(:last-child){border-bottom:1px solid var(--border)}
+.stat-label{font-size:13px;color:var(--muted)}
+.stat-value{font-size:15px;font-weight:800}
+.stat-value.money{color:var(--gold)}
+.stat-value.net{font-size:20px;color:var(--success)}
+.section-title{font-size:13px;font-weight:700;color:var(--muted);margin:16px 0 8px;padding:0 4px;text-transform:uppercase;letter-spacing:1px}
+
+.adj-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px}
+.adj-item.pending{border-color:rgba(245,158,11,.3)}
+.adj-item.approved{border-color:rgba(16,185,129,.3)}
+.adj-item.rejected{border-color:rgba(239,68,68,.3);opacity:.7}
+.adj-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.adj-amount{font-size:17px;font-weight:800}
+.adj-amount.pos{color:var(--success)}
+.adj-amount.neg{color:var(--danger)}
+.adj-status{font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px}
+.adj-status.pending{background:rgba(245,158,11,.15);color:#fbbf24}
+.adj-status.approved{background:rgba(16,185,129,.15);color:#34d399}
+.adj-status.rejected{background:rgba(239,68,68,.15);color:#fca5a5}
+.adj-reason{font-size:13px;color:var(--muted)}
+.adj-actions{display:flex;gap:6px;margin-top:10px}
+
+.fab{position:fixed;bottom:90px;left:20px;width:56px;height:56px;border-radius:28px;background:var(--gold);color:#000;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(212,175,55,.4);z-index:99;cursor:pointer}
+.fab:active{transform:scale(.94)}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal-sheet{background:var(--card);width:100%;max-width:500px;border-radius:20px 20px 0 0;padding:20px;max-height:90vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s;border-top:1px solid var(--border)}
+.modal-overlay.open .modal-sheet{transform:translateY(0)}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:-8px auto 16px}
+.modal-title{font-size:17px;font-weight:800;margin-bottom:14px;text-align:center}
+.modal-close{position:absolute;top:16px;left:16px;width:32px;height:32px;border-radius:16px;background:var(--elev);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--muted)}
+
+.form-label{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;display:block}
+.form-input,.form-textarea{width:100%;background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;margin-bottom:12px}
+.form-textarea{min-height:80px;resize:vertical;font-family:inherit}
+.form-input:focus,.form-textarea:focus{outline:none;border-color:var(--gold)}
+
+.file-picker{background:var(--elev);border:2px dashed var(--border);border-radius:10px;padding:24px 14px;text-align:center;cursor:pointer;margin-bottom:12px;transition:border-color .15s}
+.file-picker:active{border-color:var(--gold)}
+.file-picker.has-file{border-color:var(--success);border-style:solid}
+.file-picker-icon{font-size:36px;margin-bottom:8px;opacity:.6}
+.file-picker-text{font-size:13px;color:var(--muted)}
+.file-preview{margin-top:10px}
+.file-preview img{max-width:100%;max-height:200px;border-radius:8px}
+
+.radio-group{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.radio-option{background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s}
+.radio-option.selected{border-color:var(--gold);background:rgba(212,175,55,.08)}
+.radio-dot{width:18px;height:18px;border:2px solid var(--border);border-radius:9px;flex-shrink:0;position:relative}
+.radio-option.selected .radio-dot{border-color:var(--gold)}
+.radio-option.selected .radio-dot::after{content:'';position:absolute;inset:3px;background:var(--gold);border-radius:4px}
+
+/* ===== TOAST ===== */
+.toast-container{position:fixed;top:70px;left:16px;right:16px;z-index:2000;pointer-events:none;display:flex;flex-direction:column;gap:8px}
+.toast-item{background:var(--elev);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,.3);pointer-events:auto;display:flex;align-items:center;gap:10px;animation:slideIn .25s ease}
+.toast-item.success{border-color:var(--success);background:linear-gradient(90deg,rgba(16,185,129,.1),var(--elev))}
+.toast-item.error{border-color:var(--danger);background:linear-gradient(90deg,rgba(239,68,68,.1),var(--elev))}
+.toast-item.warn{border-color:var(--warn);background:linear-gradient(90deg,rgba(245,158,11,.1),var(--elev))}
+@keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
+
+/* ===== CHIPS ===== */
+.reason-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{padding:8px 12px;background:var(--elev);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer}
+.chip.selected{background:var(--gold);color:#000;border-color:var(--gold)}
+
+/* ===== PICKUP SECTION ===== */
+.pickup-banner{background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.3);border-radius:14px;padding:14px;margin-bottom:14px}
+.pickup-banner-title{font-size:14px;font-weight:800;color:var(--warn);margin-bottom:4px}
+.pickup-banner-sub{font-size:12px;color:#fbbf24;line-height:1.6}
+
+/* ===== LOADING ===== */
+.loading{text-align:center;padding:40px;color:var(--muted)}
+.loading .spinner{width:28px;height:28px;margin:0 auto 10px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="logo-wrap">
+      <div class="logo-star">⭐</div>
+      <div class="logo-name">CAFELAX STARS</div>
+      <div class="logo-sub">COURIER</div>
+    </div>
+    <div id="login-error" class="login-error" style="display:none"></div>
+    <input type="text" class="login-input" id="login-username" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" spellcheck="false">
+    <input type="password" class="login-input" id="login-password" placeholder="كلمة المرور" autocomplete="current-password">
+    <button class="login-btn" id="login-btn">تسجيل الدخول</button>
+    <div style="margin-top:20px;font-size:11px;color:#444">حدد رابط الخادم:</div>
+    <input type="text" class="login-input" id="login-api-url" placeholder="https://orderpro-backend-production.up.railway.app" style="font-size:12px;direction:ltr;text-align:left">
+    <button id="test-conn-btn" onclick="testConnection()" style="width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:10px;font-size:12px;margin-top:6px;cursor:pointer">🔍 اختبار الاتصال بالسيرفر</button>
+    <div id="diag-info" style="margin-top:14px;font-size:10px;color:#333;line-height:1.6;text-align:left;direction:ltr"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-title">
+      <span class="star">⭐</span>
+      <h1>CAFELAX STARS</h1>
+    </div>
+    <div class="topbar-user">
+      <span id="user-name">—</span>
+      <button class="topbar-logout" onclick="logout()">خروج</button>
+    </div>
+  </div>
+
+  <!-- PAGE: ORDERS -->
+  <div class="page active" id="page-orders">
+    <div class="tabs">
+      <div class="tab active" data-tab="with-me">
+        <span class="tab-badge" id="badge-with-me">0</span>
+        معاي
+      </div>
+      <div class="tab" data-tab="new-orders">
+        <span class="tab-badge" id="badge-new">0</span>
+        في المحل
+      </div>
+      <div class="tab" data-tab="completed">
+        <span class="tab-badge" id="badge-done">0</span>
+        تم اليوم
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="tab-with-me" class="tab-content">
+        <div class="loading"><div class="spinner"></div><div>جاري التحميل...</div></div>
+      </div>
+      <div id="tab-new-orders" class="tab-content" style="display:none">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+      <div id="tab-completed" class="tab-content" style="display:none">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: STATEMENT -->
+  <div class="page" id="page-statement">
+    <div class="content">
+      <h2 style="font-size:18px;font-weight:800;margin-bottom:14px">📊 كشف الحساب</h2>
+      <div id="statement-body">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div class="fab" onclick="openAddAdjustment()" title="إضافة تسوية">+</div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <div class="nav-item active" data-page="orders">
+      <div class="nav-ico">📦</div>
+      <div>الطلبات</div>
+    </div>
+    <div class="nav-item" data-page="statement">
+      <div class="nav-ico">💰</div>
+      <div>حسابي</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- ORDER DETAIL MODAL (handled inline in cards) -->
+
+<!-- DELIVER MODAL -->
+<div class="modal-overlay" id="m-deliver">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-deliver')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">✅ تسليم الطلب</div>
+    <div id="deliver-order-info" style="background:var(--elev);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;text-align:center"></div>
+    <div id="deliver-cod-section" style="display:none">
+      <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:800;margin-bottom:4px">💵 هذا طلب COD</div>
+        <div style="font-size:13px;color:var(--muted)">المطلوب تحصيله: <strong id="deliver-amount" style="color:var(--success)"></strong></div>
+      </div>
+      <div class="form-label">هل حصلت الفلوس؟</div>
+      <div class="radio-group">
+        <label class="radio-option selected" onclick="selectCodOption(this, true)">
+          <div class="radio-dot"></div>
+          <div>
+            <div style="font-weight:700">نعم، حصلت الفلوس نقداً</div>
+            <div style="font-size:12px;color:var(--muted)">الطلب يتم توصيله وتسويته عادي</div>
+          </div>
+        </label>
+        <label class="radio-option" onclick="selectCodOption(this, false)">
+          <div class="radio-dot"></div>
+          <div>
+            <div style="font-weight:700">لا، العميل دفع أونلاين</div>
+            <div style="font-size:12px;color:var(--muted)">لازم ترفع صورة دليل التحويل</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <button class="act-btn success full" onclick="confirmDeliver()" style="margin-top:10px">✅ تأكيد التسليم</button>
+  </div>
+</div>
+
+<!-- PAYMENT CHANGE MODAL -->
+<div class="modal-overlay" id="m-payment-change">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-payment-change')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">💳 تحويل لمدفوع أونلاين</div>
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px">
+      ℹ️ الطلب هيروح للمحاسب يراجع صورة التحويل قبل الاعتماد. بعد ما يوافق، الطلب يعتبر مدفوع.
+    </div>
+    <div class="form-label">صورة دليل التحويل *</div>
+    <label class="file-picker" for="payment-proof-input" id="payment-proof-picker">
+      <div class="file-picker-icon">📸</div>
+      <div class="file-picker-text">اضغط لاختيار أو تصوير إيصال التحويل</div>
+    </label>
+    <input type="file" id="payment-proof-input" accept="image/*" capture="environment" style="display:none" onchange="onProofSelected(this)">
+    <div class="file-preview" id="payment-proof-preview"></div>
+    <div class="form-label" style="margin-top:12px">ملاحظة (اختياري)</div>
+    <textarea class="form-textarea" id="payment-note" placeholder="مثلاً: رقم التحويل 1234567"></textarea>
+    <button class="act-btn primary full" onclick="submitPaymentChange()" style="margin-top:10px">📤 إرسال للمحاسب</button>
+  </div>
+</div>
+
+<!-- UNDELIVERABLE MODAL -->
+<div class="modal-overlay" id="m-undeliverable">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-undeliverable')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">❌ لم يتم التسليم</div>
+    <div class="form-label">السبب</div>
+    <div class="reason-chips" id="undeliverable-chips">
+      <div class="chip" data-reason="العميل غير موجود">العميل غير موجود</div>
+      <div class="chip" data-reason="العنوان غلط">العنوان غلط</div>
+      <div class="chip" data-reason="العميل رفض الاستلام">العميل رفض الاستلام</div>
+      <div class="chip" data-reason="العميل طلب التأجيل">العميل طلب التأجيل</div>
+      <div class="chip" data-reason="العميل لا يرد على الهاتف">لا يرد على الهاتف</div>
+      <div class="chip" data-reason="سبب آخر">سبب آخر</div>
+    </div>
+    <textarea class="form-textarea" id="undeliverable-note" placeholder="تفاصيل إضافية..."></textarea>
+    <button class="act-btn danger full" onclick="submitUndeliverable()" style="margin-top:10px">❌ تسجيل المشكلة</button>
+  </div>
+</div>
+
+<!-- NOTE MODAL -->
+<div class="modal-overlay" id="m-note">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-note')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">📝 ملاحظة على الطلب</div>
+    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px">
+      الملاحظة هتظهر للإدارة جنب ملاحظات العميل.
+    </div>
+    <textarea class="form-textarea" id="note-input" placeholder="اكتب ملاحظتك..." style="min-height:120px"></textarea>
+    <button class="act-btn primary full" onclick="saveNote()" style="margin-top:10px">💾 حفظ</button>
+  </div>
+</div>
+
+<!-- ADD ADJUSTMENT MODAL -->
+<div class="modal-overlay" id="m-adjustment">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-adjustment')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">➕ إضافة تسوية</div>
+    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px">
+      التسوية هتروح للمحاسب للمراجعة. تحت الحساب يعتمد، هتدخل في كشف حسابك.
+    </div>
+    <div class="form-label">المبلغ (+ أو -)</div>
+    <input type="number" class="form-input" id="adj-amount" placeholder="مثلاً: -50 أو 30" step="any">
+    <div style="font-size:11px;color:var(--muted);margin-top:-8px;margin-bottom:12px">
+      • موجب (+) = فلوس المحل يديك<br>
+      • سالب (-) = فلوس إنت بتدفعها للمحل
+    </div>
+    <div class="form-label">السبب *</div>
+    <input type="text" class="form-input" id="adj-reason" placeholder="مثلاً: بنزين، غرامة تأخير، ..." maxlength="120">
+    <div class="form-label">صورة الدليل (اختياري)</div>
+    <label class="file-picker" for="adj-proof-input" id="adj-proof-picker">
+      <div class="file-picker-icon">📸</div>
+      <div class="file-picker-text">اضغط لإضافة صورة</div>
+    </label>
+    <input type="file" id="adj-proof-input" accept="image/*" capture="environment" style="display:none" onchange="onAdjProofSelected(this)">
+    <div class="file-preview" id="adj-proof-preview"></div>
+    <button class="act-btn primary full" onclick="submitAdjustment()" style="margin-top:14px">📤 إرسال للمراجعة</button>
+  </div>
+</div>
+
+<script>
+// ===== CONSTANTS =====
+const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
+
+// ===== STATE =====
+let API_URL = localStorage.getItem('stars_api_url') || DEFAULT_API;
+let TOKEN = localStorage.getItem('stars_token') || '';
+let USER = JSON.parse(localStorage.getItem('stars_user') || 'null');
+let _data = { withMe: [], newOrders: [], completed: [] };
+let _currentOrderForAction = null;
+let _currentCodCollected = true;
+let _proofBase64 = null;
+let _adjProofBase64 = null;
+
+// ===== DOM HELPERS =====
+const $ = id => document.getElementById(id);
+function toast(msg, kind = 'info', timeout = 3000){
+  const c = $('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast-item ' + kind;
+  const icon = kind === 'success' ? '✅' : kind === 'error' ? '❌' : kind === 'warn' ? '⚠️' : '💬';
+  el.innerHTML = `<span style="font-size:15px">${icon}</span><span style="flex:1">${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, timeout);
+}
+
+// ===== API =====
+async function api(path, opts = {}){
+  const url = API_URL.replace(/\/$/, '') + path;
+  const headers = { 'Content-Type': 'application/json' };
+  if(TOKEN) headers.Authorization = 'Bearer ' + TOKEN;
+  const res = await fetch(url, {
+    method: opts.method || 'GET',
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if(res.status === 401){
+    // token expired
+    logout();
+    throw new Error('انتهت صلاحية الجلسة');
+  }
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(data.error || 'خطأ HTTP ' + res.status);
+  return data;
+}
+
+// ===== LOGIN =====
+async function doLogin(){
+  const username = $('login-username').value.trim();
+  const password = $('login-password').value;
+  const apiUrl = $('login-api-url').value.trim() || DEFAULT_API;
+
+  if(!username || !password){
+    showLoginError('من فضلك أدخل اسم المستخدم وكلمة المرور');
+    return;
+  }
+
+  if(!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')){
+    showLoginError('رابط الخادم لازم يبدأ بـ https://');
+    return;
+  }
+
+  API_URL = apiUrl;
+  localStorage.setItem('stars_api_url', apiUrl);
+
+  const btn = $('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'جاري الدخول...';
+
+  try{
+    // hash password (SHA-256) — مع fallback لو crypto.subtle مش متوفر
+    const passHash = await sha256(password);
+
+    if(!passHash || passHash.length !== 64){
+      throw new Error('فشل تشفير كلمة المرور — حدّث المتصفح');
+    }
+
+    // اختبر الاتصال أولاً بـ timeout قصير
+    let r;
+    try{
+      r = await Promise.race([
+        api('/api/courier/login', { method: 'POST', body: { username, passHash } }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('انتهت مهلة الاتصال — تأكد من الإنترنت أو رابط السيرفر')), 15000))
+      ]);
+    }catch(netErr){
+      // رسائل أوضح للمستخدم
+      const msg = netErr.message || '';
+      if(msg.includes('Failed to fetch') || msg.includes('NetworkError')){
+        throw new Error('مش قادر أتصل بالسيرفر. تأكد من:\n• الإنترنت شغال\n• رابط السيرفر صحيح\n• الرابط بيبدأ بـ https://');
+      }
+      throw netErr;
+    }
+
+    if(!r || !r.success){
+      showLoginError((r && r.error) || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      return;
+    }
+    TOKEN = r.token;
+    USER = r.courier;
+    localStorage.setItem('stars_token', TOKEN);
+    localStorage.setItem('stars_user', JSON.stringify(USER));
+    showApp();
+  }catch(e){
+    showLoginError('❌ ' + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'تسجيل الدخول';
+  }
+}
+
+function showLoginError(msg){
+  const el = $('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+async function sha256(str){
+  // Use crypto.subtle لو متاح (HTTPS / localhost)
+  try{
+    if(window.crypto && window.crypto.subtle && typeof window.crypto.subtle.digest === 'function'){
+      const buf = new TextEncoder().encode(str);
+      const hashBuf = await window.crypto.subtle.digest('SHA-256', buf);
+      return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  }catch(e){ /* fall through */ }
+  // Pure-JS fallback (بيشتغل على أي http أو https)
+  return _sha256Fallback(str);
+}
+
+// Pure-JS SHA-256 implementation — fallback لما crypto.subtle مش متاح
+function _sha256Fallback(str){
+  // UTF-8 encode
+  function utf8Encode(s){
+    return unescape(encodeURIComponent(s));
+  }
+  function rightRotate(n, x){ return ((x >>> n) | (x << (32 - n))) >>> 0; }
+
+  const K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ];
+
+  let H = [
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+  ];
+
+  // encode UTF-8
+  str = utf8Encode(str);
+  const strLen = str.length;
+
+  // build byte array
+  const bytes = new Array(strLen);
+  for(let i = 0; i < strLen; i++) bytes[i] = str.charCodeAt(i) & 0xff;
+
+  // append '1' bit
+  bytes.push(0x80);
+  // pad with zeros
+  while(bytes.length % 64 !== 56) bytes.push(0);
+  // append length in bits (64-bit big-endian — we use 32 bits for length since JS strings rarely > 4GB)
+  const bitLen = strLen * 8;
+  for(let i = 0; i < 4; i++) bytes.push(0);
+  bytes.push((bitLen >>> 24) & 0xff);
+  bytes.push((bitLen >>> 16) & 0xff);
+  bytes.push((bitLen >>> 8) & 0xff);
+  bytes.push(bitLen & 0xff);
+
+  // process each 512-bit chunk
+  for(let chunk = 0; chunk < bytes.length; chunk += 64){
+    const w = new Array(64);
+    for(let i = 0; i < 16; i++){
+      w[i] = (bytes[chunk + i*4] << 24) | (bytes[chunk + i*4 + 1] << 16) | (bytes[chunk + i*4 + 2] << 8) | bytes[chunk + i*4 + 3];
+      w[i] = w[i] >>> 0;
+    }
+    for(let i = 16; i < 64; i++){
+      const s0 = rightRotate(7, w[i-15]) ^ rightRotate(18, w[i-15]) ^ (w[i-15] >>> 3);
+      const s1 = rightRotate(17, w[i-2]) ^ rightRotate(19, w[i-2]) ^ (w[i-2] >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+    }
+
+    let [a, b, c, d, e, f, g, h] = H;
+
+    for(let i = 0; i < 64; i++){
+      const S1 = rightRotate(6, e) ^ rightRotate(11, e) ^ rightRotate(25, e);
+      const ch = (e & f) ^ (~e & g);
+      const temp1 = (h + S1 + ch + K[i] + w[i]) >>> 0;
+      const S0 = rightRotate(2, a) ^ rightRotate(13, a) ^ rightRotate(22, a);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const temp2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e;
+      e = (d + temp1) >>> 0;
+      d = c; c = b; b = a;
+      a = (temp1 + temp2) >>> 0;
+    }
+
+    H = [
+      (H[0] + a) >>> 0, (H[1] + b) >>> 0, (H[2] + c) >>> 0, (H[3] + d) >>> 0,
+      (H[4] + e) >>> 0, (H[5] + f) >>> 0, (H[6] + g) >>> 0, (H[7] + h) >>> 0
+    ];
+  }
+
+  return H.map(n => n.toString(16).padStart(8, '0')).join('');
+}
+
+function logout(){
+  TOKEN = '';
+  USER = null;
+  localStorage.removeItem('stars_token');
+  localStorage.removeItem('stars_user');
+  $('app').classList.remove('active');
+  $('login-screen').style.display = 'flex';
+}
+
+function showApp(){
+  $('login-screen').style.display = 'none';
+  $('app').classList.add('active');
+  $('user-name').textContent = USER?.name || '';
+  loadOrders();
+}
+
+// ===== BOTTOM NAV =====
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    const page = el.dataset.page;
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    $('page-' + page).classList.add('active');
+    if(page === 'orders') loadOrders();
+    if(page === 'statement') loadStatement();
+  });
+});
+
+// ===== TABS =====
+document.querySelectorAll('.tab').forEach(el => {
+  el.addEventListener('click', () => {
+    const tab = el.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    $('tab-' + tab).style.display = 'block';
+  });
+});
+
+// ===== LOAD ORDERS =====
+async function loadOrders(){
+  try{
+    const r = await api('/api/courier/my-orders');
+    _data = r;
+    $('badge-with-me').textContent = r.withMe.length;
+    $('badge-new').textContent = r.newOrders.length;
+    $('badge-done').textContent = r.completed.length;
+    renderOrders('with-me', r.withMe);
+    renderOrders('new-orders', r.newOrders);
+    renderOrders('completed', r.completed);
+  }catch(e){
+    toast(e.message, 'error');
+  }
+}
+
+function renderOrders(tabId, orders){
+  const container = $('tab-' + tabId);
+  if(!orders.length){
+    const emptyMsg = tabId === 'with-me' ? {
+      icon: '🎉',
+      title: 'مفيش طلبات معاك',
+      sub: 'اطلع تشوف الطلبات اللي في المحل'
+    } : tabId === 'new-orders' ? {
+      icon: '📦',
+      title: 'مفيش طلبات جديدة',
+      sub: 'الطلبات الجديدة هتظهر هنا بعد ما المحاسب يطبعها'
+    } : {
+      icon: '✨',
+      title: 'لسه ما وصلتش طلبات النهاردة',
+      sub: 'الطلبات اللي هتسلمها هتظهر هنا'
+    };
+    container.innerHTML = `<div class="empty"><div class="empty-icon">${emptyMsg.icon}</div><div class="empty-title">${emptyMsg.title}</div><div class="empty-sub">${emptyMsg.sub}</div></div>`;
+    return;
+  }
+
+  // للـ new-orders: banner في الأول
+  let html = '';
+  if(tabId === 'new-orders' && orders.length){
+    html += `<div class="pickup-banner">
+      <div class="pickup-banner-title">⏳ ${orders.length} طلب بانتظار الاستلام</div>
+      <div class="pickup-banner-sub">هذه الطلبات موزعة عليك، لكن لسه ما استلمتهاش من المحل. هتظهر في تبويب "معاي" لما المحاسب يطبع ورقة التوصيل.</div>
+    </div>`;
+  }
+
+  html += orders.map(o => renderOrderCard(o, tabId)).join('');
+  container.innerHTML = html;
+}
+
+function renderOrderCard(o, tabId){
+  const isExpress = o.deliveryType === 'express';
+  const codAmount = o.paid ? 0 : o.total;
+  const badges = [];
+  if(isExpress) badges.push('<span class="badge badge-express">⚡ Same Day</span>');
+  if(o.paid) badges.push('<span class="badge badge-paid">💳 مدفوع</span>');
+  else badges.push('<span class="badge badge-cod">💵 ' + codAmount.toLocaleString() + ' ج</span>');
+  if(o.paymentChangeRequested) badges.push('<span class="badge badge-pending">⏳ تحت المراجعة</span>');
+
+  const addr = [o.addr, o.addr2, o.area].filter(Boolean).join(' - ');
+  const notes = [];
+  if(o.customerNote) notes.push({ label: 'ملاحظة العميل', text: o.customerNote, color: '#60a5fa' });
+  if(o.orderNote && o.orderNote !== o.customerNote) notes.push({ label: 'ملاحظة الإدارة', text: o.orderNote, color: '#fbbf24' });
+  if(o.courierNote) notes.push({ label: 'ملاحظتك', text: o.courierNote, color: '#34d399' });
+
+  let actionsHtml = '';
+  if(tabId === 'with-me'){
+    // طلب معاه — زرار تسليم + باقي الإجراءات
+    const phone = o.phone ? o.phone.replace(/[^\d+]/g, '') : '';
+    actionsHtml = `<div class="actions-row">
+      ${phone ? `<a class="act-btn" href="tel:${phone}">📞 اتصال</a>` : ''}
+      ${phone ? `<a class="act-btn" href="https://wa.me/2${phone.replace(/^\+?2?0?/, '0')}" target="_blank">💬 واتساب</a>` : ''}
+      <button class="act-btn info" onclick="openMap('${escapeAttr(addr)}')">🗺️ خريطة</button>
+      <button class="act-btn" onclick="openNote('${o.id}', this.closest('.order-card'))">📝 ملاحظة</button>
+      ${!o.paid ? `<button class="act-btn full" onclick="openPaymentChange('${o.id}')">💳 تحويل لمدفوع أونلاين</button>` : ''}
+      <button class="act-btn success full" onclick="openDeliver('${o.id}')">✅ تم التسليم</button>
+      <button class="act-btn danger full" onclick="openUndeliverable('${o.id}')">❌ لم يتم التسليم</button>
+    </div>`;
+  } else if(tabId === 'new-orders'){
+    // طلب لسه في المحل — عرض بس، بدون إجراءات
+    actionsHtml = `<div style="margin-top:10px;padding:10px;background:var(--elev);border-radius:8px;font-size:12px;color:var(--muted);text-align:center">
+      ⏳ هذا الطلب لسه في المحل. هيظهر في "معاي" لما تستلمه.
+    </div>`;
+  } else if(tabId === 'completed'){
+    // طلب مسلّم — عرض تاريخ التسليم
+    const t = o.deliveredAt ? new Date(o.deliveredAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '';
+    actionsHtml = `<div style="margin-top:10px;padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:12px;color:#34d399;text-align:center">
+      ✅ تم التسليم ${t ? 'الساعة ' + t : ''}
+    </div>`;
+  }
+
+  const extraClass = tabId === 'new-orders' ? 'pending-pickup' : '';
+
+  return `<div class="order-card ${extraClass}" id="card-${o.id}" onclick="toggleCard(event, '${o.id}')">
+    <div class="order-card-head">
+      <div style="flex:1;min-width:0">
+        <div class="order-id">${o.id}</div>
+        <div class="order-name">${escapeHtml(o.name)}</div>
+        <div class="order-area">📍 ${escapeHtml(o.area || addr)}</div>
+      </div>
+      <div class="order-badges">${badges.join('')}</div>
+    </div>
+    <div class="order-card-body" onclick="event.stopPropagation()">
+      <div class="order-field">
+        <div class="order-field-label">الهاتف</div>
+        <div class="order-field-value" style="direction:ltr;font-weight:700;font-family:monospace">${o.phone || '—'}</div>
+      </div>
+      <div class="order-field">
+        <div class="order-field-label">العنوان</div>
+        <div class="order-field-value">${escapeHtml(addr)}</div>
+      </div>
+      ${o.items ? `<div class="order-field">
+        <div class="order-field-label">المحتوى</div>
+        <div class="order-field-value" style="font-size:12px">${escapeHtml(o.items)}</div>
+      </div>` : ''}
+      ${notes.map(n => `<div class="order-note-box" style="border-color:${n.color}33;background:${n.color}14">
+        <div class="order-note-label" style="color:${n.color}">${n.label}</div>
+        <div>${escapeHtml(n.text)}</div>
+      </div>`).join('')}
+      ${actionsHtml}
+    </div>
+  </div>`;
+}
+
+function toggleCard(e, id){
+  if(e.target.closest('.order-card-body')) return;
+  const c = $('card-' + id);
+  if(c) c.classList.toggle('open');
+}
+
+function escapeHtml(s){
+  if(s == null) return '';
+  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+
+// ===== ACTIONS =====
+function openMap(addr){
+  if(!addr) return;
+  const url = 'https://www.google.com/maps/search/' + encodeURIComponent(addr);
+  window.open(url, '_blank');
+}
+
+function openDeliver(orderId){
+  const o = _data.withMe.find(x => x.id === orderId);
+  if(!o) return;
+  _currentOrderForAction = o;
+  _currentCodCollected = true;
+  $('deliver-order-info').innerHTML = `<strong>${o.id}</strong> — ${escapeHtml(o.name)}`;
+  if(!o.paid){
+    $('deliver-cod-section').style.display = 'block';
+    $('deliver-amount').textContent = o.total.toLocaleString() + ' ج';
+    // reset selection
+    document.querySelectorAll('#m-deliver .radio-option').forEach((r, i) => {
+      r.classList.toggle('selected', i === 0);
+    });
+  } else {
+    $('deliver-cod-section').style.display = 'none';
+  }
+  openModal('m-deliver');
+}
+
+function selectCodOption(el, collected){
+  document.querySelectorAll('#m-deliver .radio-option').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+  _currentCodCollected = collected;
+}
+
+async function confirmDeliver(){
+  const o = _currentOrderForAction;
+  if(!o) return;
+
+  // لو COD وما حصّلش → يفتح payment change modal
+  if(!o.paid && !_currentCodCollected){
+    closeModal('m-deliver');
+    setTimeout(() => openPaymentChange(o.id), 250);
+    return;
+  }
+
+  try{
+    await api(`/api/courier/orders/${o.id}/deliver`, { method: 'POST', body: {} });
+    closeModal('m-deliver');
+    toast('✅ تم تسليم الطلب ' + o.id, 'success');
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function openPaymentChange(orderId){
+  const o = _data.withMe.find(x => x.id === orderId);
+  if(!o) return;
+  _currentOrderForAction = o;
+  _proofBase64 = null;
+  $('payment-proof-preview').innerHTML = '';
+  $('payment-proof-picker').classList.remove('has-file');
+  $('payment-note').value = '';
+  openModal('m-payment-change');
+}
+
+function onProofSelected(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){
+    toast('❌ الصورة كبيرة (الحد الأقصى 5MB)', 'error');
+    return;
+  }
+  // اضغط الصورة قبل الرفع
+  compressImage(file, 1200, 0.85).then(base64 => {
+    _proofBase64 = base64;
+    $('payment-proof-preview').innerHTML = `<img src="${base64}">`;
+    $('payment-proof-picker').classList.add('has-file');
+    $('payment-proof-picker').querySelector('.file-picker-text').textContent = '✅ الصورة جاهزة — اضغط للتغيير';
+  });
+}
+
+function compressImage(file, maxWidth = 1200, quality = 0.85){
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if(w > maxWidth){
+          h = Math.round(h * maxWidth / w);
+          w = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function submitPaymentChange(){
+  const o = _currentOrderForAction;
+  if(!o) return;
+  if(!_proofBase64){
+    toast('❌ لازم ترفع صورة دليل', 'error');
+    return;
+  }
+  const note = $('payment-note').value.trim();
+
+  try{
+    await api(`/api/courier/orders/${o.id}/request-payment-change`, {
+      method: 'POST',
+      body: { proofImageBase64: _proofBase64, note }
+    });
+    closeModal('m-payment-change');
+    toast('✅ تم الإرسال للمحاسب', 'success');
+    // كمان علّم الطلب كـ delivered
+    await api(`/api/courier/orders/${o.id}/deliver`, { method: 'POST', body: {} });
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function openUndeliverable(orderId){
+  const o = _data.withMe.find(x => x.id === orderId);
+  if(!o) return;
+  _currentOrderForAction = o;
+  document.querySelectorAll('#undeliverable-chips .chip').forEach(c => c.classList.remove('selected'));
+  $('undeliverable-note').value = '';
+  openModal('m-undeliverable');
+}
+
+document.querySelectorAll('#undeliverable-chips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#undeliverable-chips .chip').forEach(x => x.classList.remove('selected'));
+    c.classList.add('selected');
+  });
+});
+
+async function submitUndeliverable(){
+  const o = _currentOrderForAction;
+  if(!o) return;
+  const chip = document.querySelector('#undeliverable-chips .chip.selected');
+  const note = $('undeliverable-note').value.trim();
+  if(!chip){
+    toast('❌ اختر السبب', 'error');
+    return;
+  }
+  const reason = chip.dataset.reason + (note ? ' — ' + note : '');
+  try{
+    await api(`/api/courier/orders/${o.id}/undeliverable`, {
+      method: 'POST',
+      body: { reason }
+    });
+    closeModal('m-undeliverable');
+    toast('✅ تم تسجيل المشكلة', 'success');
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function openNote(orderId){
+  const o = _data.withMe.find(x => x.id === orderId) || _data.completed.find(x => x.id === orderId);
+  if(!o) return;
+  _currentOrderForAction = o;
+  $('note-input').value = o.courierNote || '';
+  openModal('m-note');
+}
+
+async function saveNote(){
+  const o = _currentOrderForAction;
+  if(!o) return;
+  const note = $('note-input').value.trim();
+  try{
+    await api(`/api/courier/orders/${o.id}/note`, { method: 'POST', body: { note } });
+    closeModal('m-note');
+    toast('✅ تم حفظ الملاحظة', 'success');
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ===== STATEMENT =====
+async function loadStatement(){
+  const body = $('statement-body');
+  body.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try{
+    const r = await api('/api/courier/my-statement');
+    renderStatement(r);
+  }catch(e){
+    body.innerHTML = '<div class="empty"><div class="empty-icon">❌</div><div class="empty-title">' + e.message + '</div></div>';
+  }
+}
+
+function renderStatement(r){
+  const { orders, adjustments, summary } = r;
+  const hasOrders = orders.length > 0;
+  const hasAdjustments = adjustments.length > 0;
+
+  let html = '';
+
+  // Summary
+  html += `<div class="stat-card">
+    <div class="stat-row">
+      <div class="stat-label">📦 عدد الطلبات المسلّمة</div>
+      <div class="stat-value">${summary.orderCount}</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label">💵 إجمالي COD</div>
+      <div class="stat-value money">${summary.totalCod.toLocaleString()} ج</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label">🚴 إجمالي الشحن</div>
+      <div class="stat-value money">${summary.totalShip.toLocaleString()} ج</div>
+    </div>
+    ${summary.approvedAdjTotal !== 0 ? `<div class="stat-row">
+      <div class="stat-label">➕ تسويات معتمدة</div>
+      <div class="stat-value money" style="color:${summary.approvedAdjTotal >= 0 ? 'var(--success)' : 'var(--danger)'}">${summary.approvedAdjTotal > 0 ? '+' : ''}${summary.approvedAdjTotal.toLocaleString()} ج</div>
+    </div>` : ''}
+    <div class="stat-row" style="border-top:2px solid var(--gold);padding-top:10px;margin-top:6px">
+      <div class="stat-label" style="color:var(--text);font-weight:700">💰 صافي حسابك</div>
+      <div class="stat-value net">${summary.netAmount.toLocaleString()} ج</div>
+    </div>
+  </div>`;
+
+  // التسويات
+  if(hasAdjustments){
+    html += '<div class="section-title">➕ التسويات</div>';
+    html += adjustments.map(a => {
+      const statusLabel = a.status === 'pending' ? '⏳ بانتظار المراجعة'
+                       : a.status === 'approved' ? '✅ معتمدة'
+                       : '❌ مرفوضة';
+      return `<div class="adj-item ${a.status}">
+        <div class="adj-top">
+          <div class="adj-amount ${a.amount >= 0 ? 'pos' : 'neg'}">${a.amount > 0 ? '+' : ''}${a.amount.toLocaleString()} ج</div>
+          <div class="adj-status ${a.status}">${statusLabel}</div>
+        </div>
+        <div class="adj-reason">${escapeHtml(a.reason)}</div>
+        ${a.status === 'pending' ? `<div class="adj-actions">
+          <button class="act-btn danger" style="flex:1" onclick="deleteAdjustment(${a.id})">🗑️ حذف</button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // الطلبات
+  if(hasOrders){
+    html += '<div class="section-title">📦 الطلبات تحت التسوية</div>';
+    html += orders.map(o => `<div class="stat-card" style="padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;color:var(--muted);font-family:monospace">${o.id}</div>
+          <div style="font-weight:700">${escapeHtml(o.name)}</div>
+        </div>
+        <div style="text-align:left">
+          ${o.paid ? '<div style="font-size:11px;color:#60a5fa">💳 مدفوع</div>' : ''}
+          <div style="font-weight:800;color:${o.paid ? 'var(--muted)' : 'var(--gold)'}">${o.total.toLocaleString()} ج</div>
+          <div style="font-size:11px;color:var(--muted)">شحن: ${o.ship.toLocaleString()} ج</div>
+        </div>
+      </div>
+    </div>`).join('');
+  }
+
+  if(!hasOrders && !hasAdjustments){
+    html = `<div class="empty">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">مفيش حركات في حسابك دلوقتي</div>
+      <div class="empty-sub">الطلبات المسلّمة والتسويات هتظهر هنا</div>
+    </div>`;
+  }
+
+  $('statement-body').innerHTML = html;
+}
+
+async function deleteAdjustment(id){
+  if(!confirm('تأكيد حذف التسوية؟')) return;
+  try{
+    await api('/api/courier/adjustments/' + id, { method: 'DELETE' });
+    toast('✅ تم الحذف', 'success');
+    loadStatement();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function openAddAdjustment(){
+  $('adj-amount').value = '';
+  $('adj-reason').value = '';
+  _adjProofBase64 = null;
+  $('adj-proof-preview').innerHTML = '';
+  $('adj-proof-picker').classList.remove('has-file');
+  openModal('m-adjustment');
+}
+
+function onAdjProofSelected(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){
+    toast('❌ الصورة كبيرة', 'error');
+    return;
+  }
+  compressImage(file, 1200, 0.85).then(base64 => {
+    _adjProofBase64 = base64;
+    $('adj-proof-preview').innerHTML = `<img src="${base64}">`;
+    $('adj-proof-picker').classList.add('has-file');
+  });
+}
+
+async function submitAdjustment(){
+  const amount = parseFloat($('adj-amount').value);
+  const reason = $('adj-reason').value.trim();
+  if(isNaN(amount)){ toast('❌ أدخل مبلغ صحيح', 'error'); return; }
+  if(!reason){ toast('❌ اكتب السبب', 'error'); return; }
+
+  try{
+    await api('/api/courier/adjustments', {
+      method: 'POST',
+      body: { amount, reason, proofImageBase64: _adjProofBase64 }
+    });
+    closeModal('m-adjustment');
+    toast('✅ تم الإرسال للمراجعة', 'success');
+    loadStatement();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ===== MODALS =====
+function openModal(id){
+  $(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id){
+  $(id).classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// close modals on overlay tap
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', (e) => {
+    if(e.target === m) closeModal(m.id);
+  });
+});
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  $('login-btn').addEventListener('click', doLogin);
+  $('login-api-url').value = API_URL;
+  ['login-username', 'login-password'].forEach(id => {
+    $(id).addEventListener('keypress', (e) => { if(e.key === 'Enter') doLogin(); });
+  });
+
+  // اعرض معلومات تشخيص
+  showDiagnostics();
+
+  // لو عنده token محفوظ، حاول يدخل مباشرة
+  if(TOKEN && USER){
+    api('/api/courier/me').then(() => showApp()).catch(() => logout());
+  }
+
+  // auto refresh للـ orders كل دقيقة
+  setInterval(() => {
+    if(TOKEN && $('page-orders').classList.contains('active')) loadOrders();
+  }, 60000);
+});
+
+function showDiagnostics(){
+  const el = $('diag-info');
+  if(!el) return;
+  const hasSubtle = !!(window.crypto && window.crypto.subtle && typeof window.crypto.subtle.digest === 'function');
+  const isHttps = location.protocol === 'https:';
+  const isSecure = window.isSecureContext;
+  el.innerHTML = `
+    <div>Protocol: ${location.protocol} ${isHttps ? '✓' : '(needs HTTPS)'}</div>
+    <div>Secure context: ${isSecure ? '✓' : '✗'}</div>
+    <div>Crypto (fast): ${hasSubtle ? '✓' : '✗ (using fallback)'}</div>
+    <div>User agent: ${(navigator.userAgent||'').substring(0, 40)}...</div>
+  `;
+}
+
+async function testConnection(){
+  const btn = $('test-conn-btn');
+  const apiUrl = $('login-api-url').value.trim() || DEFAULT_API;
+  if(!apiUrl.startsWith('http')){
+    btn.textContent = '❌ الرابط غير صحيح';
+    btn.style.color = '#fca5a5';
+    btn.style.borderColor = 'rgba(239,68,68,.4)';
+    return;
+  }
+
+  btn.textContent = '⏳ جاري الاختبار...';
+  btn.style.color = 'var(--muted)';
+  btn.style.borderColor = 'var(--border)';
+  btn.disabled = true;
+
+  const startTs = Date.now();
+  try{
+    const res = await Promise.race([
+      fetch(apiUrl.replace(/\/$/,'') + '/api/shopify/test', { method: 'GET' }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))
+    ]);
+    const took = Date.now() - startTs;
+    if(res.ok || res.status === 401 || res.status === 400){
+      // أي رد يعني السيرفر شغال (حتى لو رفض)
+      btn.textContent = '✅ السيرفر شغال (' + took + 'ms)';
+      btn.style.color = '#34d399';
+      btn.style.borderColor = 'rgba(16,185,129,.4)';
+    } else {
+      btn.textContent = '⚠️ السيرفر رد بكود ' + res.status;
+      btn.style.color = '#fbbf24';
+      btn.style.borderColor = 'rgba(245,158,11,.4)';
+    }
+  }catch(e){
+    const msg = e.message === 'timeout' ? 'انتهت المهلة' : 'فشل الاتصال';
+    btn.textContent = '❌ ' + msg;
+    btn.style.color = '#fca5a5';
+    btn.style.borderColor = 'rgba(239,68,68,.4)';
+  }finally{
+    btn.disabled = false;
+    setTimeout(() => {
+      btn.textContent = '🔍 اختبار الاتصال بالسيرفر';
+      btn.style.color = 'var(--muted)';
+      btn.style.borderColor = 'var(--border)';
+    }, 6000);
+  }
+}
+</script>
+</body>
+</html>
