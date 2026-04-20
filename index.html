@@ -77,6 +77,8 @@ a{color:inherit;text-decoration:none}
 /* ===== ORDER CARD ===== */
 .order-card{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
 .order-card.pending-pickup{border-color:rgba(245,158,11,.3);background:linear-gradient(180deg,rgba(245,158,11,.05),var(--card))}
+.order-card.late-order{border-color:rgba(239,68,68,.4);background:linear-gradient(180deg,rgba(239,68,68,.05),var(--card))}
+.order-card.cancelled-order{border-color:rgba(239,68,68,.5);background:linear-gradient(180deg,rgba(239,68,68,.08),var(--card));opacity:.92}
 .order-card-head{padding:12px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:pointer}
 .order-card-head:active{background:var(--elev)}
 .order-id{font-size:12px;color:var(--muted);font-family:monospace;font-weight:600}
@@ -182,6 +184,16 @@ a{color:inherit;text-decoration:none}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
 
+/* ===== FILTER BAR ===== */
+.filter-bar{position:sticky;top:115px;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 14px;z-index:98;display:none}
+.filter-bar.active{display:block}
+.chip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
+.chip-row::-webkit-scrollbar{display:none}
+.fchip{flex-shrink:0;padding:7px 14px;background:var(--elev);border:1px solid var(--border);border-radius:20px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.fchip.active{background:var(--gold);color:#000;border-color:var(--gold)}
+.fchip .count{font-size:10px;background:rgba(0,0,0,.15);padding:1px 6px;border-radius:10px;margin-right:4px}
+.fchip:not(.active) .count{background:rgba(255,255,255,.08);color:var(--muted)}
+
 /* ===== CHIPS ===== */
 .reason-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .chip{padding:8px 12px;background:var(--elev);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer}
@@ -205,7 +217,12 @@ a{color:inherit;text-decoration:none}
     <div class="logo-wrap">
       <div class="logo-star">⭐</div>
       <div class="logo-name">CAFELAX STARS</div>
-      <div class="logo-sub">COURIER</div>
+      <div class="logo-sub" id="login-sub">COURIER</div>
+    </div>
+    <!-- Role selector -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--card);padding:4px;border-radius:12px;border:1px solid var(--border)">
+      <button id="role-courier" class="role-btn active" onclick="selectRole('courier')" style="flex:1;padding:10px;border-radius:10px;font-size:13px;font-weight:700;background:var(--gold);color:#000;border:none;font-family:Cairo,sans-serif;cursor:pointer">🚴 مندوب</button>
+      <button id="role-shop" class="role-btn" onclick="selectRole('shop')" style="flex:1;padding:10px;border-radius:10px;font-size:13px;font-weight:700;background:transparent;color:var(--muted);border:none;font-family:Cairo,sans-serif;cursor:pointer">🏪 موظف محل</button>
     </div>
     <div id="login-error" class="login-error" style="display:none"></div>
     <input type="text" class="login-input" id="login-username" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" spellcheck="false">
@@ -246,6 +263,21 @@ a{color:inherit;text-decoration:none}
         <span class="tab-badge" id="badge-done">0</span>
         تم اليوم
       </div>
+      <div class="tab" data-tab="cancelled">
+        <span class="tab-badge" id="badge-cancelled">0</span>
+        <span style="color:#fca5a5">🚫</span> ملغية
+      </div>
+    </div>
+
+    <!-- Filter Chips (يظهر بس في tab "معاي") -->
+    <div class="filter-bar active" id="filter-bar">
+      <div class="chip-row" id="filter-chips">
+        <div class="fchip active" data-filter="all">الكل</div>
+        <div class="fchip" data-filter="express"><span style="color:#fbbf24">⚡</span> مستعجل</div>
+        <div class="fchip" data-filter="late"><span style="color:#fca5a5">🕐</span> متأخر</div>
+        <div class="fchip" data-filter="cod"><span style="color:#34d399">💵</span> COD فقط</div>
+        <!-- المناطق بتتولّد ديناميكي -->
+      </div>
     </div>
 
     <div class="content">
@@ -256,6 +288,9 @@ a{color:inherit;text-decoration:none}
         <div class="loading"><div class="spinner"></div></div>
       </div>
       <div id="tab-completed" class="tab-content" style="display:none">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+      <div id="tab-cancelled" class="tab-content" style="display:none">
         <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
@@ -272,15 +307,49 @@ a{color:inherit;text-decoration:none}
     <div class="fab" onclick="openAddAdjustment()" title="إضافة تسوية">+</div>
   </div>
 
+  <!-- PAGE: SHOP (موظف المحل) -->
+  <div class="page" id="page-shop">
+    <div class="tabs">
+      <div class="tab active" data-shop-tab="waiting">
+        <span class="tab-badge" id="badge-shop-waiting">0</span>
+        في انتظار الاستلام
+      </div>
+      <div class="tab" data-shop-tab="completed">
+        <span class="tab-badge" id="badge-shop-done">0</span>
+        تم اليوم
+      </div>
+      <div class="tab" data-shop-tab="cancelled">
+        <span class="tab-badge" id="badge-shop-cancelled">0</span>
+        <span style="color:#fca5a5">🚫</span> ملغية
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="shop-tab-waiting" class="shop-tab-content">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+      <div id="shop-tab-completed" class="shop-tab-content" style="display:none">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+      <div id="shop-tab-cancelled" class="shop-tab-content" style="display:none">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
-    <div class="nav-item active" data-page="orders">
+    <div class="nav-item active" data-page="orders" data-role="courier">
       <div class="nav-ico">📦</div>
       <div>الطلبات</div>
     </div>
-    <div class="nav-item" data-page="statement">
+    <div class="nav-item" data-page="statement" data-role="courier">
       <div class="nav-ico">💰</div>
       <div>حسابي</div>
+    </div>
+    <div class="nav-item" data-page="shop" data-role="shop" style="display:none">
+      <div class="nav-ico">🏪</div>
+      <div>طلبات المحل</div>
     </div>
   </div>
 </div>
@@ -366,6 +435,28 @@ a{color:inherit;text-decoration:none}
   </div>
 </div>
 
+<!-- COURIER CANCEL ORDER -->
+<div class="modal-overlay" id="m-cancel-order">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-cancel-order')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="color:#fca5a5">🚫 إلغاء الطلب</div>
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px">
+      ⚠️ الإلغاء يعني إن العميل رفض الاستلام نهائياً. الطلب هيروح في تبويب "ملغية" لحد ما الإدارة تأكد إنها استلمته منك.
+    </div>
+    <div class="form-label">السبب *</div>
+    <div class="reason-chips" id="cancel-chips">
+      <div class="chip" data-reason="العميل رفض الاستلام">العميل رفض الاستلام</div>
+      <div class="chip" data-reason="العميل غيّر رأيه">العميل غيّر رأيه</div>
+      <div class="chip" data-reason="المنتج لا يطابق الطلب">المنتج لا يطابق الطلب</div>
+      <div class="chip" data-reason="مشكلة في جودة المنتج">مشكلة في الجودة</div>
+      <div class="chip" data-reason="سبب آخر">سبب آخر</div>
+    </div>
+    <textarea class="form-textarea" id="cancel-note" placeholder="تفاصيل إضافية..."></textarea>
+    <button class="act-btn danger full" onclick="submitCancelOrder()" style="margin-top:10px">🚫 تأكيد الإلغاء</button>
+  </div>
+</div>
+
 <!-- NOTE MODAL -->
 <div class="modal-overlay" id="m-note">
   <div class="modal-sheet">
@@ -377,6 +468,46 @@ a{color:inherit;text-decoration:none}
     </div>
     <textarea class="form-textarea" id="note-input" placeholder="اكتب ملاحظتك..." style="min-height:120px"></textarea>
     <button class="act-btn primary full" onclick="saveNote()" style="margin-top:10px">💾 حفظ</button>
+  </div>
+</div>
+
+<!-- ZONE EDIT MODAL -->
+<div class="modal-overlay" id="m-zone">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-zone')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">📍 تعديل المنطقة</div>
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px">
+      ℹ️ تعديل المنطقة بيتحفظ في النظام — الإدارة هتشوف التغيير.
+    </div>
+    <div id="zone-current-info" style="background:var(--elev);border-radius:10px;padding:10px;margin-bottom:12px;font-size:13px"></div>
+    <div class="form-label">المنطقة</div>
+    <input type="text" class="form-input" id="zone-input" placeholder="مثلاً: المعادي" maxlength="80">
+    <div class="form-label" style="margin-top:8px">أو اختار من مناطقك:</div>
+    <div class="reason-chips" id="zone-suggest-chips"></div>
+    <button class="act-btn primary full" onclick="saveZone()" style="margin-top:10px">💾 حفظ المنطقة</button>
+  </div>
+</div>
+
+<!-- SHOP CANCEL ORDER -->
+<div class="modal-overlay" id="m-shop-cancel">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-shop-cancel')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="color:#fca5a5">🚫 إلغاء الطلب</div>
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px">
+      ⚠️ الإلغاء يعني إن العميل رفض استلام الطلب نهائياً. الطلب هيروح لتبويب "ملغية" لحد ما الإدارة تأكد إنها استلمته من عندك.
+    </div>
+    <div class="form-label">السبب *</div>
+    <div class="reason-chips" id="shop-cancel-chips">
+      <div class="chip" data-reason="العميل رفض الاستلام">العميل رفض الاستلام</div>
+      <div class="chip" data-reason="العميل غيّر رأيه">العميل غيّر رأيه</div>
+      <div class="chip" data-reason="المنتج لا يطابق الطلب">المنتج لا يطابق الطلب</div>
+      <div class="chip" data-reason="مشكلة في جودة المنتج">مشكلة في الجودة</div>
+      <div class="chip" data-reason="سبب آخر">سبب آخر</div>
+    </div>
+    <textarea class="form-textarea" id="shop-cancel-note" placeholder="تفاصيل إضافية..."></textarea>
+    <button class="act-btn danger full" onclick="submitShopCancel()" style="margin-top:10px">🚫 تأكيد الإلغاء</button>
   </div>
 </div>
 
@@ -408,6 +539,96 @@ a{color:inherit;text-decoration:none}
   </div>
 </div>
 
+<!-- ============================================================ -->
+<!-- SHOP MODALS (موظف المحل) -->
+<!-- ============================================================ -->
+
+<!-- SHOP PICKED UP -->
+<div class="modal-overlay" id="m-shop-picked">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-shop-picked')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">✅ تسليم الطلب للعميل</div>
+    <div id="shop-picked-info" style="background:var(--elev);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;text-align:center"></div>
+    <div id="shop-picked-cod-section" style="display:none">
+      <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:800;margin-bottom:4px">💵 هذا طلب COD</div>
+        <div style="font-size:13px;color:var(--muted)">المطلوب تحصيله: <strong id="shop-picked-amount" style="color:var(--success)"></strong></div>
+      </div>
+      <div class="form-label">هل حصلت الفلوس؟</div>
+      <div class="radio-group">
+        <label class="radio-option selected" onclick="selectShopCodOption(this, true)">
+          <div class="radio-dot"></div>
+          <div>
+            <div style="font-weight:700">نعم، حصلت الفلوس نقداً</div>
+            <div style="font-size:12px;color:var(--muted)">الطلب مكتمل</div>
+          </div>
+        </label>
+        <label class="radio-option" onclick="selectShopCodOption(this, false)">
+          <div class="radio-dot"></div>
+          <div>
+            <div style="font-weight:700">لا، العميل دفع أونلاين</div>
+            <div style="font-size:12px;color:var(--muted)">لازم ترفع صورة دليل التحويل</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <button class="act-btn success full" onclick="confirmShopPickedUp()" style="margin-top:10px">✅ تأكيد الاستلام</button>
+  </div>
+</div>
+
+<!-- SHOP NOT PICKED -->
+<div class="modal-overlay" id="m-shop-not-picked">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-shop-not-picked')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">❌ العميل لم يحضر</div>
+    <div class="form-label">السبب</div>
+    <div class="reason-chips" id="shop-not-picked-chips">
+      <div class="chip" data-reason="العميل لم يحضر">العميل لم يحضر</div>
+      <div class="chip" data-reason="طلب تأجيل الاستلام">طلب تأجيل الاستلام</div>
+      <div class="chip" data-reason="العميل لا يرد">لا يرد على الاتصال</div>
+      <div class="chip" data-reason="العميل ألغى الطلب">ألغى الطلب</div>
+      <div class="chip" data-reason="سبب آخر">سبب آخر</div>
+    </div>
+    <textarea class="form-textarea" id="shop-not-picked-note" placeholder="تفاصيل إضافية..."></textarea>
+    <button class="act-btn danger full" onclick="submitShopNotPicked()" style="margin-top:10px">❌ تسجيل المشكلة</button>
+  </div>
+</div>
+
+<!-- SHOP NOTE -->
+<div class="modal-overlay" id="m-shop-note">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-shop-note')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">📝 ملاحظة المحل</div>
+    <textarea class="form-textarea" id="shop-note-input" placeholder="اكتب ملاحظتك..." style="min-height:120px"></textarea>
+    <button class="act-btn primary full" onclick="saveShopNote()" style="margin-top:10px">💾 حفظ</button>
+  </div>
+</div>
+
+<!-- SHOP PAYMENT CHANGE -->
+<div class="modal-overlay" id="m-shop-payment-change">
+  <div class="modal-sheet">
+    <button class="modal-close" onclick="closeModal('m-shop-payment-change')">✕</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">💳 تحويل لمدفوع أونلاين</div>
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px">
+      ℹ️ الطلب هيروح للمحاسب يراجع صورة التحويل. بعد الموافقة، الطلب يعتبر مدفوع. (الاستلام هيتسجل تلقائياً)
+    </div>
+    <div class="form-label">صورة دليل التحويل *</div>
+    <label class="file-picker" for="shop-proof-input" id="shop-proof-picker">
+      <div class="file-picker-icon">📸</div>
+      <div class="file-picker-text">اضغط لاختيار أو تصوير إيصال التحويل</div>
+    </label>
+    <input type="file" id="shop-proof-input" accept="image/*" capture="environment" style="display:none" onchange="onShopProofSelected(this)">
+    <div class="file-preview" id="shop-proof-preview"></div>
+    <div class="form-label" style="margin-top:12px">ملاحظة (اختياري)</div>
+    <textarea class="form-textarea" id="shop-payment-note" placeholder="مثلاً: رقم التحويل ..."></textarea>
+    <button class="act-btn primary full" onclick="submitShopPaymentChange()" style="margin-top:10px">📤 إرسال وتأكيد الاستلام</button>
+  </div>
+</div>
+
 <script>
 // ===== CONSTANTS =====
 const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
@@ -416,11 +637,36 @@ const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
 let API_URL = localStorage.getItem('stars_api_url') || DEFAULT_API;
 let TOKEN = localStorage.getItem('stars_token') || '';
 let USER = JSON.parse(localStorage.getItem('stars_user') || 'null');
+let ROLE = localStorage.getItem('stars_role') || 'courier'; // 'courier' | 'shop'
 let _data = { withMe: [], newOrders: [], completed: [] };
 let _currentOrderForAction = null;
 let _currentCodCollected = true;
 let _proofBase64 = null;
 let _adjProofBase64 = null;
+let _activeFilter = 'all'; // 'all' | 'express' | 'late' | 'cod' | 'zone:المعادي' etc.
+
+// ===== LATE ORDER DETECTION =====
+// طلب متأخر = عدى عليه أكتر من 72 ساعة من created_at، مع استبعاد أيام الجمعة
+function isOrderLate(o){
+  if(!o.createdAt) return false;
+  const created = new Date(o.createdAt);
+  if(isNaN(created.getTime())) return false;
+
+  // نحسب عدد الساعات من إنشاء الطلب حتى الآن، مع تجاهل أيام الجمعة
+  const now = new Date();
+  let hours = 0;
+  const cursor = new Date(created);
+
+  // نتحرك ساعة ساعة ونعد الساعات اللي مش يوم جمعة
+  while(cursor < now){
+    const next = new Date(cursor.getTime() + 60*60*1000);
+    const checkDay = cursor.getDay(); // 5 = الجمعة
+    if(checkDay !== 5) hours++;
+    cursor.setTime(next.getTime());
+    if(hours > 72) return true; // shortcut
+  }
+  return hours > 72;
+}
 
 // ===== DOM HELPERS =====
 const $ = id => document.getElementById(id);
@@ -454,6 +700,33 @@ async function api(path, opts = {}){
   return data;
 }
 
+// ===== ROLE SELECTOR =====
+function selectRole(role){
+  ROLE = role;
+  localStorage.setItem('stars_role', role);
+  // تحديث الـ UI
+  const btnCourier = $('role-courier');
+  const btnShop = $('role-shop');
+  const sub = $('login-sub');
+  if(role === 'courier'){
+    btnCourier.classList.add('active');
+    btnCourier.style.background = 'var(--gold)';
+    btnCourier.style.color = '#000';
+    btnShop.classList.remove('active');
+    btnShop.style.background = 'transparent';
+    btnShop.style.color = 'var(--muted)';
+    if(sub) sub.textContent = 'COURIER';
+  } else {
+    btnShop.classList.add('active');
+    btnShop.style.background = 'var(--gold)';
+    btnShop.style.color = '#000';
+    btnCourier.classList.remove('active');
+    btnCourier.style.background = 'transparent';
+    btnCourier.style.color = 'var(--muted)';
+    if(sub) sub.textContent = 'SHOP STAFF';
+  }
+}
+
 // ===== LOGIN =====
 async function doLogin(){
   const username = $('login-username').value.trim();
@@ -478,25 +751,24 @@ async function doLogin(){
   btn.textContent = 'جاري الدخول...';
 
   try{
-    // hash password (SHA-256) — مع fallback لو crypto.subtle مش متوفر
     const passHash = await sha256(password);
-
     if(!passHash || passHash.length !== 64){
       throw new Error('فشل تشفير كلمة المرور — حدّث المتصفح');
     }
 
-    // اختبر الاتصال أولاً بـ timeout قصير
+    // اختار endpoint حسب الـ role
+    const endpoint = ROLE === 'shop' ? '/api/shop/login' : '/api/courier/login';
+
     let r;
     try{
       r = await Promise.race([
-        api('/api/courier/login', { method: 'POST', body: { username, passHash } }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('انتهت مهلة الاتصال — تأكد من الإنترنت أو رابط السيرفر')), 15000))
+        api(endpoint, { method: 'POST', body: { username, passHash } }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('انتهت مهلة الاتصال')), 15000))
       ]);
     }catch(netErr){
-      // رسائل أوضح للمستخدم
       const msg = netErr.message || '';
       if(msg.includes('Failed to fetch') || msg.includes('NetworkError')){
-        throw new Error('مش قادر أتصل بالسيرفر. تأكد من:\n• الإنترنت شغال\n• رابط السيرفر صحيح\n• الرابط بيبدأ بـ https://');
+        throw new Error('مش قادر أتصل بالسيرفر. تأكد من:\n• الإنترنت شغال\n• الرابط صحيح');
       }
       throw netErr;
     }
@@ -506,9 +778,10 @@ async function doLogin(){
       return;
     }
     TOKEN = r.token;
-    USER = r.courier;
+    USER = ROLE === 'shop' ? r.user : r.courier;
     localStorage.setItem('stars_token', TOKEN);
     localStorage.setItem('stars_user', JSON.stringify(USER));
+    localStorage.setItem('stars_role', ROLE);
     showApp();
   }catch(e){
     showLoginError('❌ ' + e.message);
@@ -624,6 +897,7 @@ function logout(){
   USER = null;
   localStorage.removeItem('stars_token');
   localStorage.removeItem('stars_user');
+  // مش بنمسح stars_role — يفضل اختياره للمرة الجاية
   $('app').classList.remove('active');
   $('login-screen').style.display = 'flex';
 }
@@ -631,8 +905,33 @@ function logout(){
 function showApp(){
   $('login-screen').style.display = 'none';
   $('app').classList.add('active');
-  $('user-name').textContent = USER?.name || '';
-  loadOrders();
+  $('user-name').textContent = USER?.displayName || USER?.name || '';
+
+  // وريّ/اخفي nav items حسب الـ role
+  document.querySelectorAll('.nav-item').forEach(el => {
+    const itemRole = el.dataset.role;
+    if(!itemRole || itemRole === ROLE){
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+
+  // اختار الصفحة الأولى حسب الـ role
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+
+  if(ROLE === 'shop'){
+    const shopNav = document.querySelector('.nav-item[data-page="shop"]');
+    if(shopNav) shopNav.classList.add('active');
+    $('page-shop').classList.add('active');
+    loadShopOrders();
+  } else {
+    const ordersNav = document.querySelector('.nav-item[data-page="orders"]');
+    if(ordersNav) ordersNav.classList.add('active');
+    $('page-orders').classList.add('active');
+    loadOrders();
+  }
 }
 
 // ===== BOTTOM NAV =====
@@ -645,19 +944,102 @@ document.querySelectorAll('.nav-item').forEach(el => {
     $('page-' + page).classList.add('active');
     if(page === 'orders') loadOrders();
     if(page === 'statement') loadStatement();
+    if(page === 'shop') loadShopOrders();
   });
 });
 
 // ===== TABS =====
 document.querySelectorAll('.tab').forEach(el => {
   el.addEventListener('click', () => {
+    // Shop tabs (data-shop-tab)
+    if(el.dataset.shopTab){
+      const tab = el.dataset.shopTab;
+      el.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.querySelectorAll('.shop-tab-content').forEach(c => c.style.display = 'none');
+      $('shop-tab-' + tab).style.display = 'block';
+      return;
+    }
+    // Courier tabs (data-tab)
     const tab = el.dataset.tab;
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab:not([data-shop-tab])').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
     document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
     $('tab-' + tab).style.display = 'block';
+    const fb = $('filter-bar');
+    if(fb) fb.classList.toggle('active', tab === 'with-me');
   });
 });
+
+// ===== FILTER CHIPS =====
+function applyFilter(filter){
+  _activeFilter = filter;
+  document.querySelectorAll('.fchip').forEach(c => {
+    c.classList.toggle('active', c.dataset.filter === filter);
+  });
+  // re-render tab "معاي" بس
+  renderOrders('with-me', _data.withMe || []);
+}
+
+function buildFilterChips(withMeOrders){
+  const chipsEl = $('filter-chips');
+  if(!chipsEl) return;
+
+  // احسب counts لكل فلتر
+  const all = withMeOrders.length;
+  const express = withMeOrders.filter(o => o.deliveryType === 'express').length;
+  const late = withMeOrders.filter(isOrderLate).length;
+  const cod = withMeOrders.filter(o => !o.paid).length;
+
+  // اجمع المناطق الفريدة
+  const zones = {};
+  withMeOrders.forEach(o => {
+    const z = (o.assignedZone || '').trim();
+    if(z) zones[z] = (zones[z] || 0) + 1;
+  });
+  const zoneList = Object.entries(zones).sort((a,b) => b[1] - a[1]); // الأكتر أول
+
+  let html = `<div class="fchip ${_activeFilter === 'all' ? 'active' : ''}" data-filter="all" onclick="applyFilter('all')">
+    <span class="count">${all}</span>الكل
+  </div>`;
+
+  if(express > 0){
+    html += `<div class="fchip ${_activeFilter === 'express' ? 'active' : ''}" data-filter="express" onclick="applyFilter('express')">
+      <span class="count">${express}</span>⚡ مستعجل
+    </div>`;
+  }
+  if(late > 0){
+    html += `<div class="fchip ${_activeFilter === 'late' ? 'active' : ''}" data-filter="late" onclick="applyFilter('late')" style="${_activeFilter !== 'late' ? 'border-color:rgba(239,68,68,.3);color:#fca5a5' : ''}">
+      <span class="count">${late}</span>🕐 متأخر
+    </div>`;
+  }
+  if(cod > 0 && cod < all){
+    html += `<div class="fchip ${_activeFilter === 'cod' ? 'active' : ''}" data-filter="cod" onclick="applyFilter('cod')">
+      <span class="count">${cod}</span>💵 COD
+    </div>`;
+  }
+  // المناطق
+  zoneList.forEach(([zone, count]) => {
+    const key = 'zone:' + zone;
+    html += `<div class="fchip ${_activeFilter === key ? 'active' : ''}" data-filter="${escapeAttr(key)}" onclick="applyFilter('${escapeAttr(key)}')">
+      <span class="count">${count}</span>📍 ${escapeHtml(zone)}
+    </div>`;
+  });
+
+  chipsEl.innerHTML = html;
+}
+
+function filterOrders(orders){
+  if(_activeFilter === 'all') return orders;
+  if(_activeFilter === 'express') return orders.filter(o => o.deliveryType === 'express');
+  if(_activeFilter === 'late') return orders.filter(isOrderLate);
+  if(_activeFilter === 'cod') return orders.filter(o => !o.paid);
+  if(_activeFilter.startsWith('zone:')){
+    const zone = _activeFilter.substring(5);
+    return orders.filter(o => (o.assignedZone || '').trim() === zone);
+  }
+  return orders;
+}
 
 // ===== LOAD ORDERS =====
 async function loadOrders(){
@@ -667,9 +1049,19 @@ async function loadOrders(){
     $('badge-with-me').textContent = r.withMe.length;
     $('badge-new').textContent = r.newOrders.length;
     $('badge-done').textContent = r.completed.length;
+    const cancelled = r.cancelled || [];
+    const cb = $('badge-cancelled');
+    if(cb){
+      cb.textContent = cancelled.length;
+      // ستايل لفت الانتباه
+      if(cancelled.length > 0) cb.style.background = '#dc2626';
+    }
+    // ابني filter chips بناءً على الطلبات اللي "معاي"
+    buildFilterChips(r.withMe || []);
     renderOrders('with-me', r.withMe);
     renderOrders('new-orders', r.newOrders);
     renderOrders('completed', r.completed);
+    renderOrders('cancelled', cancelled);
   }catch(e){
     toast(e.message, 'error');
   }
@@ -677,7 +1069,26 @@ async function loadOrders(){
 
 function renderOrders(tabId, orders){
   const container = $('tab-' + tabId);
-  if(!orders.length){
+
+  // للـ with-me: طبّق الفلتر
+  let displayOrders = orders;
+  let filteredOut = 0;
+  if(tabId === 'with-me'){
+    const filtered = filterOrders(orders);
+    filteredOut = orders.length - filtered.length;
+    displayOrders = filtered;
+  }
+
+  if(!displayOrders.length){
+    // لو الطلبات كلها اتفلترت، اعرض رسالة مختلفة
+    if(tabId === 'with-me' && orders.length > 0 && filteredOut > 0){
+      container.innerHTML = `<div class="empty">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title">مفيش طلبات بالفلتر ده</div>
+        <div class="empty-sub">(${filteredOut} طلب مخفي — جرب فلتر تاني)</div>
+      </div>`;
+      return;
+    }
     const emptyMsg = tabId === 'with-me' ? {
       icon: '🎉',
       title: 'مفيش طلبات معاك',
@@ -704,15 +1115,17 @@ function renderOrders(tabId, orders){
     </div>`;
   }
 
-  html += orders.map(o => renderOrderCard(o, tabId)).join('');
+  html += displayOrders.map(o => renderOrderCard(o, tabId)).join('');
   container.innerHTML = html;
 }
 
 function renderOrderCard(o, tabId){
   const isExpress = o.deliveryType === 'express';
+  const isLate = isOrderLate(o);
   const codAmount = o.paid ? 0 : o.total;
   const badges = [];
   if(isExpress) badges.push('<span class="badge badge-express">⚡ Same Day</span>');
+  if(isLate) badges.push('<span class="badge" style="background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3)">🕐 متأخر</span>');
   if(o.paid) badges.push('<span class="badge badge-paid">💳 مدفوع</span>');
   else badges.push('<span class="badge badge-cod">💵 ' + codAmount.toLocaleString() + ' ج</span>');
   if(o.paymentChangeRequested) badges.push('<span class="badge badge-pending">⏳ تحت المراجعة</span>');
@@ -723,6 +1136,9 @@ function renderOrderCard(o, tabId){
   if(o.orderNote && o.orderNote !== o.customerNote) notes.push({ label: 'ملاحظة الإدارة', text: o.orderNote, color: '#fbbf24' });
   if(o.courierNote) notes.push({ label: 'ملاحظتك', text: o.courierNote, color: '#34d399' });
 
+  // عرض المنطقة المصنفة
+  const displayZone = o.assignedZone || o.area || '';
+
   let actionsHtml = '';
   if(tabId === 'with-me'){
     // طلب معاه — زرار تسليم + باقي الإجراءات
@@ -732,9 +1148,11 @@ function renderOrderCard(o, tabId){
       ${phone ? `<a class="act-btn" href="https://wa.me/2${phone.replace(/^\+?2?0?/, '0')}" target="_blank">💬 واتساب</a>` : ''}
       <button class="act-btn info" onclick="openMap('${escapeAttr(addr)}')">🗺️ خريطة</button>
       <button class="act-btn" onclick="openNote('${o.id}', this.closest('.order-card'))">📝 ملاحظة</button>
+      <button class="act-btn" onclick="openZoneEdit('${o.id}')">📍 تعديل المنطقة</button>
       ${!o.paid ? `<button class="act-btn full" onclick="openPaymentChange('${o.id}')">💳 تحويل لمدفوع أونلاين</button>` : ''}
       <button class="act-btn success full" onclick="openDeliver('${o.id}')">✅ تم التسليم</button>
-      <button class="act-btn danger full" onclick="openUndeliverable('${o.id}')">❌ لم يتم التسليم</button>
+      <button class="act-btn danger full" onclick="openUndeliverable('${o.id}')">❌ لم يتم التسليم (مؤقتاً)</button>
+      <button class="act-btn full" onclick="openCancelOrder('${o.id}')" style="background:transparent;color:#fca5a5;border-color:rgba(239,68,68,.4)">🚫 إلغاء الطلب (العميل رفض)</button>
     </div>`;
   } else if(tabId === 'new-orders'){
     // طلب لسه في المحل — عرض بس، بدون إجراءات
@@ -747,16 +1165,29 @@ function renderOrderCard(o, tabId){
     actionsHtml = `<div style="margin-top:10px;padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:12px;color:#34d399;text-align:center">
       ✅ تم التسليم ${t ? 'الساعة ' + t : ''}
     </div>`;
+  } else if(tabId === 'cancelled'){
+    // طلب ملغي بانتظار استلام الإدارة
+    const cancelTime = o.cancelledAt ? new Date(o.cancelledAt).toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '';
+    actionsHtml = `
+      <div style="margin-top:10px;padding:12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px">
+        <div style="color:#fca5a5;font-weight:700;margin-bottom:6px">🚫 تم الإلغاء ${cancelTime ? '— ' + cancelTime : ''}</div>
+        ${o.cancellationReason ? `<div style="color:var(--muted);margin-bottom:6px"><strong>السبب:</strong> ${escapeHtml(o.cancellationReason)}</div>` : ''}
+        <div style="color:#fbbf24;font-size:11px">⏳ بانتظار الإدارة تأكد إنها استلمت الطلب منك</div>
+      </div>
+      <div class="actions-row" style="margin-top:8px">
+        <button class="act-btn full" onclick="uncancelMyOrder('${o.id}')" style="background:transparent;color:#60a5fa;border-color:rgba(59,130,246,.4)">↩️ تراجع عن الإلغاء</button>
+      </div>
+    `;
   }
 
-  const extraClass = tabId === 'new-orders' ? 'pending-pickup' : '';
+  const extraClass = tabId === 'new-orders' ? 'pending-pickup' : tabId === 'cancelled' ? 'cancelled-order' : (isLate ? 'late-order' : '');
 
   return `<div class="order-card ${extraClass}" id="card-${o.id}" onclick="toggleCard(event, '${o.id}')">
     <div class="order-card-head">
       <div style="flex:1;min-width:0">
         <div class="order-id">${o.id}</div>
         <div class="order-name">${escapeHtml(o.name)}</div>
-        <div class="order-area">📍 ${escapeHtml(o.area || addr)}</div>
+        <div class="order-area">📍 ${escapeHtml(displayZone)}</div>
       </div>
       <div class="order-badges">${badges.join('')}</div>
     </div>
@@ -769,6 +1200,15 @@ function renderOrderCard(o, tabId){
         <div class="order-field-label">العنوان</div>
         <div class="order-field-value">${escapeHtml(addr)}</div>
       </div>
+      <div class="order-field">
+        <div class="order-field-label">المنطقة</div>
+        <div class="order-field-value" style="display:flex;justify-content:space-between;align-items:center">
+          <span>${escapeHtml(displayZone) || '—'}</span>
+        </div>
+      </div>
+      ${isLate ? `<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:12px;color:#fca5a5">
+        ⚠️ هذا الطلب <strong>عدى عليه أكتر من 72 ساعة</strong> من تاريخ طلب العميل
+      </div>` : ''}
       ${o.items ? `<div class="order-field">
         <div class="order-field-label">المحتوى</div>
         <div class="order-field-value" style="font-size:12px">${escapeHtml(o.items)}</div>
@@ -936,6 +1376,27 @@ document.querySelectorAll('#undeliverable-chips .chip').forEach(c => {
   });
 });
 
+document.querySelectorAll('#shop-not-picked-chips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#shop-not-picked-chips .chip').forEach(x => x.classList.remove('selected'));
+    c.classList.add('selected');
+  });
+});
+
+document.querySelectorAll('#cancel-chips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#cancel-chips .chip').forEach(x => x.classList.remove('selected'));
+    c.classList.add('selected');
+  });
+});
+
+document.querySelectorAll('#shop-cancel-chips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#shop-cancel-chips .chip').forEach(x => x.classList.remove('selected'));
+    c.classList.add('selected');
+  });
+});
+
 async function submitUndeliverable(){
   const o = _currentOrderForAction;
   if(!o) return;
@@ -959,6 +1420,53 @@ async function submitUndeliverable(){
   }
 }
 
+// ===== CANCEL ORDER (courier) =====
+function openCancelOrder(orderId){
+  const o = _data.withMe.find(x => x.id === orderId);
+  if(!o) return;
+  _currentOrderForAction = o;
+  document.querySelectorAll('#cancel-chips .chip').forEach(c => c.classList.remove('selected'));
+  $('cancel-note').value = '';
+  openModal('m-cancel-order');
+}
+
+async function submitCancelOrder(){
+  const o = _currentOrderForAction;
+  if(!o) return;
+  const chip = document.querySelector('#cancel-chips .chip.selected');
+  const note = $('cancel-note').value.trim();
+  if(!chip){
+    toast('❌ اختر السبب', 'error');
+    return;
+  }
+  const reason = chip.dataset.reason + (note ? ' — ' + note : '');
+  if(!confirm(`🚫 تأكيد إلغاء الطلب ${o.id}؟\n\nالطلب هيروح تبويب "ملغية" لحد ما الإدارة تأكد إنها استلمته منك.`)){
+    return;
+  }
+  try{
+    await api(`/api/courier/orders/${o.id}/cancel`, {
+      method: 'POST',
+      body: { reason }
+    });
+    closeModal('m-cancel-order');
+    toast('🚫 تم الإلغاء — الطلب في تبويب "ملغية"', 'success');
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function uncancelMyOrder(orderId){
+  if(!confirm('↩️ تراجع عن الإلغاء؟\n\nالطلب هيرجع في طلباتك.')) return;
+  try{
+    await api(`/api/courier/orders/${orderId}/uncancel`, { method: 'POST', body: {} });
+    toast('✅ تم التراجع عن الإلغاء', 'success');
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
 function openNote(orderId){
   const o = _data.withMe.find(x => x.id === orderId) || _data.completed.find(x => x.id === orderId);
   if(!o) return;
@@ -976,6 +1484,78 @@ async function saveNote(){
     closeModal('m-note');
     toast('✅ تم حفظ الملاحظة', 'success');
     loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ===== ZONE EDIT =====
+function openZoneEdit(orderId){
+  const o = _data.withMe.find(x => x.id === orderId);
+  if(!o) return;
+  _currentOrderForAction = o;
+  $('zone-current-info').innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">الطلب</div>
+    <div style="font-weight:700">${o.id} — ${escapeHtml(o.name)}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px">العنوان الأصلي: ${escapeHtml(o.area || '—')}</div>
+    <div style="font-size:12px;margin-top:4px">المنطقة الحالية: <strong style="color:var(--gold)">${escapeHtml(o.assignedZone || '—')}</strong></div>
+  `;
+  $('zone-input').value = o.assignedZone || '';
+
+  // اقتراحات من مناطق المندوب + المناطق المستخدمة في طلباته الحالية
+  const mySuggestions = new Set();
+  // من مناطق المندوب المسجلة
+  if(USER?.zone){
+    USER.zone.split(/[,،]/).forEach(z => {
+      const trimmed = z.trim();
+      if(trimmed) mySuggestions.add(trimmed);
+    });
+  }
+  // من الطلبات الحالية
+  (_data.withMe || []).forEach(x => {
+    if(x.assignedZone && x.assignedZone.trim()) mySuggestions.add(x.assignedZone.trim());
+  });
+
+  const chipsEl = $('zone-suggest-chips');
+  if(chipsEl){
+    const list = [...mySuggestions].slice(0, 15);
+    if(list.length){
+      chipsEl.innerHTML = list.map(z =>
+        `<div class="chip" onclick="selectZoneSuggestion('${escapeAttr(z)}')">${escapeHtml(z)}</div>`
+      ).join('');
+    } else {
+      chipsEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">لا توجد مناطق محفوظة بعد</div>';
+    }
+  }
+
+  openModal('m-zone');
+}
+
+function selectZoneSuggestion(zone){
+  $('zone-input').value = zone;
+}
+
+async function saveZone(){
+  const o = _currentOrderForAction;
+  if(!o) return;
+  const zone = $('zone-input').value.trim();
+  if(!zone){ toast('❌ اكتب اسم المنطقة', 'error'); return; }
+  if(zone === (o.assignedZone || '').trim()){
+    closeModal('m-zone');
+    toast('ℹ️ المنطقة نفسها — مفيش تغيير', 'info');
+    return;
+  }
+  try{
+    const r = await api(`/api/courier/orders/${o.id}/zone`, { method: 'POST', body: { zone } });
+    if(r && r.success){
+      closeModal('m-zone');
+      toast('✅ تم تحديث المنطقة — ' + r.zone, 'success');
+      // حدّث محلياً
+      o.assignedZone = r.zone;
+      // re-render
+      buildFilterChips(_data.withMe || []);
+      renderOrders('with-me', _data.withMe || []);
+    }
   }catch(e){
     toast('❌ ' + e.message, 'error');
   }
@@ -1143,7 +1723,355 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   });
 });
 
+// ============================================================
+// ===== SHOP MODE (موظف المحل) =====
+// ============================================================
+
+let _shopData = { waiting: [], completed: [] };
+let _currentShopOrder = null;
+let _shopProofBase64 = null;
+
+async function loadShopOrders(){
+  if(ROLE !== 'shop') return;
+  try{
+    const r = await api('/api/shop/my-orders');
+    _shopData = r;
+    $('badge-shop-waiting').textContent = r.waiting.length;
+    $('badge-shop-done').textContent = r.completed.length;
+    const cancelled = r.cancelled || [];
+    const cb = $('badge-shop-cancelled');
+    if(cb){
+      cb.textContent = cancelled.length;
+      if(cancelled.length > 0) cb.style.background = '#dc2626';
+    }
+    renderShopOrders('waiting', r.waiting);
+    renderShopOrders('completed', r.completed);
+    renderShopOrders('cancelled', cancelled);
+  }catch(e){
+    toast(e.message, 'error');
+  }
+}
+
+function renderShopOrders(tabId, orders){
+  const container = $('shop-tab-' + tabId);
+  if(!container) return;
+
+  if(!orders.length){
+    const msg = tabId === 'waiting'
+      ? { icon: '🎉', title: 'مفيش طلبات في الانتظار', sub: 'الطلبات الجديدة هتظهر هنا' }
+      : tabId === 'cancelled'
+      ? { icon: '✅', title: 'مفيش إلغاءات', sub: 'الطلبات اللي بتلغيها هتظهر هنا حتى الإدارة تأكد الاستلام' }
+      : { icon: '✨', title: 'لسه محدش استلم النهاردة', sub: 'الطلبات اللي هتتسلم هتظهر هنا' };
+    container.innerHTML = `<div class="empty"><div class="empty-icon">${msg.icon}</div><div class="empty-title">${msg.title}</div><div class="empty-sub">${msg.sub}</div></div>`;
+    return;
+  }
+
+  container.innerHTML = orders.map(o => renderShopOrderCard(o, tabId)).join('');
+}
+
+function renderShopOrderCard(o, tabId){
+  const codAmount = o.paid ? 0 : o.total;
+  const badges = [];
+  if(o.paid) badges.push('<span class="badge badge-paid">💳 مدفوع</span>');
+  else badges.push('<span class="badge badge-cod">💵 ' + codAmount.toLocaleString() + ' ج</span>');
+  if(o.paymentChangeRequested) badges.push('<span class="badge badge-pending">⏳ تحت المراجعة</span>');
+  if(o.transferRequestedAt) badges.push('<span class="badge" style="background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)">🔄 تم طلب التحويل</span>');
+
+  const notes = [];
+  if(o.customerNote) notes.push({ label: 'ملاحظة العميل', text: o.customerNote, color: '#60a5fa' });
+  if(o.orderNote && o.orderNote !== o.customerNote) notes.push({ label: 'ملاحظة الإدارة', text: o.orderNote, color: '#fbbf24' });
+  if(o.shopNote) notes.push({ label: 'ملاحظة المحل', text: o.shopNote, color: '#34d399' });
+
+  const phone = o.phone ? o.phone.replace(/[^\d+]/g, '') : '';
+
+  let actionsHtml = '';
+  if(tabId === 'waiting'){
+    if(o.transferRequestedAt){
+      // اتعمل تحويل لشحن، في انتظار الأدمن
+      actionsHtml = `<div style="margin-top:10px;padding:10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:8px;font-size:12px;color:#60a5fa;text-align:center">
+        🔄 تم إرسال طلب التحويل للإدارة — بانتظار المراجعة
+      </div>`;
+    } else {
+      actionsHtml = `<div class="actions-row">
+        ${phone ? `<a class="act-btn" href="tel:${phone}">📞 اتصال</a>` : ''}
+        ${phone ? `<a class="act-btn" href="https://wa.me/2${phone.replace(/^\+?2?0?/, '0')}" target="_blank">💬 واتساب</a>` : ''}
+        <button class="act-btn" onclick="openShopNote('${o.id}')">📝 ملاحظة</button>
+        ${!o.paid ? `<button class="act-btn full" onclick="openShopPaymentChange('${o.id}')">💳 تحويل لمدفوع أونلاين</button>` : ''}
+        <button class="act-btn success full" onclick="openShopPickedUp('${o.id}')">✅ العميل استلم</button>
+        <button class="act-btn info full" onclick="confirmShopTransfer('${o.id}')">🔄 تحويل لشحن (العميل طلب)</button>
+        <button class="act-btn danger full" onclick="openShopNotPicked('${o.id}')">❌ العميل لم يحضر (مؤقتاً)</button>
+        <button class="act-btn full" onclick="openShopCancelOrder('${o.id}')" style="background:transparent;color:#fca5a5;border-color:rgba(239,68,68,.4)">🚫 إلغاء الطلب (العميل رفض)</button>
+      </div>`;
+    }
+  } else if(tabId === 'cancelled'){
+    // طلب ملغي بانتظار استلام الإدارة
+    const cancelTime = o.cancelledAt ? new Date(o.cancelledAt).toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '';
+    actionsHtml = `
+      <div style="margin-top:10px;padding:12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px">
+        <div style="color:#fca5a5;font-weight:700;margin-bottom:6px">🚫 تم الإلغاء ${cancelTime ? '— ' + cancelTime : ''}</div>
+        ${o.cancellationReason ? `<div style="color:var(--muted);margin-bottom:6px"><strong>السبب:</strong> ${escapeHtml(o.cancellationReason)}</div>` : ''}
+        <div style="color:#fbbf24;font-size:11px">⏳ بانتظار الإدارة تأكد إنها استلمت الطلب</div>
+      </div>
+      <div class="actions-row" style="margin-top:8px">
+        <button class="act-btn full" onclick="uncancelShopOrder('${o.id}')" style="background:transparent;color:#60a5fa;border-color:rgba(59,130,246,.4)">↩️ تراجع عن الإلغاء</button>
+      </div>
+    `;
+  } else {
+    // completed
+    const t = o.pickedUpByCustomerAt ? new Date(o.pickedUpByCustomerAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '';
+    if(o.status === 'ملغي'){
+      actionsHtml = `<div style="margin-top:10px;padding:10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;font-size:12px;color:#fca5a5;text-align:center">
+        ❌ تم الإلغاء ${o.pickupNotPickedReason ? '— ' + escapeHtml(o.pickupNotPickedReason) : ''}
+      </div>`;
+    } else {
+      actionsHtml = `<div style="margin-top:10px;padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:12px;color:#34d399;text-align:center">
+        ✅ تم الاستلام ${t ? 'الساعة ' + t : ''}
+      </div>`;
+    }
+  }
+
+  return `<div class="order-card" id="shop-card-${o.id}" onclick="toggleShopCard(event, '${o.id}')">
+    <div class="order-card-head">
+      <div style="flex:1;min-width:0">
+        <div class="order-id">${o.id}</div>
+        <div class="order-name">${escapeHtml(o.name)}</div>
+        <div class="order-area">📦 ${escapeHtml(o.area || '—')}</div>
+      </div>
+      <div class="order-badges">${badges.join('')}</div>
+    </div>
+    <div class="order-card-body" onclick="event.stopPropagation()">
+      <div class="order-field">
+        <div class="order-field-label">الهاتف</div>
+        <div class="order-field-value" style="direction:ltr;font-weight:700;font-family:monospace">${o.phone || '—'}</div>
+      </div>
+      ${o.items ? `<div class="order-field">
+        <div class="order-field-label">المحتوى</div>
+        <div class="order-field-value" style="font-size:12px">${escapeHtml(o.items)}</div>
+      </div>` : ''}
+      <div class="order-field">
+        <div class="order-field-label">القيمة</div>
+        <div class="order-field-value" style="font-weight:800;color:var(--gold)">${o.total.toLocaleString()} ج${o.paid ? ' (مدفوع)' : ' (COD)'}</div>
+      </div>
+      ${notes.map(n => `<div class="order-note-box" style="border-color:${n.color}33;background:${n.color}14">
+        <div class="order-note-label" style="color:${n.color}">${n.label}</div>
+        <div>${escapeHtml(n.text)}</div>
+      </div>`).join('')}
+      ${actionsHtml}
+    </div>
+  </div>`;
+}
+
+function toggleShopCard(e, id){
+  if(e.target.closest('.order-card-body')) return;
+  const c = $('shop-card-' + id);
+  if(c) c.classList.toggle('open');
+}
+
+// ===== SHOP ACTIONS =====
+function openShopPickedUp(orderId){
+  const o = _shopData.waiting.find(x => x.id === orderId);
+  if(!o) return;
+  _currentShopOrder = o;
+  $('shop-picked-info').innerHTML = `<strong>${o.id}</strong> — ${escapeHtml(o.name)}`;
+  if(!o.paid){
+    $('shop-picked-cod-section').style.display = 'block';
+    $('shop-picked-amount').textContent = o.total.toLocaleString() + ' ج';
+    document.querySelectorAll('#m-shop-picked .radio-option').forEach((r, i) => r.classList.toggle('selected', i === 0));
+  } else {
+    $('shop-picked-cod-section').style.display = 'none';
+  }
+  _shopCodCollected = true;
+  openModal('m-shop-picked');
+}
+
+let _shopCodCollected = true;
+function selectShopCodOption(el, collected){
+  document.querySelectorAll('#m-shop-picked .radio-option').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+  _shopCodCollected = collected;
+}
+
+async function confirmShopPickedUp(){
+  const o = _currentShopOrder;
+  if(!o) return;
+
+  // لو COD ومش محصّل، افتح payment change
+  if(!o.paid && !_shopCodCollected){
+    closeModal('m-shop-picked');
+    setTimeout(() => openShopPaymentChange(o.id), 250);
+    return;
+  }
+
+  try{
+    await api(`/api/shop/orders/${o.id}/picked-up`, { method: 'POST', body: {} });
+    closeModal('m-shop-picked');
+    toast('✅ تم تسجيل الاستلام', 'success');
+    loadShopOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function openShopNotPicked(orderId){
+  const o = _shopData.waiting.find(x => x.id === orderId);
+  if(!o) return;
+  _currentShopOrder = o;
+  document.querySelectorAll('#shop-not-picked-chips .chip').forEach(c => c.classList.remove('selected'));
+  $('shop-not-picked-note').value = '';
+  openModal('m-shop-not-picked');
+}
+
+async function submitShopNotPicked(){
+  const o = _currentShopOrder;
+  if(!o) return;
+  const chip = document.querySelector('#shop-not-picked-chips .chip.selected');
+  const note = $('shop-not-picked-note').value.trim();
+  if(!chip){ toast('❌ اختر السبب', 'error'); return; }
+  const reason = chip.dataset.reason + (note ? ' — ' + note : '');
+  try{
+    await api(`/api/shop/orders/${o.id}/not-picked`, { method: 'POST', body: { reason } });
+    closeModal('m-shop-not-picked');
+    toast('✅ تم التسجيل', 'success');
+    loadShopOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ===== CANCEL ORDER (shop) =====
+function openShopCancelOrder(orderId){
+  const o = _shopData.waiting.find(x => x.id === orderId);
+  if(!o) return;
+  _currentShopOrder = o;
+  document.querySelectorAll('#shop-cancel-chips .chip').forEach(c => c.classList.remove('selected'));
+  $('shop-cancel-note').value = '';
+  openModal('m-shop-cancel');
+}
+
+async function submitShopCancel(){
+  const o = _currentShopOrder;
+  if(!o) return;
+  const chip = document.querySelector('#shop-cancel-chips .chip.selected');
+  const note = $('shop-cancel-note').value.trim();
+  if(!chip){ toast('❌ اختر السبب', 'error'); return; }
+  const reason = chip.dataset.reason + (note ? ' — ' + note : '');
+  if(!confirm(`🚫 تأكيد إلغاء الطلب ${o.id}؟\n\nالطلب هيروح تبويب "ملغية" لحد ما الإدارة تأكد إنها استلمته.`)){
+    return;
+  }
+  try{
+    await api(`/api/shop/orders/${o.id}/cancel`, { method: 'POST', body: { reason } });
+    closeModal('m-shop-cancel');
+    toast('🚫 تم الإلغاء — الطلب في تبويب "ملغية"', 'success');
+    loadShopOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function uncancelShopOrder(orderId){
+  if(!confirm('↩️ تراجع عن الإلغاء؟\n\nالطلب هيرجع في طلبات الاستلام.')) return;
+  try{
+    await api(`/api/shop/orders/${orderId}/uncancel`, { method: 'POST', body: {} });
+    toast('✅ تم التراجع عن الإلغاء', 'success');
+    loadShopOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function openShopNote(orderId){
+  const o = _shopData.waiting.find(x => x.id === orderId);
+  if(!o) return;
+  _currentShopOrder = o;
+  $('shop-note-input').value = o.shopNote || '';
+  openModal('m-shop-note');
+}
+
+async function saveShopNote(){
+  const o = _currentShopOrder;
+  if(!o) return;
+  const note = $('shop-note-input').value.trim();
+  try{
+    await api(`/api/shop/orders/${o.id}/note`, { method: 'POST', body: { note } });
+    closeModal('m-shop-note');
+    toast('✅ تم حفظ الملاحظة', 'success');
+    loadShopOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function openShopPaymentChange(orderId){
+  const o = _shopData.waiting.find(x => x.id === orderId);
+  if(!o) return;
+  _currentShopOrder = o;
+  _shopProofBase64 = null;
+  $('shop-proof-preview').innerHTML = '';
+  $('shop-proof-picker').classList.remove('has-file');
+  $('shop-payment-note').value = '';
+  openModal('m-shop-payment-change');
+}
+
+function onShopProofSelected(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){
+    toast('❌ الصورة كبيرة (الحد الأقصى 5MB)', 'error');
+    return;
+  }
+  compressImage(file, 1200, 0.85).then(base64 => {
+    _shopProofBase64 = base64;
+    $('shop-proof-preview').innerHTML = `<img src="${base64}">`;
+    $('shop-proof-picker').classList.add('has-file');
+    $('shop-proof-picker').querySelector('.file-picker-text').textContent = '✅ الصورة جاهزة — اضغط للتغيير';
+  });
+}
+
+async function submitShopPaymentChange(){
+  const o = _currentShopOrder;
+  if(!o) return;
+  if(!_shopProofBase64){
+    toast('❌ لازم ترفع صورة دليل', 'error');
+    return;
+  }
+  const note = $('shop-payment-note').value.trim();
+  try{
+    await api(`/api/shop/orders/${o.id}/request-payment-change`, {
+      method: 'POST',
+      body: { proofImageBase64: _shopProofBase64, note }
+    });
+    // بعد ما نرسل صورة التحويل، نسجل الاستلام أيضاً
+    await api(`/api/shop/orders/${o.id}/picked-up`, { method: 'POST', body: {} });
+    closeModal('m-shop-payment-change');
+    toast('✅ تم إرسال صورة التحويل وتسجيل الاستلام', 'success');
+    loadShopOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function confirmShopTransfer(orderId){
+  const o = _shopData.waiting.find(x => x.id === orderId);
+  if(!o) return;
+  const ok = confirm(`🔄 تحويل الطلب ${o.id} لشحن؟\n\nالعميل: ${o.name}\n\nالطلب هيتبعت للإدارة عشان يتحدد إذا هيتشحن ازاي.`);
+  if(!ok) return;
+  try{
+    await api(`/api/shop/orders/${orderId}/transfer-to-shipping`, { method: 'POST', body: {} });
+    toast('✅ تم إرسال طلب التحويل', 'success');
+    loadShopOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// Auto-refresh shop orders every 60s
+setInterval(() => {
+  if(TOKEN && ROLE === 'shop' && $('page-shop').classList.contains('active')) loadShopOrders();
+}, 60000);
+
+// ============================================================
 // ===== INIT =====
+// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   $('login-btn').addEventListener('click', doLogin);
   $('login-api-url').value = API_URL;
@@ -1151,17 +2079,21 @@ document.addEventListener('DOMContentLoaded', () => {
     $(id).addEventListener('keypress', (e) => { if(e.key === 'Enter') doLogin(); });
   });
 
+  // اضبط الـ role UI على القيمة المحفوظة
+  selectRole(ROLE);
+
   // اعرض معلومات تشخيص
   showDiagnostics();
 
   // لو عنده token محفوظ، حاول يدخل مباشرة
   if(TOKEN && USER){
-    api('/api/courier/me').then(() => showApp()).catch(() => logout());
+    const checkEndpoint = ROLE === 'shop' ? '/api/shop/me' : '/api/courier/me';
+    api(checkEndpoint).then(() => showApp()).catch(() => logout());
   }
 
-  // auto refresh للـ orders كل دقيقة
+  // auto refresh للـ orders كل دقيقة (courier mode)
   setInterval(() => {
-    if(TOKEN && $('page-orders').classList.contains('active')) loadOrders();
+    if(TOKEN && ROLE === 'courier' && $('page-orders').classList.contains('active')) loadOrders();
   }, 60000);
 });
 
