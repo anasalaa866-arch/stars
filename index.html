@@ -228,10 +228,10 @@ a{color:inherit;text-decoration:none}
     <input type="text" class="login-input" id="login-username" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" spellcheck="false">
     <input type="password" class="login-input" id="login-password" placeholder="كلمة المرور" autocomplete="current-password">
     <button class="login-btn" id="login-btn">تسجيل الدخول</button>
-    <div style="margin-top:20px;font-size:11px;color:#444">حدد رابط الخادم:</div>
-    <input type="text" class="login-input" id="login-api-url" placeholder="https://orderpro-backend-production.up.railway.app" style="font-size:12px;direction:ltr;text-align:left">
-    <button id="test-conn-btn" onclick="testConnection()" style="width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:10px;font-size:12px;margin-top:6px;cursor:pointer">🔍 اختبار الاتصال بالسيرفر</button>
-    <div id="diag-info" style="margin-top:14px;font-size:10px;color:#333;line-height:1.6;text-align:left;direction:ltr"></div>
+    <div style="margin-top:20px;font-size:11px;color:#444;display:none">حدد رابط الخادم:</div>
+    <input type="text" class="login-input" id="login-api-url" placeholder="https://orderpro-backend-production.up.railway.app" style="font-size:12px;direction:ltr;text-align:left;display:none">
+    <button id="test-conn-btn" onclick="testConnection()" style="display:none;width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:10px;font-size:12px;margin-top:6px;cursor:pointer">🔍 اختبار الاتصال بالسيرفر</button>
+    <div id="diag-info" style="margin-top:14px;font-size:10px;color:#333;line-height:1.6;text-align:left;direction:ltr;display:none"></div>
   </div>
 </div>
 
