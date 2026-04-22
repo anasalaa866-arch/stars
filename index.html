@@ -108,20 +108,22 @@ a{color:inherit;text-decoration:none}
   z-index:2;
 }
 
-/* Sequence Input Overlay */
-.seq-input-overlay{
-  position:absolute;
-  top:0;
-  left:0;
-  right:0;
-  bottom:0;
-  background:rgba(255,255,255,.98);
+/* Sort Items */
+.sort-item{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:12px;
+  margin-bottom:8px;
   display:flex;
   align-items:center;
-  justify-content:center;
-  gap:8px;
-  z-index:10;
-  border-radius:14px;
+  gap:12px;
+  cursor:move;
+  transition:all 0.2s;
+}
+.sort-item:active{
+  opacity:0.4;
+  cursor:grabbing;
 }
 
 .order-card{position:relative}
@@ -305,11 +307,11 @@ a{color:inherit;text-decoration:none}
     <!-- Filter Chips (يظهر بس في tab "معاي") -->
     <div class="filter-bar active" id="filter-bar">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:0 12px 8px;border-bottom:1px solid var(--border)">
-        <button onclick="autoSortByArea()" style="background:var(--accent);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px">
+        <button onclick="autoSortByArea()" style="background:var(--accent);color:#fff;border:none;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 6px rgba(0,0,0,.15)">
           🗂️ رتّب حسب المنطقة
         </button>
-        <button onclick="toggleSequenceMode()" id="seq-mode-btn" style="background:transparent;border:1px solid var(--border);padding:6px 12px;border-radius:8px;font-size:11px;cursor:pointer;color:var(--muted)">
-          ↕️ وضع الترتيب: <span id="seq-status">مغلق</span>
+        <button onclick="openSortModal()" style="background:var(--card);border:1px solid var(--border);padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
+          ↕️ رتّب يدوياً
         </button>
       </div>
       <div class="chip-row" id="filter-chips">
@@ -667,6 +669,26 @@ a{color:inherit;text-decoration:none}
     <div class="form-label" style="margin-top:12px">ملاحظة (اختياري)</div>
     <textarea class="form-textarea" id="shop-payment-note" placeholder="مثلاً: رقم التحويل ..."></textarea>
     <button class="act-btn primary full" onclick="submitShopPaymentChange()" style="margin-top:10px">📤 إرسال وتأكيد الاستلام</button>
+  </div>
+</div>
+
+<!-- SORT MODAL -->
+<div id="sort-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:999;padding:20px;overflow-y:auto">
+  <div style="background:var(--bg);border-radius:16px;max-width:500px;margin:0 auto;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <div style="padding:20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0;font-size:18px;font-weight:700">↕️ ترتيب الطلبات</h3>
+      <button onclick="closeSortModal()" style="background:transparent;border:none;font-size:24px;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div style="padding:16px;max-height:60vh;overflow-y:auto">
+      <div style="margin-bottom:12px;padding:10px;background:rgba(59,130,246,.1);border-radius:8px;font-size:12px;color:#60a5fa">
+        💡 اسحب وأفلت الطلبات لترتيبها حسب خط سيرك
+      </div>
+      <div id="sortable-list"></div>
+    </div>
+    <div style="padding:16px;border-top:1px solid var(--border);display:flex;gap:10px">
+      <button onclick="closeSortModal()" style="flex:1;background:transparent;border:1px solid var(--border);padding:12px;border-radius:10px;font-weight:700;cursor:pointer;color:var(--muted)">إلغاء</button>
+      <button onclick="saveSort()" style="flex:1;background:var(--accent);color:#fff;border:none;padding:12px;border-radius:10px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(59,130,246,.3)">✓ حفظ الترتيب</button>
+    </div>
   </div>
 </div>
 
@@ -2225,7 +2247,7 @@ async function testConnection(){
   }
 }
 // ===== SEQUENCE MANAGEMENT (ترتيب الطلبات) =====
-let _sequenceMode = false;
+let _sortableOrders = [];
 
 async function autoSortByArea(){
   if(!confirm('هل تريد ترتيب الطلبات تلقائياً حسب المنطقة؟\n\nالترتيب الحالي هيتغير.')){
@@ -2243,140 +2265,110 @@ async function autoSortByArea(){
   }
 }
 
-function toggleSequenceMode(){
-  _sequenceMode = !_sequenceMode;
-  const btn = $('seq-mode-btn');
-  const status = $('seq-status');
-  
-  if(_sequenceMode){
-    btn.style.background = 'var(--accent)';
-    btn.style.color = '#fff';
-    btn.style.borderColor = 'var(--accent)';
-    status.textContent = 'مفتوح';
-    toast('اسحب يمين على أي طلب لتحديد رقم الترتيب', 'info');
-    attachSwipeListeners();
-  } else {
-    btn.style.background = 'transparent';
-    btn.style.color = 'var(--muted)';
-    btn.style.borderColor = 'var(--border)';
-    status.textContent = 'مغلق';
-    removeSwipeListeners();
-  }
-}
-
-let _swipeStartX = 0;
-let _swipeStartY = 0;
-let _swipeCard = null;
-
-function attachSwipeListeners(){
-  const cards = document.querySelectorAll('#tab-with-me .order-card');
-  cards.forEach(card => {
-    card.addEventListener('touchstart', onSwipeStart, { passive: true });
-    card.addEventListener('touchmove', onSwipeMove, { passive: false });
-    card.addEventListener('touchend', onSwipeEnd, { passive: true });
-  });
-}
-
-function removeSwipeListeners(){
-  const cards = document.querySelectorAll('#tab-with-me .order-card');
-  cards.forEach(card => {
-    card.removeEventListener('touchstart', onSwipeStart);
-    card.removeEventListener('touchmove', onSwipeMove);
-    card.removeEventListener('touchend', onSwipeEnd);
-  });
-}
-
-function onSwipeStart(e){
-  if(!_sequenceMode) return;
-  _swipeStartX = e.touches[0].clientX;
-  _swipeStartY = e.touches[0].clientY;
-  _swipeCard = e.currentTarget;
-}
-
-function onSwipeMove(e){
-  if(!_sequenceMode || !_swipeCard) return;
-  
-  const deltaX = e.touches[0].clientX - _swipeStartX;
-  const deltaY = Math.abs(e.touches[0].clientY - _swipeStartY);
-  
-  // لو السحب أفقي (مش vertical scroll)
-  if(Math.abs(deltaX) > 50 && deltaY < 30){
-    e.preventDefault();
-    _swipeCard.style.transform = `translateX(${Math.min(deltaX, 120)}px)`;
-    _swipeCard.style.transition = 'none';
-  }
-}
-
-function onSwipeEnd(e){
-  if(!_sequenceMode || !_swipeCard) return;
-  
-  const deltaX = e.changedTouches[0].clientX - _swipeStartX;
-  
-  _swipeCard.style.transition = 'transform 0.2s';
-  
-  // لو سحب يمين أكتر من 80px
-  if(deltaX > 80){
-    showSequenceInput(_swipeCard);
-  } else {
-    _swipeCard.style.transform = 'translateX(0)';
-  }
-  
-  _swipeCard = null;
-}
-
-function showSequenceInput(card){
-  const orderId = card.id.replace('card-', '');
-  const seqBadge = card.querySelector('.seq-badge');
-  const currentSeq = seqBadge ? seqBadge.textContent.replace('#', '') : '';
-  
-  // أنشئ input overlay
-  const overlay = document.createElement('div');
-  overlay.className = 'seq-input-overlay';
-  overlay.innerHTML = `
-    <input type="number" id="seq-input-${orderId}" value="${currentSeq}" min="1" placeholder="#" 
-           style="width:50px;padding:8px;border:2px solid var(--accent);border-radius:8px;font-size:16px;font-weight:700;text-align:center">
-    <button onclick="saveSequence('${orderId}')" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;margin-left:8px">✓</button>
-    <button onclick="cancelSequence('${orderId}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:8px 12px;border-radius:8px">✕</button>
-  `;
-  
-  card.appendChild(overlay);
-  card.style.transform = 'translateX(0)';
-  
-  setTimeout(() => {
-    const input = $('seq-input-' + orderId);
-    if(input) input.focus();
-  }, 100);
-}
-
-async function saveSequence(orderId){
-  const input = $('seq-input-' + orderId);
-  const sequence = parseInt(input.value);
-  
-  if(!sequence || sequence < 1){
-    toast('❌ أدخل رقم صحيح', 'error');
+function openSortModal(){
+  // جيب الطلبات اللي معاه
+  const withMe = ORDERS.withMe || [];
+  if(!withMe.length){
+    toast('مفيش طلبات معاك للترتيب', 'info');
     return;
   }
   
-  try{
-    await api(`/api/courier/orders/${orderId}/sequence`, { 
-      method: 'POST', 
-      body: { sequence } 
-    });
+  // رتّبهم حسب الترتيب الحالي (أو بدون ترتيب)
+  _sortableOrders = [...withMe].sort((a, b) => {
+    if(a.deliverySequence && b.deliverySequence) return a.deliverySequence - b.deliverySequence;
+    if(a.deliverySequence) return -1;
+    if(b.deliverySequence) return 1;
+    return 0;
+  });
+  
+  renderSortableList();
+  $('sort-modal').style.display = 'block';
+}
+
+function closeSortModal(){
+  $('sort-modal').style.display = 'none';
+}
+
+function renderSortableList(){
+  const html = _sortableOrders.map((o, idx) => `
+    <div class="sort-item" draggable="true" data-order-id="${o.id}" data-index="${idx}">
+      <div style="font-size:20px;color:var(--muted);cursor:grab">≡</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px">#${idx + 1} — ${o.id}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(o.area || '')} — ${o.total.toLocaleString()} ج</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">${escapeHtml(o.name)}</div>
+    </div>
+  `).join('');
+  
+  $('sortable-list').innerHTML = html;
+  
+  // Attach drag listeners
+  const items = document.querySelectorAll('.sort-item');
+  items.forEach(item => {
+    item.addEventListener('dragstart', onDragStart);
+    item.addEventListener('dragover', onDragOver);
+    item.addEventListener('drop', onDrop);
+    item.addEventListener('dragend', onDragEnd);
+  });
+}
+
+let _draggedItem = null;
+
+function onDragStart(e){
+  _draggedItem = e.currentTarget;
+  e.currentTarget.style.opacity = '0.4';
+}
+
+function onDragOver(e){
+  e.preventDefault();
+  const target = e.currentTarget;
+  if(target !== _draggedItem){
+    target.style.borderTop = '2px solid var(--accent)';
+  }
+}
+
+function onDrop(e){
+  e.preventDefault();
+  const target = e.currentTarget;
+  target.style.borderTop = '';
+  
+  if(target !== _draggedItem){
+    const draggedIdx = parseInt(_draggedItem.dataset.index);
+    const targetIdx = parseInt(target.dataset.index);
     
-    toast('✅ تم تحديد الترتيب #' + sequence, 'success');
-    cancelSequence(orderId);
+    // Swap في الـ array
+    const [removed] = _sortableOrders.splice(draggedIdx, 1);
+    _sortableOrders.splice(targetIdx, 0, removed);
+    
+    renderSortableList();
+  }
+}
+
+function onDragEnd(e){
+  e.currentTarget.style.opacity = '1';
+  document.querySelectorAll('.sort-item').forEach(item => {
+    item.style.borderTop = '';
+  });
+}
+
+async function saveSort(){
+  try{
+    // Save sequence لكل طلب
+    for(let i = 0; i < _sortableOrders.length; i++){
+      const order = _sortableOrders[i];
+      await api(`/api/courier/orders/${order.id}/sequence`, {
+        method: 'POST',
+        body: { sequence: i + 1 }
+      });
+    }
+    
+    toast('✅ تم حفظ الترتيب الجديد', 'success');
+    closeSortModal();
     loadOrders();
   }catch(e){
     toast('❌ ' + e.message, 'error');
   }
-}
-
-function cancelSequence(orderId){
-  const card = $('card-' + orderId);
-  if(!card) return;
-  
-  const overlay = card.querySelector('.seq-input-overlay');
-  if(overlay) overlay.remove();
 }
 
 </script>
