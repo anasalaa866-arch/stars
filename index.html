@@ -92,6 +92,39 @@ a{color:inherit;text-decoration:none}
 .badge-pending{background:rgba(245,158,11,.2);color:#fcd34d;border:1px solid rgba(245,158,11,.4)}
 .order-card-body{padding:0 14px 14px;display:none}
 .order-card.open .order-card-body{display:block}
+
+/* Sequence Badge */
+.seq-badge{
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:var(--accent);
+  color:#fff;
+  font-size:13px;
+  font-weight:700;
+  padding:4px 10px;
+  border-radius:8px;
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+  z-index:2;
+}
+
+/* Sequence Input Overlay */
+.seq-input-overlay{
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  bottom:0;
+  background:rgba(255,255,255,.98);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  z-index:10;
+  border-radius:14px;
+}
+
+.order-card{position:relative}
 .order-card.open .order-card-head{border-bottom:1px solid var(--border)}
 .order-field{display:flex;gap:10px;margin-bottom:8px;font-size:13px;align-items:flex-start}
 .order-field-label{color:var(--muted);min-width:60px;flex-shrink:0}
@@ -271,6 +304,14 @@ a{color:inherit;text-decoration:none}
 
     <!-- Filter Chips (يظهر بس في tab "معاي") -->
     <div class="filter-bar active" id="filter-bar">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0 12px 8px;border-bottom:1px solid var(--border)">
+        <button onclick="autoSortByArea()" style="background:var(--accent);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px">
+          🗂️ رتّب حسب المنطقة
+        </button>
+        <button onclick="toggleSequenceMode()" id="seq-mode-btn" style="background:transparent;border:1px solid var(--border);padding:6px 12px;border-radius:8px;font-size:11px;cursor:pointer;color:var(--muted)">
+          ↕️ وضع الترتيب: <span id="seq-status">مغلق</span>
+        </button>
+      </div>
       <div class="chip-row" id="filter-chips">
         <div class="fchip active" data-filter="all">الكل</div>
         <div class="fchip" data-filter="express"><span style="color:#fbbf24">⚡</span> مستعجل</div>
@@ -1124,6 +1165,12 @@ function renderOrderCard(o, tabId){
   const isLate = isOrderLate(o);
   const codAmount = o.paid ? 0 : o.total;
   const badges = [];
+  
+  // رقم الترتيب (يظهر بس في tab "معاي")
+  const seqBadge = (tabId === 'with-me' && o.deliverySequence) 
+    ? `<div class="seq-badge" data-order-id="${o.id}">#${o.deliverySequence}</div>` 
+    : '';
+  
   if(isExpress) badges.push('<span class="badge badge-express">⚡ Same Day</span>');
   if(isLate) badges.push('<span class="badge" style="background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3)">🕐 متأخر</span>');
   if(o.paid) badges.push('<span class="badge badge-paid">💳 مدفوع</span>');
@@ -1183,6 +1230,7 @@ function renderOrderCard(o, tabId){
   const extraClass = tabId === 'new-orders' ? 'pending-pickup' : tabId === 'cancelled' ? 'cancelled-order' : (isLate ? 'late-order' : '');
 
   return `<div class="order-card ${extraClass}" id="card-${o.id}" onclick="toggleCard(event, '${o.id}')">
+    ${seqBadge}
     <div class="order-card-head">
       <div style="flex:1;min-width:0">
         <div class="order-id">${o.id}</div>
@@ -2176,6 +2224,161 @@ async function testConnection(){
     }, 6000);
   }
 }
+// ===== SEQUENCE MANAGEMENT (ترتيب الطلبات) =====
+let _sequenceMode = false;
+
+async function autoSortByArea(){
+  if(!confirm('هل تريد ترتيب الطلبات تلقائياً حسب المنطقة؟\n\nالترتيب الحالي هيتغير.')){
+    return;
+  }
+  
+  try{
+    const r = await api('/api/courier/orders/auto-sequence', { method: 'POST', body: {} });
+    if(r && r.success){
+      toast('✅ تم الترتيب حسب المنطقة — ' + (r.count || 0) + ' طلب', 'success');
+      loadOrders();
+    }
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function toggleSequenceMode(){
+  _sequenceMode = !_sequenceMode;
+  const btn = $('seq-mode-btn');
+  const status = $('seq-status');
+  
+  if(_sequenceMode){
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'var(--accent)';
+    status.textContent = 'مفتوح';
+    toast('اسحب يمين على أي طلب لتحديد رقم الترتيب', 'info');
+    attachSwipeListeners();
+  } else {
+    btn.style.background = 'transparent';
+    btn.style.color = 'var(--muted)';
+    btn.style.borderColor = 'var(--border)';
+    status.textContent = 'مغلق';
+    removeSwipeListeners();
+  }
+}
+
+let _swipeStartX = 0;
+let _swipeStartY = 0;
+let _swipeCard = null;
+
+function attachSwipeListeners(){
+  const cards = document.querySelectorAll('#tab-with-me .order-card');
+  cards.forEach(card => {
+    card.addEventListener('touchstart', onSwipeStart, { passive: true });
+    card.addEventListener('touchmove', onSwipeMove, { passive: false });
+    card.addEventListener('touchend', onSwipeEnd, { passive: true });
+  });
+}
+
+function removeSwipeListeners(){
+  const cards = document.querySelectorAll('#tab-with-me .order-card');
+  cards.forEach(card => {
+    card.removeEventListener('touchstart', onSwipeStart);
+    card.removeEventListener('touchmove', onSwipeMove);
+    card.removeEventListener('touchend', onSwipeEnd);
+  });
+}
+
+function onSwipeStart(e){
+  if(!_sequenceMode) return;
+  _swipeStartX = e.touches[0].clientX;
+  _swipeStartY = e.touches[0].clientY;
+  _swipeCard = e.currentTarget;
+}
+
+function onSwipeMove(e){
+  if(!_sequenceMode || !_swipeCard) return;
+  
+  const deltaX = e.touches[0].clientX - _swipeStartX;
+  const deltaY = Math.abs(e.touches[0].clientY - _swipeStartY);
+  
+  // لو السحب أفقي (مش vertical scroll)
+  if(Math.abs(deltaX) > 50 && deltaY < 30){
+    e.preventDefault();
+    _swipeCard.style.transform = `translateX(${Math.min(deltaX, 120)}px)`;
+    _swipeCard.style.transition = 'none';
+  }
+}
+
+function onSwipeEnd(e){
+  if(!_sequenceMode || !_swipeCard) return;
+  
+  const deltaX = e.changedTouches[0].clientX - _swipeStartX;
+  
+  _swipeCard.style.transition = 'transform 0.2s';
+  
+  // لو سحب يمين أكتر من 80px
+  if(deltaX > 80){
+    showSequenceInput(_swipeCard);
+  } else {
+    _swipeCard.style.transform = 'translateX(0)';
+  }
+  
+  _swipeCard = null;
+}
+
+function showSequenceInput(card){
+  const orderId = card.id.replace('card-', '');
+  const seqBadge = card.querySelector('.seq-badge');
+  const currentSeq = seqBadge ? seqBadge.textContent.replace('#', '') : '';
+  
+  // أنشئ input overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'seq-input-overlay';
+  overlay.innerHTML = `
+    <input type="number" id="seq-input-${orderId}" value="${currentSeq}" min="1" placeholder="#" 
+           style="width:50px;padding:8px;border:2px solid var(--accent);border-radius:8px;font-size:16px;font-weight:700;text-align:center">
+    <button onclick="saveSequence('${orderId}')" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;margin-left:8px">✓</button>
+    <button onclick="cancelSequence('${orderId}')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:8px 12px;border-radius:8px">✕</button>
+  `;
+  
+  card.appendChild(overlay);
+  card.style.transform = 'translateX(0)';
+  
+  setTimeout(() => {
+    const input = $('seq-input-' + orderId);
+    if(input) input.focus();
+  }, 100);
+}
+
+async function saveSequence(orderId){
+  const input = $('seq-input-' + orderId);
+  const sequence = parseInt(input.value);
+  
+  if(!sequence || sequence < 1){
+    toast('❌ أدخل رقم صحيح', 'error');
+    return;
+  }
+  
+  try{
+    await api(`/api/courier/orders/${orderId}/sequence`, { 
+      method: 'POST', 
+      body: { sequence } 
+    });
+    
+    toast('✅ تم تحديد الترتيب #' + sequence, 'success');
+    cancelSequence(orderId);
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function cancelSequence(orderId){
+  const card = $('card-' + orderId);
+  if(!card) return;
+  
+  const overlay = card.querySelector('.seq-input-overlay');
+  if(overlay) overlay.remove();
+}
+
 </script>
 </body>
 </html>
