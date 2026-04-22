@@ -122,8 +122,17 @@ a{color:inherit;text-decoration:none}
   transition:all 0.2s;
 }
 .sort-item:active{
-  opacity:0.4;
   cursor:grabbing;
+}
+.sort-ghost{
+  opacity:0.4;
+}
+.sort-chosen{
+  background:rgba(59,130,246,.1);
+  border-color:var(--accent);
+}
+.sort-drag{
+  box-shadow:0 4px 12px rgba(0,0,0,.15);
 }
 
 .order-card{position:relative}
@@ -679,9 +688,9 @@ a{color:inherit;text-decoration:none}
       </div>
       <button onclick="closeSortModal()" style="background:transparent;border:none;font-size:24px;cursor:pointer;color:var(--muted)">✕</button>
     </div>
-    <div style="padding:16px;max-height:60vh;overflow-y:auto">
+    <div style="padding:16px;max-height:60vh;overflow-y:auto" id="sort-container">
       <div style="margin-bottom:12px;padding:10px;background:rgba(59,130,246,.1);border-radius:8px;font-size:12px;color:#60a5fa">
-        💡 اسحب وأفلت الطلبات لترتيبها حسب خط سيرك
+        💡 اضغط مطولاً على ≡ ثم اسحب لتغيير الترتيب
       </div>
       <div id="sortable-list"></div>
     </div>
@@ -691,6 +700,9 @@ a{color:inherit;text-decoration:none}
     </div>
   </div>
 </div>
+
+<!-- Sortable.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
 // ===== CONSTANTS =====
@@ -2362,138 +2374,50 @@ function renderSortableList(ordersToShow){
     }
   }
   
-  const html = orders.map((o, idx) => {
-    // الترتيب الحقيقي في الـ array الأصلي
-    const realIdx = _sortableOrders.indexOf(o);
-    
-    return `
-    <div class="sort-item" draggable="true" data-order-id="${o.id}" data-index="${realIdx}">
-      <div style="font-size:20px;color:var(--muted);cursor:grab;touch-action:none">≡</div>
+  const html = orders.map((o, idx) => `
+    <div class="sort-item" data-order-id="${o.id}">
+      <div style="font-size:20px;color:var(--muted);cursor:grab;padding:8px;margin-left:4px">≡</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:14px">#${idx + 1} — ${o.id}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(o.area || o.assignedZone || '')} — ${o.total.toLocaleString()} ج</div>
       </div>
       <div style="font-size:12px;color:var(--muted)">${escapeHtml(o.name)}</div>
-    </div>`;
-  }).join('');
+    </div>
+  `).join('');
   
   $('sortable-list').innerHTML = html;
   
-  // Attach drag listeners (desktop + mobile)
-  const items = document.querySelectorAll('.sort-item');
-  items.forEach(item => {
-    // Desktop drag
-    item.addEventListener('dragstart', onDragStart);
-    item.addEventListener('dragover', onDragOver);
-    item.addEventListener('drop', onDrop);
-    item.addEventListener('dragend', onDragEnd);
-    
-    // Mobile touch
-    item.addEventListener('touchstart', onTouchStart, { passive: false });
-    item.addEventListener('touchmove', onTouchMove, { passive: false });
-    item.addEventListener('touchend', onTouchEnd);
-  });
-  console.log('✅ Attached listeners to', items.length, 'items');
-}
-
-let _draggedItem = null;
-let _touchStartY = 0;
-let _touchItem = null;
-
-function onDragStart(e){
-  _draggedItem = e.currentTarget;
-  e.currentTarget.style.opacity = '0.4';
-}
-
-function onDragOver(e){
-  e.preventDefault();
-  const target = e.currentTarget;
-  if(target !== _draggedItem){
-    target.style.borderTop = '2px solid var(--accent)';
-  }
-}
-
-function onDrop(e){
-  e.preventDefault();
-  const target = e.currentTarget;
-  target.style.borderTop = '';
-  
-  if(target !== _draggedItem){
-    const draggedIdx = parseInt(_draggedItem.dataset.index);
-    const targetIdx = parseInt(target.dataset.index);
-    
-    // Swap في الـ array
-    const [removed] = _sortableOrders.splice(draggedIdx, 1);
-    _sortableOrders.splice(targetIdx, 0, removed);
-    
-    renderSortableList();
-  }
-}
-
-function onDragEnd(e){
-  e.currentTarget.style.opacity = '1';
-  document.querySelectorAll('.sort-item').forEach(item => {
-    item.style.borderTop = '';
-  });
-}
-
-// Mobile touch handlers
-function onTouchStart(e){
-  _touchItem = e.currentTarget;
-  _touchStartY = e.touches[0].clientY;
-  _touchItem.style.opacity = '0.6';
-  _touchItem.style.transform = 'scale(1.02)';
-}
-
-function onTouchMove(e){
-  if(!_touchItem) return;
-  e.preventDefault();
-  
-  const touch = e.touches[0];
-  const deltaY = touch.clientY - _touchStartY;
-  
-  // حرك العنصر
-  _touchItem.style.transform = `translateY(${deltaY}px) scale(1.02)`;
-  
-  // شوف لو في عنصر تاني تحت الإصبع
-  const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-  const targetItem = elemBelow?.closest('.sort-item');
-  
-  // امسح الـ highlights القديمة
-  document.querySelectorAll('.sort-item').forEach(item => {
-    if(item !== _touchItem) item.style.borderTop = '';
-  });
-  
-  if(targetItem && targetItem !== _touchItem){
-    targetItem.style.borderTop = '2px solid var(--accent)';
-  }
-}
-
-function onTouchEnd(e){
-  if(!_touchItem) return;
-  
-  const touch = e.changedTouches[0];
-  const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-  const targetItem = elemBelow?.closest('.sort-item');
-  
-  if(targetItem && targetItem !== _touchItem){
-    const draggedIdx = parseInt(_touchItem.dataset.index);
-    const targetIdx = parseInt(targetItem.dataset.index);
-    
-    // Swap في الـ array
-    const [removed] = _sortableOrders.splice(draggedIdx, 1);
-    _sortableOrders.splice(targetIdx, 0, removed);
+  // Initialize Sortable.js
+  if(typeof Sortable !== 'undefined'){
+    const el = $('sortable-list');
+    if(el){
+      Sortable.create(el, {
+        animation: 150,
+        handle: '.sort-item', // كل العنصر قابل للسحب
+        ghostClass: 'sort-ghost',
+        chosenClass: 'sort-chosen',
+        dragClass: 'sort-drag',
+        direction: 'vertical',
+        forceFallback: true, // Force HTML5 drag for better mobile support
+        fallbackTolerance: 3, // مسافة صغيرة قبل ما يبدأ الـ drag
+        delay: 100, // ضغط مطول شوية قبل الـ drag
+        delayOnTouchOnly: true, // الـ delay على الموبايل بس
+        onEnd: function(evt){
+          // Update الـ array بعد السحب
+          const item = _sortableOrders[evt.oldIndex];
+          _sortableOrders.splice(evt.oldIndex, 1);
+          _sortableOrders.splice(evt.newIndex, 0, item);
+          
+          // Re-render عشان الأرقام تتحدث
+          renderSortableList();
+        }
+      });
+    }
+  } else {
+    console.error('Sortable.js not loaded');
   }
   
-  // Reset
-  _touchItem.style.opacity = '1';
-  _touchItem.style.transform = '';
-  document.querySelectorAll('.sort-item').forEach(item => {
-    item.style.borderTop = '';
-  });
-  _touchItem = null;
-  
-  renderSortableList();
+  console.log('✅ Sortable initialized with', orders.length, 'items');
 }
 
 async function saveSort(){
