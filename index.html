@@ -673,7 +673,10 @@ a{color:inherit;text-decoration:none}
 <div id="sort-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:999;padding:20px;overflow-y:auto">
   <div style="background:var(--bg);border-radius:16px;max-width:500px;margin:0 auto;box-shadow:0 10px 40px rgba(0,0,0,.3)">
     <div style="padding:20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <h3 style="margin:0;font-size:18px;font-weight:700">↕️ ترتيب الطلبات</h3>
+      <div>
+        <h3 style="margin:0;font-size:18px;font-weight:700">↕️ ترتيب الطلبات</h3>
+        <div id="sort-modal-subtitle" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
+      </div>
       <button onclick="closeSortModal()" style="background:transparent;border:none;font-size:24px;cursor:pointer;color:var(--muted)">✕</button>
     </div>
     <div style="padding:16px;max-height:60vh;overflow-y:auto">
@@ -2247,10 +2250,25 @@ async function testConnection(){
 let _sortableOrders = [];
 
 function openSortModal(){
+  console.log('🔵 openSortModal called');
+  console.log('🔍 Active filter:', _activeFilter);
+  
   // جيب الطلبات اللي معاه
-  const withMe = ORDERS.withMe || [];
+  let withMe = _data.withMe || [];
+  
+  // لو في filter نشط (مش "الكل")، اعرض الطلبات المفلترة بس
+  if(_activeFilter !== 'all'){
+    withMe = filterOrders(withMe);
+    console.log('📍 Filtered to:', withMe.length, 'orders');
+  }
+  
+  console.log('📦 Orders to sort:', withMe.length);
+  
   if(!withMe.length){
-    toast('مفيش طلبات معاك للترتيب', 'info');
+    const msg = _activeFilter !== 'all' 
+      ? 'مفيش طلبات في الفلتر ده للترتيب' 
+      : 'مفيش طلبات معاك للترتيب';
+    toast(msg, 'info');
     return;
   }
   
@@ -2262,39 +2280,125 @@ function openSortModal(){
     return 0;
   });
   
+  // بني قائمة المناطق
+  buildAreaFilterOptions();
+  
+  console.log('✅ Opening modal with', _sortableOrders.length, 'orders');
   renderSortableList();
   $('sort-modal').style.display = 'block';
+}
+
+function buildAreaFilterOptions(){
+  const select = $('sort-area-filter');
+  if(!select) return;
+  
+  // جمّع كل المناطق الفريدة
+  const areas = new Set();
+  _sortableOrders.forEach(o => {
+    const area = (o.area || o.assignedZone || 'غير محدد').trim();
+    if(area) areas.add(area);
+  });
+  
+  // رتبهم أبجدياً
+  const sortedAreas = Array.from(areas).sort();
+  
+  // بني الـ options
+  let html = '<option value="all">كل المناطق (' + _sortableOrders.length + ')</option>';
+  sortedAreas.forEach(area => {
+    const count = _sortableOrders.filter(o => {
+      const oArea = (o.area || o.assignedZone || 'غير محدد').trim();
+      return oArea === area;
+    }).length;
+    html += `<option value="${escapeAttr(area)}">${escapeHtml(area)} (${count})</option>`;
+  });
+  
+  select.innerHTML = html;
+}
+
+function filterSortableByArea(){
+  const selectedArea = $('sort-area-filter')?.value;
+  
+  if(selectedArea === 'all'){
+    // كل الطلبات
+    renderSortableList();
+    $('sort-area-count').textContent = 'عرض جميع الطلبات (' + _sortableOrders.length + ')';
+    return;
+  }
+  
+  // فلتر حسب المنطقة
+  const filtered = _sortableOrders.filter(o => {
+    const area = (o.area || o.assignedZone || 'غير محدد').trim();
+    return area === selectedArea;
+  });
+  
+  console.log('Filtering by area:', selectedArea, '→', filtered.length, 'orders');
+  
+  renderSortableList(filtered);
+  $('sort-area-count').textContent = `عرض ${filtered.length} من ${_sortableOrders.length} طلب`;
 }
 
 function closeSortModal(){
   $('sort-modal').style.display = 'none';
 }
 
-function renderSortableList(){
-  const html = _sortableOrders.map((o, idx) => `
-    <div class="sort-item" draggable="true" data-order-id="${o.id}" data-index="${idx}">
-      <div style="font-size:20px;color:var(--muted);cursor:grab">≡</div>
+function renderSortableList(ordersToShow){
+  // لو مفيش orders محددة، استخدم كل الـ _sortableOrders
+  const orders = ordersToShow || _sortableOrders;
+  
+  // Update subtitle
+  const subtitle = $('sort-modal-subtitle');
+  if(subtitle){
+    if(_activeFilter === 'all'){
+      subtitle.textContent = `كل الطلبات (${orders.length})`;
+    } else if(_activeFilter === 'express'){
+      subtitle.textContent = `⚡ الطلبات المستعجلة (${orders.length})`;
+    } else if(_activeFilter === 'late'){
+      subtitle.textContent = `🕐 الطلبات المتأخرة (${orders.length})`;
+    } else if(_activeFilter === 'cod'){
+      subtitle.textContent = `💵 طلبات COD (${orders.length})`;
+    } else if(_activeFilter.startsWith('zone:')){
+      const zoneName = _activeFilter.substring(5);
+      subtitle.textContent = `📍 ${zoneName} (${orders.length} طلب)`;
+    }
+  }
+  
+  const html = orders.map((o, idx) => {
+    // الترتيب الحقيقي في الـ array الأصلي
+    const realIdx = _sortableOrders.indexOf(o);
+    
+    return `
+    <div class="sort-item" draggable="true" data-order-id="${o.id}" data-index="${realIdx}">
+      <div style="font-size:20px;color:var(--muted);cursor:grab;touch-action:none">≡</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:14px">#${idx + 1} — ${o.id}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(o.area || '')} — ${o.total.toLocaleString()} ج</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(o.area || o.assignedZone || '')} — ${o.total.toLocaleString()} ج</div>
       </div>
       <div style="font-size:12px;color:var(--muted)">${escapeHtml(o.name)}</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
   
   $('sortable-list').innerHTML = html;
   
-  // Attach drag listeners
+  // Attach drag listeners (desktop + mobile)
   const items = document.querySelectorAll('.sort-item');
   items.forEach(item => {
+    // Desktop drag
     item.addEventListener('dragstart', onDragStart);
     item.addEventListener('dragover', onDragOver);
     item.addEventListener('drop', onDrop);
     item.addEventListener('dragend', onDragEnd);
+    
+    // Mobile touch
+    item.addEventListener('touchstart', onTouchStart, { passive: false });
+    item.addEventListener('touchmove', onTouchMove, { passive: false });
+    item.addEventListener('touchend', onTouchEnd);
   });
+  console.log('✅ Attached listeners to', items.length, 'items');
 }
 
 let _draggedItem = null;
+let _touchStartY = 0;
+let _touchItem = null;
 
 function onDragStart(e){
   _draggedItem = e.currentTarget;
@@ -2333,21 +2437,118 @@ function onDragEnd(e){
   });
 }
 
+// Mobile touch handlers
+function onTouchStart(e){
+  _touchItem = e.currentTarget;
+  _touchStartY = e.touches[0].clientY;
+  _touchItem.style.opacity = '0.6';
+  _touchItem.style.transform = 'scale(1.02)';
+}
+
+function onTouchMove(e){
+  if(!_touchItem) return;
+  e.preventDefault();
+  
+  const touch = e.touches[0];
+  const deltaY = touch.clientY - _touchStartY;
+  
+  // حرك العنصر
+  _touchItem.style.transform = `translateY(${deltaY}px) scale(1.02)`;
+  
+  // شوف لو في عنصر تاني تحت الإصبع
+  const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  const targetItem = elemBelow?.closest('.sort-item');
+  
+  // امسح الـ highlights القديمة
+  document.querySelectorAll('.sort-item').forEach(item => {
+    if(item !== _touchItem) item.style.borderTop = '';
+  });
+  
+  if(targetItem && targetItem !== _touchItem){
+    targetItem.style.borderTop = '2px solid var(--accent)';
+  }
+}
+
+function onTouchEnd(e){
+  if(!_touchItem) return;
+  
+  const touch = e.changedTouches[0];
+  const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  const targetItem = elemBelow?.closest('.sort-item');
+  
+  if(targetItem && targetItem !== _touchItem){
+    const draggedIdx = parseInt(_touchItem.dataset.index);
+    const targetIdx = parseInt(targetItem.dataset.index);
+    
+    // Swap في الـ array
+    const [removed] = _sortableOrders.splice(draggedIdx, 1);
+    _sortableOrders.splice(targetIdx, 0, removed);
+  }
+  
+  // Reset
+  _touchItem.style.opacity = '1';
+  _touchItem.style.transform = '';
+  document.querySelectorAll('.sort-item').forEach(item => {
+    item.style.borderTop = '';
+  });
+  _touchItem = null;
+  
+  renderSortableList();
+}
+
 async function saveSort(){
+  const selectedArea = $('sort-area-filter')?.value;
+  
+  // لو فلتر منطقة معينة
+  if(selectedArea && selectedArea !== 'all'){
+    const filtered = _sortableOrders.filter(o => {
+      const area = (o.area || o.assignedZone || 'غير محدد').trim();
+      return area === selectedArea;
+    });
+    
+    console.log('💾 Saving sort for area:', selectedArea, '→', filtered.length, 'orders');
+    
+    try{
+      // احفظ الترتيب الجديد للطلبات المفلترة فقط
+      for(let i = 0; i < filtered.length; i++){
+        const order = filtered[i];
+        console.log(`Setting sequence ${i + 1} for order ${order.id}`);
+        await api(`/api/courier/orders/${order.id}/sequence`, {
+          method: 'POST',
+          body: { sequence: i + 1 }
+        });
+      }
+      
+      console.log('✅ Sequences saved for', selectedArea);
+      toast(`✅ تم حفظ ترتيب ${filtered.length} طلب في ${selectedArea}`, 'success');
+      closeSortModal();
+      loadOrders();
+    }catch(e){
+      console.error('❌ saveSort error:', e);
+      toast('❌ ' + e.message, 'error');
+    }
+    return;
+  }
+  
+  // لو كل المناطق (الترتيب العام)
+  console.log('💾 Saving sort order for ALL orders:', _sortableOrders.length);
   try{
     // Save sequence لكل طلب
     for(let i = 0; i < _sortableOrders.length; i++){
       const order = _sortableOrders[i];
+      console.log(`Setting sequence ${i + 1} for order ${order.id}`);
       await api(`/api/courier/orders/${order.id}/sequence`, {
         method: 'POST',
         body: { sequence: i + 1 }
       });
     }
     
+    console.log('✅ All sequences saved');
     toast('✅ تم حفظ الترتيب الجديد', 'success');
     closeSortModal();
     loadOrders();
   }catch(e){
+    console.error('❌ saveSort error:', e);
     toast('❌ ' + e.message, 'error');
   }
 }
