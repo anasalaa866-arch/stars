@@ -1155,9 +1155,9 @@ function renderOrderCard(o, tabId){
       <button class="act-btn full" onclick="openCancelOrder('${o.id}')" style="background:transparent;color:#fca5a5;border-color:rgba(239,68,68,.4)">🚫 إلغاء الطلب (العميل رفض)</button>
     </div>`;
   } else if(tabId === 'new-orders'){
-    // طلب لسه في المحل — عرض بس، بدون إجراءات
-    actionsHtml = `<div style="margin-top:10px;padding:10px;background:var(--elev);border-radius:8px;font-size:12px;color:var(--muted);text-align:center">
-      ⏳ هذا الطلب لسه في المحل. هيظهر في "معاي" لما تستلمه.
+    // طلب لسه في المحل — يقدر يستلمه
+    actionsHtml = `<div class="actions-row" style="margin-top:10px">
+      <button class="act-btn success full" onclick="pickupOrder('${o.id}')">📦 استلمت الطلب من المحل</button>
     </div>`;
   } else if(tabId === 'completed'){
     // طلب مسلّم — عرض تاريخ التسليم
@@ -1281,6 +1281,25 @@ async function confirmDeliver(){
     await api(`/api/courier/orders/${o.id}/deliver`, { method: 'POST', body: {} });
     closeModal('m-deliver');
     toast('✅ تم تسليم الطلب ' + o.id, 'success');
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ===== PICKUP ORDER (استلام من المحل) =====
+async function pickupOrder(orderId){
+  const o = _data.newOrders.find(x => x.id === orderId);
+  if(!o){
+    toast('❌ الطلب غير موجود', 'error');
+    return;
+  }
+  if(!confirm(`📦 تأكيد استلام الطلب ${orderId} من المحل؟\n\nبعد التأكيد، الطلب هينتقل لـ "معاي".`)){
+    return;
+  }
+  try{
+    await api(`/api/courier/orders/${orderId}/pickup`, { method: 'POST', body: {} });
+    toast('✅ تم الاستلام — الطلب في "معاي" دلوقتي', 'success');
     loadOrders();
   }catch(e){
     toast('❌ ' + e.message, 'error');
