@@ -2628,9 +2628,10 @@ function renderPrepList(ords) {
     </div>`;
 
   let h = searchHtml;
-  h += `<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>${pend.length} جديد، ${prog.length} قيد التحضير</div></div>`;
-  if (prog.length) h += `<div class="list">${prog.map(o => prepCard(o, 1)).join('')}</div>`;
-  h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : `<div style="padding:20px;text-align:center;color:var(--muted)">${q ? 'لا توجد نتائج' : 'لا توجد طلبات تحتاج تحضير'}</div>`}</div>`;
+  h += `<div class="card-hd"><h3>📦 طلبات للتحضير (آخر 5 أيام)</h3><div>${pend.length} متاح، ${prog.length} قيد التحضير</div></div>`;
+  if (prog.length) h += `<div class="card-hd" style="background:#3a2c0a"><h3 style="color:var(--gold)">🔄 شغّال عليه دلوقتي</h3></div><div class="list">${prog.map(o => prepCard(o, 1)).join('')}</div>`;
+  if (pend.length) h += `<div class="card-hd"><h3>📋 متاح للتحضير</h3></div><div class="list">${pend.map(o => prepCard(o, 0)).join('')}</div>`;
+  if (!pend.length && !prog.length) h += `<div style="padding:20px;text-align:center;color:var(--muted)">${q ? 'لا توجد نتائج' : 'لا توجد طلبات تحتاج تحضير في آخر 5 أيام'}</div>`;
   _prepRender(h);
 
   // Auto-focus على search box دايماً (ضروري للـ QR scanning)
@@ -2765,7 +2766,51 @@ function clearPrepSearch() {
 function prepCard(o, prog) {
   const itms = _safeParseItems(o.items);
   const txt = itms.length ? itms.map(i => `${i.quantity || 1}× ${i.name || '—'}`).join(', ') : '<i style="color:var(--muted)">بدون منتجات</i>';
-  return `<div style="padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><div><strong>#${o.id}</strong><br><span style="font-size:12px;color:var(--muted)">${o.name || '—'}</span><br><span style="font-size:11px">${txt}</span></div><div style="text-align:left">${o.total || 0} ج<br><button class="btn btn-sm btn-primary" onclick="${prog ? 'openScanner' : 'startPrep'}('${o.id}')">${prog ? '⏩ متابعة' : '▶️ ابدأ'}</button></div></div>`;
+
+  // status badge بألوان مختلفة
+  const statusColors = {
+    'جديد': '#3b82f6',
+    'تم التعيين': '#8b5cf6',
+    'جاري التوصيل': '#f59e0b',
+    'تم التسليم': '#10b981',
+    'مرتجع': '#ef4444',
+    'تحت التسوية': '#6366f1',
+    'مسوّى': '#22c55e'
+  };
+  const sColor = statusColors[o.status] || '#64748b';
+  const statusBadge = `<span style="background:${sColor}22;color:${sColor};padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">${o.status || '—'}</span>`;
+
+  // وقت إنشاء الطلب (نسبي — "منذ ساعة"، "أمس"...)
+  let timeBadge = '';
+  if (o.createdAt) {
+    const d = new Date(o.createdAt);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffD = Math.floor(diffH / 24);
+    let label;
+    if (diffH < 1) label = 'منذ دقائق';
+    else if (diffH < 24) label = `منذ ${diffH} ساعة`;
+    else if (diffD === 1) label = 'أمس';
+    else label = `منذ ${diffD} أيام`;
+    timeBadge = `<span style="font-size:10px;color:var(--muted)">${label}</span>`;
+  }
+
+  return `<div style="padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;flex-wrap:wrap">
+        <strong>#${o.id}</strong>
+        ${statusBadge}
+        ${timeBadge}
+      </div>
+      <div style="font-size:12px;color:var(--muted)">${o.name || '—'}</div>
+      <div style="font-size:11px;margin-top:2px">${txt}</div>
+    </div>
+    <div style="text-align:left;flex-shrink:0">
+      <div style="margin-bottom:6px">${o.total || 0} ج</div>
+      <button class="btn btn-sm btn-primary" onclick="${prog ? 'openScanner' : 'startPrep'}('${o.id}')">${prog ? '⏩ متابعة' : '▶️ ابدأ'}</button>
+    </div>
+  </div>`;
 }
 
 async function startPrep(id) {
