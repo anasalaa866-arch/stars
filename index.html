@@ -2533,23 +2533,23 @@ function playBeep(ok) {
 }
 
 async function loadPrepOrders() {
-  const r = await api(\`/api/preparation/orders?preparerId=\${USER.id}\`);
+  const r = await api(`/api/preparation/orders?preparerId=${USER.id}`);
   if (r.orders) renderPrepList(r.orders);
 }
 
 function renderPrepList(ords) {
   const prog = ords.filter(o => o.preparationStatus === 'in_progress' && o.preparationStartedBy === USER.id);
   const pend = ords.filter(o => !o.preparationStatus);
-  let h = \`<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>\${pend.length} جديد، \${prog.length} قيد التحضير</div></div>\`;
-  if (prog.length) h += \`<div class="list">\${prog.map(o => prepCard(o, 1)).join('')}</div>\`;
-  h += \`<div class="card-hd"><h3>جديد</h3></div><div class="list">\${pend.length ? pend.map(o => prepCard(o, 0)).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">لا توجد طلبات</div>'}</div>\`;
+  let h = `<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>${pend.length} جديد، ${prog.length} قيد التحضير</div></div>`;
+  if (prog.length) h += `<div class="list">${prog.map(o => prepCard(o, 1)).join('')}</div>`;
+  h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">لا توجد طلبات</div>'}</div>`;
   $('app').innerHTML = h;
 }
 
 function prepCard(o, prog) {
   const itms = o.items ? JSON.parse(o.items) : [];
-  const txt = itms.map(i => \`\${i.quantity}× \${i.name}\`).join(', ');
-  return \`<div style="padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><div><strong>#\${o.id}</strong><br><span style="font-size:12px;color:var(--muted)">\${o.name}</span><br><span style="font-size:11px">\${txt}</span></div><div style="text-align:left">\${o.total} ج<br><button class="btn btn-sm btn-primary" onclick="\${prog ? 'openScanner' : 'startPrep'}(\${o.id})">\${prog ? '⏩ متابعة' : '▶️ ابدأ'}</button></div></div>\`;
+  const txt = itms.map(i => `${i.quantity}× ${i.name}`).join(', ');
+  return `<div style="padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><div><strong>#${o.id}</strong><br><span style="font-size:12px;color:var(--muted)">${o.name}</span><br><span style="font-size:11px">${txt}</span></div><div style="text-align:left">${o.total} ج<br><button class="btn btn-sm btn-primary" onclick="${prog ? 'openScanner' : 'startPrep'}(${o.id})">${prog ? '⏩ متابعة' : '▶️ ابدأ'}</button></div></div>`;
 }
 
 async function startPrep(id) {
@@ -2558,7 +2558,7 @@ async function startPrep(id) {
 }
 
 async function openScanner(id) {
-  const r = await api(\`/api/preparation/orders?preparerId=\${USER.id}\`);
+  const r = await api(`/api/preparation/orders?preparerId=${USER.id}`);
   const o = r.orders.find(x => x.id === id);
   if (!o) return;
   CURRENT_PREP_ORDER = o;
@@ -2575,18 +2575,18 @@ function renderScanner(o) {
     scn += SCANNED_CACHE[k] || 0;
   });
   const done = scn >= tot;
-  let h = \`<button class="btn btn-ghost btn-sm" onclick="loadPrepOrders()">← رجوع</button><h2>📦 #\${o.id}</h2><div style="margin:12px 0">\${o.name} | \${o.total} ج</div>\`;
-  h += \`<button class="btn btn-primary" onclick="toggleCam()" id="cam-btn" style="width:100%;margin:8px 0">📸 كاميرا</button>\`;
-  h += \`<button class="btn btn-ghost" onclick="showManual()" style="width:100%;margin:8px 0">⌨️ يدوي</button>\`;
-  h += \`<div id="qr" style="display:none;max-width:400px;margin:12px auto"></div><div id="man" style="display:none;margin:12px 0"><input id="bc" class="input" placeholder="باركود" onkeypress="if(event.key==='Enter')scanMan()" style="width:100%;margin-bottom:8px"><button class="btn btn-success" onclick="scanMan()" style="width:100%">سكان</button></div>\`;
-  h += \`<div style="margin:16px 0"><strong>المنتجات (\${scn}/\${tot})</strong></div>\`;
+  let h = `<button class="btn btn-ghost btn-sm" onclick="loadPrepOrders()">← رجوع</button><h2>📦 #${o.id}</h2><div style="margin:12px 0">${o.name} | ${o.total} ج</div>`;
+  h += `<button class="btn btn-primary" onclick="toggleCam()" id="cam-btn" style="width:100%;margin:8px 0">📸 كاميرا</button>`;
+  h += `<button class="btn btn-ghost" onclick="showManual()" style="width:100%;margin:8px 0">⌨️ يدوي</button>`;
+  h += `<div id="qr" style="display:none;max-width:400px;margin:12px auto"></div><div id="man" style="display:none;margin:12px 0"><input id="bc" class="input" placeholder="باركود" onkeypress="if(event.key==='Enter')scanMan()" style="width:100%;margin-bottom:8px"><button class="btn btn-success" onclick="scanMan()" style="width:100%">سكان</button></div>`;
+  h += `<div style="margin:16px 0"><strong>المنتجات (${scn}/${tot})</strong></div>`;
   itms.forEach(i => {
     const k = i.sku || i.name;
     const s = SCANNED_CACHE[k] || 0;
     const r = i.quantity || 1;
-    h += \`<div style="padding:8px;border:1px solid var(--border);margin:4px 0;display:flex;justify-content:space-between"><div>\${i.name}</div><div class="badge \${s >= r ? 'b-done' : 'b-wait'}">\${s}/\${r}</div></div>\`;
+    h += `<div style="padding:8px;border:1px solid var(--border);margin:4px 0;display:flex;justify-content:space-between"><div>${i.name}</div><div class="badge ${s >= r ? 'b-done' : 'b-wait'}">${s}/${r}</div></div>`;
   });
-  h += \`<button class="btn btn-success" \${!done ? 'disabled' : ''} onclick="completePre()" style="width:100%;margin:16px 0">✓ اكتمل</button>\`;
+  h += `<button class="btn btn-success" ${!done ? 'disabled' : ''} onclick="completePre()" style="width:100%;margin:16px 0">✓ اكتمل</button>`;
   $('app').innerHTML = h;
 }
 
@@ -2632,16 +2632,16 @@ async function processScan(bc) {
   playBeep(1);
   SCANNED_CACHE = r.scannedItems;
   renderScanner(CURRENT_PREP_ORDER);
-  toast(\`✓ \${r.item ? r.item.name : 'تم'}\`, 'success');
+  toast(`✓ ${r.item ? r.item.name : 'تم'}`, 'success');
 }
 
 async function completePre() {
   if (!CURRENT_PREP_ORDER) return;
-  if (!confirm(\`إتمام تحضير #\${CURRENT_PREP_ORDER.id}؟\`)) return;
+  if (!confirm(`إتمام تحضير #${CURRENT_PREP_ORDER.id}؟`)) return;
   const r = await api('/api/preparation/complete', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, preparerId: USER.id, preparerName: USER.name } });
   if (!r.ok) {
     toast(r.error || 'فشل', 'error');
-    if (r.missing) alert('ناقص:\n' + r.missing.map(m => \`\${m.name}: \${m.missing}\`).join('\n'));
+    if (r.missing) alert('ناقص:\n' + r.missing.map(m => `${m.name}: ${m.missing}`).join('\n'));
     return;
   }
   toast('✅ تم بنجاح');
