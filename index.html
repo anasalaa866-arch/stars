@@ -2501,24 +2501,35 @@ let SCANNED_CACHE = {};
 let CAMERA_ACTIVE = false;
 
 function loadBarcodeLib() {
-  if (window.Html5Qrcode) return;
-  const s = document.createElement('script');
-  s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-  document.head.appendChild(s);
+  if (window.Html5Qrcode) return Promise.resolve();
+  if (window._barcodeLibPromise) return window._barcodeLibPromise;
+  window._barcodeLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => { window._barcodeLibPromise = null; reject(new Error('failed to load barcode lib')); };
+    document.head.appendChild(s);
+  });
+  return window._barcodeLibPromise;
 }
 
+// Single shared AudioContext to prevent leak (Chrome limits to 6)
+let _audioCtx = null;
 function playBeep(ok) {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.frequency.value = ok ? 800 : 400;
-  osc.type = 'square';
-  gain.gain.setValueAtTime(0.3, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 0.2);
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    const osc = _audioCtx.createOscillator();
+    const gain = _audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(_audioCtx.destination);
+    osc.frequency.value = ok ? 800 : 400;
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0.3, _audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, _audioCtx.currentTime + 0.2);
+    osc.start(_audioCtx.currentTime);
+    osc.stop(_audioCtx.currentTime + 0.2);
+  } catch(e) { /* audio not available */ }
 }
 
 async function loadPrepOrders() {
@@ -2588,6 +2599,8 @@ async function toggleCam() {
     $('qr').style.display = 'none';
     $('cam-btn').textContent = '📸 كاميرا';
   } else {
+    // استنى المكتبة لو لسه بتحمّل
+    try { await loadBarcodeLib(); } catch(e) { toast('فشل تحميل مكتبة الباركود'); return; }
     if (!window.Html5Qrcode) { toast('مكتبة غير متوفرة'); return; }
     $('qr').style.display = 'block';
     $('man').style.display = 'none';
