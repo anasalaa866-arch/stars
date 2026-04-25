@@ -2559,8 +2559,22 @@ function playBeep(ok) {
 }
 
 async function loadPrepOrders() {
-  const r = await api(`/api/preparation/orders?preparerId=${USER.id}`);
-  if (r.orders) renderPrepList(r.orders);
+  try {
+    _prepRender('<div style="padding:20px;text-align:center;color:var(--muted)">⏳ جاري التحميل...</div>');
+    const r = await api(`/api/preparation/orders?preparerId=${USER.id}`);
+    if (!r) {
+      _prepRender('<div style="padding:20px;text-align:center;color:var(--danger)">❌ لا يوجد رد من السيرفر</div>');
+      return;
+    }
+    if (r.error) {
+      _prepRender(`<div style="padding:20px;text-align:center;color:var(--danger)">❌ خطأ: ${r.error}</div>`);
+      return;
+    }
+    renderPrepList(r.orders || []);
+  } catch (e) {
+    console.error('loadPrepOrders error:', e);
+    _prepRender(`<div style="padding:20px;text-align:center;color:var(--danger)">❌ ${e.message || 'فشل التحميل'}</div><button class="btn btn-primary" onclick="loadPrepOrders()" style="display:block;margin:12px auto">إعادة المحاولة</button>`);
+  }
 }
 
 function _prepRender(html) {
@@ -2570,19 +2584,29 @@ function _prepRender(html) {
   else $('app').innerHTML = html;
 }
 
+function _safeParseItems(items) {
+  if (!items) return [];
+  if (Array.isArray(items)) return items;
+  if (typeof items === 'string') {
+    try { return JSON.parse(items) || []; } catch(e) { return []; }
+  }
+  return [];
+}
+
 function renderPrepList(ords) {
-  const prog = ords.filter(o => o.preparationStatus === 'in_progress' && o.preparationStartedBy === USER.id);
+  if (!Array.isArray(ords)) ords = [];
+  const prog = ords.filter(o => o.preparationStatus === 'in_progress' && String(o.preparationStartedBy) === String(USER.id));
   const pend = ords.filter(o => !o.preparationStatus);
   let h = `<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>${pend.length} جديد، ${prog.length} قيد التحضير</div></div>`;
   if (prog.length) h += `<div class="list">${prog.map(o => prepCard(o, 1)).join('')}</div>`;
-  h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">لا توجد طلبات</div>'}</div>`;
+  h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">لا توجد طلبات تحتاج تحضير</div>'}</div>`;
   _prepRender(h);
 }
 
 function prepCard(o, prog) {
-  const itms = o.items ? JSON.parse(o.items) : [];
-  const txt = itms.map(i => `${i.quantity}× ${i.name}`).join(', ');
-  return `<div style="padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><div><strong>#${o.id}</strong><br><span style="font-size:12px;color:var(--muted)">${o.name}</span><br><span style="font-size:11px">${txt}</span></div><div style="text-align:left">${o.total} ج<br><button class="btn btn-sm btn-primary" onclick="${prog ? 'openScanner' : 'startPrep'}(${o.id})">${prog ? '⏩ متابعة' : '▶️ ابدأ'}</button></div></div>`;
+  const itms = _safeParseItems(o.items);
+  const txt = itms.length ? itms.map(i => `${i.quantity || 1}× ${i.name || '—'}`).join(', ') : '<i style="color:var(--muted)">بدون منتجات</i>';
+  return `<div style="padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><div><strong>#${o.id}</strong><br><span style="font-size:12px;color:var(--muted)">${o.name || '—'}</span><br><span style="font-size:11px">${txt}</span></div><div style="text-align:left">${o.total || 0} ج<br><button class="btn btn-sm btn-primary" onclick="${prog ? 'openScanner' : 'startPrep'}('${o.id}')">${prog ? '⏩ متابعة' : '▶️ ابدأ'}</button></div></div>`;
 }
 
 async function startPrep(id) {
@@ -2595,12 +2619,15 @@ async function openScanner(id) {
   const o = r.orders.find(x => x.id === id);
   if (!o) return;
   CURRENT_PREP_ORDER = o;
-  SCANNED_CACHE = o.scannedItems ? JSON.parse(o.scannedItems) : {};
+  SCANNED_CACHE = {};
+  if (o.scannedItems) {
+    try { SCANNED_CACHE = typeof o.scannedItems === 'string' ? JSON.parse(o.scannedItems) : o.scannedItems; } catch(e) {}
+  }
   renderScanner(o);
 }
 
 function renderScanner(o) {
-  const itms = JSON.parse(o.items || '[]');
+  const itms = _safeParseItems(o.items);
   let tot = 0, scn = 0;
   itms.forEach(i => {
     const k = i.sku || i.name;
