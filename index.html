@@ -2593,14 +2593,103 @@ function _safeParseItems(items) {
   return [];
 }
 
+// Cache آخر قائمة طلبات عشان الـ search يفلتر بدون reload
+let _LAST_PREP_ORDERS = [];
+let PREP_SEARCH_QUERY = '';
+
 function renderPrepList(ords) {
-  if (!Array.isArray(ords)) ords = [];
-  const prog = ords.filter(o => o.preparationStatus === 'in_progress' && String(o.preparationStartedBy) === String(USER.id));
-  const pend = ords.filter(o => !o.preparationStatus);
-  let h = `<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>${pend.length} جديد، ${prog.length} قيد التحضير</div></div>`;
+  if (Array.isArray(ords)) _LAST_PREP_ORDERS = ords;
+  let allOrds = _LAST_PREP_ORDERS;
+
+  // فلترة بالبحث
+  const q = (PREP_SEARCH_QUERY || '').trim().toLowerCase();
+  let filtered = allOrds;
+  if (q) {
+    filtered = allOrds.filter(o => {
+      const id = String(o.id || '').toLowerCase();
+      const name = String(o.name || '').toLowerCase();
+      const phone = String(o.phone || '').toLowerCase();
+      return id.includes(q) || name.includes(q) || phone.includes(q);
+    });
+  }
+
+  const prog = filtered.filter(o => o.preparationStatus === 'in_progress' && String(o.preparationStartedBy) === String(USER.id));
+  const pend = filtered.filter(o => !o.preparationStatus);
+
+  // search bar — يفضل القيمة المكتوبة بعد re-render
+  const searchHtml = `
+    <div style="padding:12px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="prep-search" class="input" placeholder="🔍 ابحث برقم الطلب أو اسم العميل" value="${q.replace(/"/g, '&quot;')}" style="flex:1" oninput="onPrepSearchInput(event)" onkeydown="onPrepSearchKey(event)">
+        ${q ? '<button class="btn btn-ghost btn-sm" onclick="clearPrepSearch()">✕</button>' : ''}
+        <button class="btn btn-ghost btn-sm" onclick="loadPrepOrders()" title="تحديث">🔄</button>
+      </div>
+      ${q ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">نتائج: ${filtered.length} من ${allOrds.length}</div>` : ''}
+    </div>`;
+
+  let h = searchHtml;
+  h += `<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>${pend.length} جديد، ${prog.length} قيد التحضير</div></div>`;
   if (prog.length) h += `<div class="list">${prog.map(o => prepCard(o, 1)).join('')}</div>`;
-  h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">لا توجد طلبات تحتاج تحضير</div>'}</div>`;
+  h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : `<div style="padding:20px;text-align:center;color:var(--muted)">${q ? 'لا توجد نتائج' : 'لا توجد طلبات تحتاج تحضير'}</div>`}</div>`;
   _prepRender(h);
+
+  // ركّز على search box واحفظ مكان الـ cursor
+  const inp = document.getElementById('prep-search');
+  if (inp && document.activeElement?.id !== 'prep-search' && q) {
+    // احتفظ بالـ focus لو المستخدم بيكتب
+    inp.focus();
+    inp.setSelectionRange(inp.value.length, inp.value.length);
+  }
+}
+
+let _prepSearchTimer = null;
+function onPrepSearchInput(e) {
+  const val = e.target.value;
+  PREP_SEARCH_QUERY = val;
+  // debounce صغير عشان مش نعمل re-render مع كل حرف
+  clearTimeout(_prepSearchTimer);
+  _prepSearchTimer = setTimeout(() => {
+    renderPrepList();
+    // ارجع للـ input بعد re-render
+    const inp = document.getElementById('prep-search');
+    if (inp) {
+      inp.focus();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+    }
+  }, 150);
+}
+
+function onPrepSearchKey(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // لو نتيجة واحدة بس، افتحها مباشرة
+    const q = (PREP_SEARCH_QUERY || '').trim().toLowerCase();
+    if (!q) return;
+    const matches = _LAST_PREP_ORDERS.filter(o => {
+      const id = String(o.id || '').toLowerCase();
+      const name = String(o.name || '').toLowerCase();
+      const phone = String(o.phone || '').toLowerCase();
+      return id.includes(q) || name.includes(q) || phone.includes(q);
+    });
+    if (matches.length === 1) {
+      const o = matches[0];
+      if (o.preparationStatus === 'in_progress' && String(o.preparationStartedBy) === String(USER.id)) {
+        openScanner(o.id);
+      } else if (!o.preparationStatus) {
+        startPrep(o.id);
+      }
+    } else if (matches.length === 0) {
+      toast('لا توجد طلبات بهذا الرقم');
+    }
+    // لو في أكتر من نتيجة، خليه في الفلترة العادية
+  } else if (e.key === 'Escape') {
+    clearPrepSearch();
+  }
+}
+
+function clearPrepSearch() {
+  PREP_SEARCH_QUERY = '';
+  renderPrepList();
 }
 
 function prepCard(o, prog) {
