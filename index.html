@@ -2665,7 +2665,7 @@ function onPrepSearchInput(e) {
   }, 150);
 }
 
-function onPrepSearchKey(e) {
+async function onPrepSearchKey(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
     const raw = (PREP_SEARCH_QUERY || '').trim();
@@ -2699,10 +2699,36 @@ function onPrepSearchKey(e) {
 
     if (matches.length === 1) {
       _openPrepOrder(matches[0]);
-    } else if (matches.length === 0) {
-      // ممكن الطلب موجود بس مش في قائمة المحضر (متحضّر بالفعل أو لمحضر آخر)
-      toast('❌ لا يوجد طلب بهذا الرقم في قائمة التحضير');
-      playBeep(0);
+      return;
+    }
+
+    if (matches.length === 0) {
+      // الطلب مش في قائمة المحضر — جرّب نسأل السيرفر إيه حالته
+      // ده مفيد للـ QR scan على فاتورة لطلب اتحضّر أو خرج للمندوب
+      try {
+        const r = await api(`/api/preparation/find/${encodeURIComponent(raw)}?preparerId=${USER.id}`);
+        if (r && r.found) {
+          if (r.canPrepare) {
+            // الطلب موجود وقابل للتحضير — نعمل refresh للقائمة ونفتحه
+            playBeep(1);
+            toast('🔄 تحديث القائمة...');
+            await loadPrepOrders();
+            const refreshed = _LAST_PREP_ORDERS.find(o => String(o.id) === String(r.orderId));
+            if (refreshed) _openPrepOrder(refreshed);
+            else toast('⚠️ الطلب موجود لكن مش ظاهر — اضغط 🔄');
+          } else {
+            // الطلب موجود لكن مش قابل للتحضير
+            playBeep(0);
+            toast('⚠️ ' + (r.reason || 'الطلب غير متاح للتحضير'), 'error');
+          }
+        } else {
+          playBeep(0);
+          toast('❌ ' + ((r && r.reason) || 'الطلب غير موجود'));
+        }
+      } catch (err) {
+        playBeep(0);
+        toast('❌ لا يوجد طلب بهذا الرقم في قائمة التحضير');
+      }
     }
     // لو في أكتر من match، خليه في الفلترة العادية (الـ list filtered already shows them)
   } else if (e.key === 'Escape') {
