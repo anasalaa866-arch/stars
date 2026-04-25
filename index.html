@@ -2620,7 +2620,7 @@ function renderPrepList(ords) {
   const searchHtml = `
     <div style="padding:12px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10">
       <div style="display:flex;gap:8px;align-items:center">
-        <input id="prep-search" class="input" placeholder="🔍 ابحث أو اسكان QR الفاتورة" value="${q.replace(/"/g, '&quot;')}" style="flex:1;font-size:16px" oninput="onPrepSearchInput(event)" onkeydown="onPrepSearchKey(event)" autocomplete="off">
+        <input id="prep-search" placeholder="🔍 ابحث برقم الطلب أو اسكان QR" value="${q.replace(/"/g, '&quot;')}" style="flex:1;font-size:16px;padding:10px 12px;background:var(--elev);color:var(--text);border:1.5px solid var(--border);border-radius:8px;outline:none" oninput="onPrepSearchInput(event)" onkeydown="onPrepSearchKey(event)" autocomplete="off">
         ${q ? '<button class="btn btn-ghost btn-sm" onclick="clearPrepSearch()">✕</button>' : ''}
         <button class="btn btn-ghost btn-sm" onclick="loadPrepOrders()" title="تحديث">🔄</button>
       </div>
@@ -2842,7 +2842,7 @@ function renderScanner(o) {
   let h = `<button class="btn btn-ghost btn-sm" onclick="loadPrepOrders()">← رجوع</button><h2>📦 #${o.id}</h2><div style="margin:12px 0">${o.name} | ${o.total} ج</div>`;
   h += `<button class="btn btn-primary" onclick="toggleCam()" id="cam-btn" style="width:100%;margin:8px 0">📸 كاميرا</button>`;
   h += `<button class="btn btn-ghost" onclick="showManual()" style="width:100%;margin:8px 0">⌨️ يدوي</button>`;
-  h += `<div id="qr" style="display:none;max-width:400px;margin:12px auto"></div><div id="man" style="display:none;margin:12px 0"><input id="bc" class="input" placeholder="باركود" onkeypress="if(event.key==='Enter')scanMan()" style="width:100%;margin-bottom:8px"><button class="btn btn-success" onclick="scanMan()" style="width:100%">سكان</button></div>`;
+  h += `<div id="qr" style="display:none;max-width:400px;margin:12px auto"></div><div id="man" style="display:none;margin:12px 0"><input id="bc" placeholder="باركود" onkeypress="if(event.key==='Enter')scanMan()" style="width:100%;margin-bottom:8px;font-size:16px;padding:10px 12px;background:var(--elev);color:var(--text);border:1.5px solid var(--border);border-radius:8px;outline:none" autocomplete="off"><button class="btn btn-success" onclick="scanMan()" style="width:100%">سكان</button></div>`;
   h += `<div style="margin:16px 0"><strong>المنتجات (${scn}/${tot})</strong></div>`;
   itms.forEach(i => {
     const k = i.sku || i.name;
@@ -2855,23 +2855,83 @@ function renderScanner(o) {
 }
 
 let cam = null;
+let _lastScanTime = 0;
+let _lastScanCode = '';
+const SCAN_COOLDOWN_MS = 1500; // 1.5 ثانية بين كل scan ونفس الباركود
+
 async function toggleCam() {
   if (CAMERA_ACTIVE) {
-    if (cam) await cam.stop();
+    if (cam) {
+      try { await cam.stop(); } catch(e) {}
+    }
     cam = null;
     CAMERA_ACTIVE = false;
-    $('qr').style.display = 'none';
-    $('cam-btn').textContent = '📸 كاميرا';
-  } else {
-    // استنى المكتبة لو لسه بتحمّل
-    try { await loadBarcodeLib(); } catch(e) { toast('فشل تحميل مكتبة الباركود'); return; }
-    if (!window.Html5Qrcode) { toast('مكتبة غير متوفرة'); return; }
-    $('qr').style.display = 'block';
-    $('man').style.display = 'none';
-    $('cam-btn').textContent = '🔴 إيقاف';
+    const qr = document.getElementById('qr');
+    if (qr) qr.style.display = 'none';
+    const btn = document.getElementById('cam-btn');
+    if (btn) btn.textContent = '📸 كاميرا';
+    return;
+  }
+
+  // فتح الكاميرا
+  const btn = document.getElementById('cam-btn');
+  if (btn) btn.textContent = '⏳ جاري الفتح...';
+
+  try {
+    await loadBarcodeLib();
+  } catch(e) {
+    if (btn) btn.textContent = '📸 كاميرا';
+    toast('❌ فشل تحميل مكتبة الباركود — تأكد من الإنترنت', 'error');
+    return;
+  }
+  if (!window.Html5Qrcode) {
+    if (btn) btn.textContent = '📸 كاميرا';
+    toast('❌ مكتبة الباركود غير متوفرة');
+    return;
+  }
+
+  const qrEl = document.getElementById('qr');
+  const manEl = document.getElementById('man');
+  if (qrEl) qrEl.style.display = 'block';
+  if (manEl) manEl.style.display = 'none';
+
+  try {
     cam = new Html5Qrcode("qr");
-    await cam.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 } }, (txt) => { playBeep(1); processScan(txt); }, () => {});
+    await cam.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 150 } },
+      (txt) => {
+        // debounce: تجاهل نفس الكود لو اتقرأ في آخر 1.5 ثانية
+        const now = Date.now();
+        if (txt === _lastScanCode && (now - _lastScanTime) < SCAN_COOLDOWN_MS) return;
+        _lastScanCode = txt;
+        _lastScanTime = now;
+        processScan(txt);
+      },
+      () => {} // QR not detected — silent
+    );
     CAMERA_ACTIVE = true;
+    if (btn) btn.textContent = '🔴 إيقاف الكاميرا';
+  } catch(err) {
+    console.error('Camera start error:', err);
+    if (btn) btn.textContent = '📸 كاميرا';
+    if (qrEl) qrEl.style.display = 'none';
+    cam = null;
+
+    // رسائل خطأ واضحة
+    let msg = 'فشل فتح الكاميرا';
+    const errStr = String(err?.message || err || '').toLowerCase();
+    if (errStr.includes('permission') || errStr.includes('denied') || errStr.includes('notallowed')) {
+      msg = '❌ الكاميرا مرفوضة — اسمح للموقع بالوصول للكاميرا من إعدادات المتصفح';
+    } else if (errStr.includes('notfound') || errStr.includes('no camera')) {
+      msg = '❌ لا توجد كاميرا في الجهاز';
+    } else if (errStr.includes('insecure') || errStr.includes('https')) {
+      msg = '❌ الكاميرا تتطلب HTTPS — افتح الموقع بـ https://';
+    } else if (errStr.includes('busy') || errStr.includes('inuse')) {
+      msg = '❌ الكاميرا مستخدمة من تطبيق آخر — اقفله وحاول تاني';
+    }
+    toast(msg, 'error');
+    alert(msg);
   }
 }
 
@@ -2901,16 +2961,45 @@ async function processScan(bc) {
 
 async function completePre() {
   if (!CURRENT_PREP_ORDER) return;
-  if (!confirm(`إتمام تحضير #${CURRENT_PREP_ORDER.id}؟`)) return;
-  const r = await api('/api/preparation/complete', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, preparerId: USER.id, preparerName: USER.name } });
-  if (!r.ok) {
-    toast(r.error || 'فشل', 'error');
-    if (r.missing) alert('ناقص:\n' + r.missing.map(m => `${m.name}: ${m.missing}`).join('\n'));
+
+  // فحص client-side قبل ما نسأل السيرفر
+  const itms = _safeParseItems(CURRENT_PREP_ORDER.items);
+  const issues = [];
+  itms.forEach(i => {
+    const k = i.sku || i.name;
+    const s = SCANNED_CACHE[k] || 0;
+    const r = i.quantity || 1;
+    if (s < r) issues.push(`${i.name}: تم سكان ${s} من ${r}`);
+    else if (s > r) issues.push(`${i.name}: تم سكان ${s} (أكتر من المطلوب ${r}!)`);
+  });
+  if (issues.length) {
+    alert('⚠️ لا يمكن إتمام التحضير:\n\n' + issues.join('\n'));
+    playBeep(0);
     return;
   }
-  toast('✅ تم بنجاح');
-  if (cam) await cam.stop();
-  setTimeout(() => loadPrepOrders(), 1000);
+
+  if (!confirm(`إتمام تحضير #${CURRENT_PREP_ORDER.id}؟`)) return;
+  try {
+    const r = await api('/api/preparation/complete', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, preparerId: USER.id, preparerName: USER.name } });
+    if (!r.ok) {
+      toast(r.error || 'فشل', 'error');
+      playBeep(0);
+      return;
+    }
+    playBeep(1);
+    toast('✅ تم بنجاح');
+    if (cam) await cam.stop();
+    setTimeout(() => loadPrepOrders(), 1000);
+  } catch(e) {
+    // الـ api() بيرمي error لو status >= 400
+    playBeep(0);
+    const msg = e.message || 'فشل';
+    if (msg.includes('غير مكتمل') || msg.includes('زائدة')) {
+      alert('⚠️ ' + msg + '\n\nراجع الكميات وحاول تاني.');
+    } else {
+      toast('❌ ' + msg, 'error');
+    }
+  }
 }
 
 // (removed: showApp() handles role-based routing including preparer)
