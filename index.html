@@ -2620,7 +2620,7 @@ function renderPrepList(ords) {
   const searchHtml = `
     <div style="padding:12px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10">
       <div style="display:flex;gap:8px;align-items:center">
-        <input id="prep-search" class="input" placeholder="🔍 ابحث برقم الطلب أو اسم العميل" value="${q.replace(/"/g, '&quot;')}" style="flex:1" oninput="onPrepSearchInput(event)" onkeydown="onPrepSearchKey(event)">
+        <input id="prep-search" class="input" placeholder="🔍 ابحث أو اسكان QR الفاتورة" value="${q.replace(/"/g, '&quot;')}" style="flex:1;font-size:16px" oninput="onPrepSearchInput(event)" onkeydown="onPrepSearchKey(event)" autocomplete="off">
         ${q ? '<button class="btn btn-ghost btn-sm" onclick="clearPrepSearch()">✕</button>' : ''}
         <button class="btn btn-ghost btn-sm" onclick="loadPrepOrders()" title="تحديث">🔄</button>
       </div>
@@ -2633,12 +2633,18 @@ function renderPrepList(ords) {
   h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : `<div style="padding:20px;text-align:center;color:var(--muted)">${q ? 'لا توجد نتائج' : 'لا توجد طلبات تحتاج تحضير'}</div>`}</div>`;
   _prepRender(h);
 
-  // ركّز على search box واحفظ مكان الـ cursor
+  // Auto-focus على search box دايماً (ضروري للـ QR scanning)
+  // إلا لو في input آخر عليه focus بالفعل
   const inp = document.getElementById('prep-search');
-  if (inp && document.activeElement?.id !== 'prep-search' && q) {
-    // احتفظ بالـ focus لو المستخدم بيكتب
-    inp.focus();
-    inp.setSelectionRange(inp.value.length, inp.value.length);
+  const active = document.activeElement;
+  const isOtherInputFocused = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && active.id !== 'prep-search';
+  if (inp && !isOtherInputFocused) {
+    setTimeout(() => {
+      try {
+        inp.focus({ preventScroll: true });
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      } catch(e) {}
+    }, 50);
   }
 }
 
@@ -2662,28 +2668,66 @@ function onPrepSearchInput(e) {
 function onPrepSearchKey(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
-    // لو نتيجة واحدة بس، افتحها مباشرة
-    const q = (PREP_SEARCH_QUERY || '').trim().toLowerCase();
-    if (!q) return;
+    const raw = (PREP_SEARCH_QUERY || '').trim();
+    if (!raw) return;
+    const q = raw.toLowerCase();
+
+    // 1) أول حاجة جرّب exact match على الـ ID (للـ QR scanner)
+    let exact = _LAST_PREP_ORDERS.find(o => String(o.id || '').toLowerCase() === q);
+
+    // 2) لو مش لقي، جرّب exact على آخر جزء من الـ ID (مثلاً 137101 يطابق SH-137101)
+    if (!exact) {
+      exact = _LAST_PREP_ORDERS.find(o => {
+        const id = String(o.id || '').toLowerCase();
+        const num = id.replace(/^[a-z]+-?/i, ''); // شيل البادئة SH- أو MN-
+        return num === q || id === 'sh-' + q || id === 'mn-' + q;
+      });
+    }
+
+    if (exact) {
+      _openPrepOrder(exact);
+      return;
+    }
+
+    // 3) لو في matches بحث جزئي
     const matches = _LAST_PREP_ORDERS.filter(o => {
       const id = String(o.id || '').toLowerCase();
       const name = String(o.name || '').toLowerCase();
       const phone = String(o.phone || '').toLowerCase();
       return id.includes(q) || name.includes(q) || phone.includes(q);
     });
+
     if (matches.length === 1) {
-      const o = matches[0];
-      if (o.preparationStatus === 'in_progress' && String(o.preparationStartedBy) === String(USER.id)) {
-        openScanner(o.id);
-      } else if (!o.preparationStatus) {
-        startPrep(o.id);
-      }
+      _openPrepOrder(matches[0]);
     } else if (matches.length === 0) {
-      toast('لا توجد طلبات بهذا الرقم');
+      // ممكن الطلب موجود بس مش في قائمة المحضر (متحضّر بالفعل أو لمحضر آخر)
+      toast('❌ لا يوجد طلب بهذا الرقم في قائمة التحضير');
+      playBeep(0);
     }
-    // لو في أكتر من نتيجة، خليه في الفلترة العادية
+    // لو في أكتر من match، خليه في الفلترة العادية (الـ list filtered already shows them)
   } else if (e.key === 'Escape') {
     clearPrepSearch();
+  }
+}
+
+function _openPrepOrder(o) {
+  // افتح الطلب: لو هو معاي، كمل التحضير. لو لسه ما اتبدأش، ابدأ تحضير
+  PREP_SEARCH_QUERY = ''; // امسح البحث
+  if (o.preparationStatus === 'in_progress' && String(o.preparationStartedBy) === String(USER.id)) {
+    playBeep(1);
+    toast('⏩ متابعة تحضير #' + o.id);
+    openScanner(o.id);
+  } else if (!o.preparationStatus) {
+    playBeep(1);
+    toast('▶️ بدء تحضير #' + o.id);
+    startPrep(o.id);
+  } else if (o.preparationStatus === 'in_progress') {
+    // طلب شغال عليه محضر تاني
+    toast('⚠️ الطلب قيد التحضير من شخص آخر', 'error');
+    playBeep(0);
+  } else {
+    toast('✅ هذا الطلب تم تحضيره بالفعل');
+    playBeep(0);
   }
 }
 
