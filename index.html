@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cafelax Stars">
 <meta name="description" content="تطبيق مناديب التوصيل - Cafelax Stars">
-<link rel="manifest" href="./manifest.json">
-<link rel="apple-touch-icon" href="./icons/icon-192x192.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192x192.png">
 <title>Cafelax Stars</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2484,7 +2484,7 @@ async function saveSort(){
 // ===== PWA SERVICE WORKER REGISTRATION =====
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js')
+    navigator.serviceWorker.register('/service-worker.js')
       .then(registration => {
         console.log('✅ Service Worker registered:', registration.scope);
       })
@@ -2492,6 +2492,155 @@ if ('serviceWorker' in navigator) {
         console.log('❌ Service Worker registration failed:', error);
       });
   });
+}
+
+
+// ===== BARCODE VERIFICATION SYSTEM =====
+let CURRENT_PREP_ORDER = null;
+let SCANNED_CACHE = {};
+let CAMERA_ACTIVE = false;
+
+function loadBarcodeLib() {
+  if (window.Html5Qrcode) return;
+  const s = document.createElement('script');
+  s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+  document.head.appendChild(s);
+}
+
+function playBeep(ok) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = ok ? 800 : 400;
+  osc.type = 'square';
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.2);
+}
+
+async function loadPrepOrders() {
+  const r = await api(\`/api/preparation/orders?preparerId=\${USER.id}\`);
+  if (r.orders) renderPrepList(r.orders);
+}
+
+function renderPrepList(ords) {
+  const prog = ords.filter(o => o.preparationStatus === 'in_progress' && o.preparationStartedBy === USER.id);
+  const pend = ords.filter(o => !o.preparationStatus);
+  let h = \`<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>\${pend.length} جديد، \${prog.length} قيد التحضير</div></div>\`;
+  if (prog.length) h += \`<div class="list">\${prog.map(o => prepCard(o, 1)).join('')}</div>\`;
+  h += \`<div class="card-hd"><h3>جديد</h3></div><div class="list">\${pend.length ? pend.map(o => prepCard(o, 0)).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">لا توجد طلبات</div>'}</div>\`;
+  $('app').innerHTML = h;
+}
+
+function prepCard(o, prog) {
+  const itms = o.items ? JSON.parse(o.items) : [];
+  const txt = itms.map(i => \`\${i.quantity}× \${i.name}\`).join(', ');
+  return \`<div style="padding:12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><div><strong>#\${o.id}</strong><br><span style="font-size:12px;color:var(--muted)">\${o.name}</span><br><span style="font-size:11px">\${txt}</span></div><div style="text-align:left">\${o.total} ج<br><button class="btn btn-sm btn-primary" onclick="\${prog ? 'openScanner' : 'startPrep'}(\${o.id})">\${prog ? '⏩ متابعة' : '▶️ ابدأ'}</button></div></div>\`;
+}
+
+async function startPrep(id) {
+  const r = await api('/api/preparation/start', { method: 'POST', body: { orderId: id, preparerId: USER.id } });
+  if (r.ok) openScanner(id);
+}
+
+async function openScanner(id) {
+  const r = await api(\`/api/preparation/orders?preparerId=\${USER.id}\`);
+  const o = r.orders.find(x => x.id === id);
+  if (!o) return;
+  CURRENT_PREP_ORDER = o;
+  SCANNED_CACHE = o.scannedItems ? JSON.parse(o.scannedItems) : {};
+  renderScanner(o);
+}
+
+function renderScanner(o) {
+  const itms = JSON.parse(o.items || '[]');
+  let tot = 0, scn = 0;
+  itms.forEach(i => {
+    const k = i.sku || i.name;
+    tot += i.quantity || 1;
+    scn += SCANNED_CACHE[k] || 0;
+  });
+  const done = scn >= tot;
+  let h = \`<button class="btn btn-ghost btn-sm" onclick="loadPrepOrders()">← رجوع</button><h2>📦 #\${o.id}</h2><div style="margin:12px 0">\${o.name} | \${o.total} ج</div>\`;
+  h += \`<button class="btn btn-primary" onclick="toggleCam()" id="cam-btn" style="width:100%;margin:8px 0">📸 كاميرا</button>\`;
+  h += \`<button class="btn btn-ghost" onclick="showManual()" style="width:100%;margin:8px 0">⌨️ يدوي</button>\`;
+  h += \`<div id="qr" style="display:none;max-width:400px;margin:12px auto"></div><div id="man" style="display:none;margin:12px 0"><input id="bc" class="input" placeholder="باركود" onkeypress="if(event.key==='Enter')scanMan()" style="width:100%;margin-bottom:8px"><button class="btn btn-success" onclick="scanMan()" style="width:100%">سكان</button></div>\`;
+  h += \`<div style="margin:16px 0"><strong>المنتجات (\${scn}/\${tot})</strong></div>\`;
+  itms.forEach(i => {
+    const k = i.sku || i.name;
+    const s = SCANNED_CACHE[k] || 0;
+    const r = i.quantity || 1;
+    h += \`<div style="padding:8px;border:1px solid var(--border);margin:4px 0;display:flex;justify-content:space-between"><div>\${i.name}</div><div class="badge \${s >= r ? 'b-done' : 'b-wait'}">\${s}/\${r}</div></div>\`;
+  });
+  h += \`<button class="btn btn-success" \${!done ? 'disabled' : ''} onclick="completePre()" style="width:100%;margin:16px 0">✓ اكتمل</button>\`;
+  $('app').innerHTML = h;
+}
+
+let cam = null;
+async function toggleCam() {
+  if (CAMERA_ACTIVE) {
+    if (cam) await cam.stop();
+    cam = null;
+    CAMERA_ACTIVE = false;
+    $('qr').style.display = 'none';
+    $('cam-btn').textContent = '📸 كاميرا';
+  } else {
+    if (!window.Html5Qrcode) { toast('مكتبة غير متوفرة'); return; }
+    $('qr').style.display = 'block';
+    $('man').style.display = 'none';
+    $('cam-btn').textContent = '🔴 إيقاف';
+    cam = new Html5Qrcode("qr");
+    await cam.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 } }, (txt) => { playBeep(1); processScan(txt); }, () => {});
+    CAMERA_ACTIVE = true;
+  }
+}
+
+function showManual() {
+  $('man').style.display = 'block';
+  $('bc').focus();
+}
+
+function scanMan() {
+  const bc = $('bc').value.trim();
+  if (bc) { processScan(bc); $('bc').value = ''; }
+}
+
+async function processScan(bc) {
+  if (!CURRENT_PREP_ORDER) return;
+  const r = await api('/api/preparation/scan', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, barcode: bc, preparerId: USER.id } });
+  if (!r.matched) {
+    playBeep(0);
+    toast('❌ ' + (r.error || 'غير موجود'), 'error');
+    return;
+  }
+  playBeep(1);
+  SCANNED_CACHE = r.scannedItems;
+  renderScanner(CURRENT_PREP_ORDER);
+  toast(\`✓ \${r.item ? r.item.name : 'تم'}\`, 'success');
+}
+
+async function completePre() {
+  if (!CURRENT_PREP_ORDER) return;
+  if (!confirm(\`إتمام تحضير #\${CURRENT_PREP_ORDER.id}؟\`)) return;
+  const r = await api('/api/preparation/complete', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, preparerId: USER.id, preparerName: USER.name } });
+  if (!r.ok) {
+    toast(r.error || 'فشل', 'error');
+    if (r.missing) alert('ناقص:\n' + r.missing.map(m => \`\${m.name}: \${m.missing}\`).join('\n'));
+    return;
+  }
+  toast('✅ تم بنجاح');
+  if (cam) await cam.stop();
+  setTimeout(() => loadPrepOrders(), 1000);
+}
+
+if (USER && USER.role === 'preparer') {
+  loadBarcodeLib();
+  loadPrepOrders();
+} else if (USER && USER.role === 'courier') {
+  loadOrders();
 }
 
 </script>
