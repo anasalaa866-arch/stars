@@ -986,6 +986,32 @@ function showApp(){
   $('app').classList.add('active');
   $('user-name').textContent = USER?.displayName || USER?.name || '';
 
+  // اعرف الدور الفعلي من المستخدم (السيرفر بيرجعه)
+  const userRole = (USER && USER.role) || ROLE || 'courier';
+
+  // ===== Preparer flow — نظام التحضير =====
+  if (userRole === 'preparer') {
+    // اخفي كل nav items
+    document.querySelectorAll('.nav-item').forEach(el => { el.style.display = 'none'; });
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    // اعمل صفحة تحضير بسيطة (لو مش موجودة)
+    let prepPage = document.getElementById('page-prep');
+    if (!prepPage) {
+      prepPage = document.createElement('div');
+      prepPage.id = 'page-prep';
+      prepPage.className = 'page active';
+      prepPage.innerHTML = '<div id="app-prep" style="padding:16px;padding-bottom:80px"></div>';
+      $('app').appendChild(prepPage);
+    } else {
+      prepPage.classList.add('active');
+    }
+    // غيّر $('app') target عشان renderPrepList يكتب في app-prep
+    window._prepTarget = 'app-prep';
+    loadBarcodeLib().catch(() => {});
+    loadPrepOrders();
+    return;
+  }
+
   // وريّ/اخفي nav items حسب الـ role
   document.querySelectorAll('.nav-item').forEach(el => {
     const itemRole = el.dataset.role;
@@ -2537,13 +2563,20 @@ async function loadPrepOrders() {
   if (r.orders) renderPrepList(r.orders);
 }
 
+function _prepRender(html) {
+  // اكتب في container التحضير لو موجود، وإلا في app
+  const target = window._prepTarget && document.getElementById(window._prepTarget);
+  if (target) target.innerHTML = html;
+  else $('app').innerHTML = html;
+}
+
 function renderPrepList(ords) {
   const prog = ords.filter(o => o.preparationStatus === 'in_progress' && o.preparationStartedBy === USER.id);
   const pend = ords.filter(o => !o.preparationStatus);
   let h = `<div class="card-hd"><h3>📦 تحضير الطلبات</h3><div>${pend.length} جديد، ${prog.length} قيد التحضير</div></div>`;
   if (prog.length) h += `<div class="list">${prog.map(o => prepCard(o, 1)).join('')}</div>`;
   h += `<div class="card-hd"><h3>جديد</h3></div><div class="list">${pend.length ? pend.map(o => prepCard(o, 0)).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">لا توجد طلبات</div>'}</div>`;
-  $('app').innerHTML = h;
+  _prepRender(h);
 }
 
 function prepCard(o, prog) {
@@ -2587,7 +2620,7 @@ function renderScanner(o) {
     h += `<div style="padding:8px;border:1px solid var(--border);margin:4px 0;display:flex;justify-content:space-between"><div>${i.name}</div><div class="badge ${s >= r ? 'b-done' : 'b-wait'}">${s}/${r}</div></div>`;
   });
   h += `<button class="btn btn-success" ${!done ? 'disabled' : ''} onclick="completePre()" style="width:100%;margin:16px 0">✓ اكتمل</button>`;
-  $('app').innerHTML = h;
+  _prepRender(h);
 }
 
 let cam = null;
@@ -2649,12 +2682,7 @@ async function completePre() {
   setTimeout(() => loadPrepOrders(), 1000);
 }
 
-if (USER && USER.role === 'preparer') {
-  loadBarcodeLib();
-  loadPrepOrders();
-} else if (USER && USER.role === 'courier') {
-  loadOrders();
-}
+// (removed: showApp() handles role-based routing including preparer)
 
 </script>
 </body>
