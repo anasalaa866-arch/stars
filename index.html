@@ -3,6 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<!-- 🔒 v16: منع الفهرسة من محركات البحث وAI crawlers -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, nocache">
+<meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex, nocache">
+<meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="GPTBot" content="noindex, nofollow">
+<meta name="ClaudeBot" content="noindex, nofollow">
+<meta name="anthropic-ai" content="noindex, nofollow">
+<meta name="CCBot" content="noindex, nofollow">
+<meta name="PerplexityBot" content="noindex, nofollow">
+<meta name="Google-Extended" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#D4AF37">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -317,6 +328,20 @@ a{color:inherit;text-decoration:none}
       </div>
     </div>
 
+    <!-- 🆕 v12: Search Bar — يبحث في كل الـ tabs -->
+    <div id="orders-search-bar" style="padding:8px 12px;background:var(--bg);border-bottom:1px solid var(--border)">
+      <div style="position:relative">
+        <input id="orders-search-input"
+          placeholder="🔍 بحث: رقم طلب، تليفون، اسم، عنوان..."
+          oninput="onOrdersSearchInput(event)"
+          autocomplete="off"
+          style="width:100%;padding:11px 38px 11px 14px;background:var(--elev);color:var(--text);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;box-sizing:border-box;outline:none">
+        <button id="orders-search-clear" onclick="clearOrdersSearch()"
+          style="display:none;position:absolute;left:8px;top:50%;transform:translateY(-50%);background:var(--border);color:var(--text);border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1">✕</button>
+      </div>
+      <div id="orders-search-stats" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;text-align:center"></div>
+    </div>
+
     <!-- Filter Chips (يظهر بس في tab "معاي") -->
     <div class="filter-bar active" id="filter-bar">
       <div style="display:flex;justify-content:center;align-items:center;padding:0 12px 8px;border-bottom:1px solid var(--border)">
@@ -345,6 +370,15 @@ a{color:inherit;text-decoration:none}
       </div>
       <div id="tab-cancelled" class="tab-content" style="display:none">
         <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🆕 v13: PAGE: DASHBOARD -->
+  <div class="page" id="page-dashboard">
+    <div class="content" style="padding:14px">
+      <div id="dashboard-body">
+        <div class="loading"><div class="spinner"></div><div>جاري تحميل لوحة التحكم...</div></div>
       </div>
     </div>
   </div>
@@ -395,6 +429,10 @@ a{color:inherit;text-decoration:none}
     <div class="nav-item active" data-page="orders" data-role="courier">
       <div class="nav-ico">📦</div>
       <div>الطلبات</div>
+    </div>
+    <div class="nav-item" data-page="dashboard" data-role="courier">
+      <div class="nav-ico">📊</div>
+      <div>إنجازي</div>
     </div>
     <div class="nav-item" data-page="statement" data-role="courier">
       <div class="nav-ico">💰</div>
@@ -709,6 +747,14 @@ a{color:inherit;text-decoration:none}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
+// 🆕 v14: Global error handlers
+window.addEventListener('error', (ev) => {
+  console.error('🔥 Unhandled error:', ev.error || ev.message, ev.filename, ev.lineno);
+});
+window.addEventListener('unhandledrejection', (ev) => {
+  console.error('🔥 Unhandled promise rejection:', ev.reason);
+});
+
 // ===== CONSTANTS =====
 const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
 
@@ -723,6 +769,105 @@ let _currentCodCollected = true;
 let _proofBase64 = null;
 let _adjProofBase64 = null;
 let _activeFilter = 'all'; // 'all' | 'express' | 'late' | 'cod' | 'zone:المعادي' etc.
+let _ordersSearchQuery = ''; // 🆕 v12: search query عام لكل tabs
+
+// 🆕 v12: normalize عربي/إنجليزي عشان البحث الـ accent-tolerant
+function _normalizeText(s){
+  if(!s) return '';
+  return String(s)
+    .toLowerCase()
+    .replace(/[أإآا]/g,'ا')
+    .replace(/[ى]/g,'ي')
+    .replace(/[ة]/g,'ه')
+    .replace(/[ؤ]/g,'و')
+    .replace(/[ئ]/g,'ي')
+    .replace(/[\u064B-\u0652]/g,'') // التشكيل
+    .trim();
+}
+
+// 🆕 v12: search filter — يبحث في كل التفاصيل
+function searchFilterOrders(orders, query){
+  if(!query) return orders;
+  const q = _normalizeText(query);
+  // لو query رقم بحت (تليفون أو order id), match أسرع
+  const isNumeric = /^\+?\d+$/.test(query.replace(/\s/g,''));
+
+  return orders.filter(o => {
+    // candidates للبحث
+    const candidates = [
+      o.id,                    // رقم الطلب (SH-xxx)
+      String(o.id || '').replace(/^SH-/, ''), // بدون SH-
+      o.phone,                 // تليفون
+      o.name,                  // اسم العميل
+      o.addr,                  // عنوان
+      o.area,                  // منطقة
+      o.assignedZone,          // الزون
+      o.bostaTrackingNo,       // رقم تتبع بوسطة (لو موجود)
+      o.note,                  // ملاحظات
+      o.customerNote,
+      o.orderNote,
+    ];
+
+    for(const c of candidates){
+      if(!c) continue;
+      const norm = _normalizeText(c);
+      if(norm.includes(q)) return true;
+      // مطابقة جزئية للأرقام (آخر 4-5 أرقام يكفوا للتليفون)
+      if(isNumeric && /\d/.test(c) && String(c).replace(/\D/g,'').includes(query.replace(/\D/g,''))) return true;
+    }
+    return false;
+  });
+}
+
+// 🆕 v12: search input handler
+function onOrdersSearchInput(ev){
+  _ordersSearchQuery = (ev.target.value || '').trim();
+  const clearBtn = document.getElementById('orders-search-clear');
+  if(clearBtn) clearBtn.style.display = _ordersSearchQuery ? 'block' : 'none';
+
+  // re-render الـ tab الحالي
+  if(_data){
+    renderOrders('with-me', _data.withMe || []);
+    renderOrders('new-orders', _data.newOrders || []);
+    renderOrders('completed', _data.completed || []);
+    renderOrders('cancelled', _data.cancelled || []);
+    _updateSearchStats();
+  }
+}
+
+function clearOrdersSearch(){
+  _ordersSearchQuery = '';
+  const inp = document.getElementById('orders-search-input');
+  if(inp) inp.value = '';
+  const clearBtn = document.getElementById('orders-search-clear');
+  if(clearBtn) clearBtn.style.display = 'none';
+  if(_data){
+    renderOrders('with-me', _data.withMe || []);
+    renderOrders('new-orders', _data.newOrders || []);
+    renderOrders('completed', _data.completed || []);
+    renderOrders('cancelled', _data.cancelled || []);
+    _updateSearchStats();
+  }
+}
+
+function _updateSearchStats(){
+  const stats = document.getElementById('orders-search-stats');
+  if(!stats) return;
+  if(!_ordersSearchQuery){ stats.style.display = 'none'; return; }
+  if(!_data){ stats.style.display = 'none'; return; }
+
+  const totalAll = (_data.withMe||[]).length + (_data.newOrders||[]).length + (_data.completed||[]).length + (_data.cancelled||[]).length;
+  const matched =
+    searchFilterOrders(_data.withMe||[], _ordersSearchQuery).length +
+    searchFilterOrders(_data.newOrders||[], _ordersSearchQuery).length +
+    searchFilterOrders(_data.completed||[], _ordersSearchQuery).length +
+    searchFilterOrders(_data.cancelled||[], _ordersSearchQuery).length;
+
+  stats.style.display = 'block';
+  stats.innerHTML = matched
+    ? `🎯 ${matched} نتيجة من ${totalAll} طلب`
+    : `<span style="color:#fca5a5">⚠️ مفيش نتائج لـ "${_ordersSearchQuery}"</span>`;
+}
 
 // ===== LATE ORDER DETECTION =====
 // طلب متأخر = عدى عليه أكتر من 72 ساعة من created_at، مع استبعاد أيام الجمعة
@@ -1048,6 +1193,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     $('page-' + page).classList.add('active');
     if(page === 'orders') loadOrders();
+    if(page === 'dashboard') loadDashboard();
     if(page === 'statement') loadStatement();
     if(page === 'shop') loadShopOrders();
   });
@@ -1149,7 +1295,11 @@ function filterOrders(orders){
 // ===== LOAD ORDERS =====
 async function loadOrders(){
   try{
-    const r = await api('/api/courier/my-orders');
+    // 🆕 v15: حمّل الـ orders والـ pending transfers في نفس الوقت
+    const [r] = await Promise.all([
+      api('/api/courier/my-orders'),
+      loadMyPendingTransfers().catch(() => {}),
+    ]);
     _data = r;
     $('badge-with-me').textContent = r.withMe.length;
     $('badge-new').textContent = r.newOrders.length;
@@ -1167,6 +1317,7 @@ async function loadOrders(){
     renderOrders('new-orders', r.newOrders);
     renderOrders('completed', r.completed);
     renderOrders('cancelled', cancelled);
+    _updateSearchStats(); // 🆕 v12: تحدّث رسالة عدد النتائج
   }catch(e){
     toast(e.message, 'error');
   }
@@ -1175,16 +1326,31 @@ async function loadOrders(){
 function renderOrders(tabId, orders){
   const container = $('tab-' + tabId);
 
-  // للـ with-me: طبّق الفلتر
-  let displayOrders = orders;
+  // 🆕 v12: طبّق الـ search filter على كل tabs
+  let baseOrders = orders;
+  if(_ordersSearchQuery){
+    baseOrders = searchFilterOrders(orders, _ordersSearchQuery);
+  }
+
+  // للـ with-me: طبّق الفلتر (chips)
+  let displayOrders = baseOrders;
   let filteredOut = 0;
   if(tabId === 'with-me'){
-    const filtered = filterOrders(orders);
-    filteredOut = orders.length - filtered.length;
+    const filtered = filterOrders(baseOrders);
+    filteredOut = baseOrders.length - filtered.length;
     displayOrders = filtered;
   }
 
   if(!displayOrders.length){
+    // 🆕 v12: لو في search نشط، رسالة مختلفة
+    if(_ordersSearchQuery){
+      container.innerHTML = `<div class="empty">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title">مفيش نتائج هنا</div>
+        <div class="empty-sub">جرب tab تاني، أو امسح البحث</div>
+      </div>`;
+      return;
+    }
     // لو الطلبات كلها اتفلترت، اعرض رسالة مختلفة
     if(tabId === 'with-me' && orders.length > 0 && filteredOut > 0){
       container.innerHTML = `<div class="empty">
@@ -1254,6 +1420,12 @@ function renderOrderCard(o, tabId){
   if(tabId === 'with-me'){
     // طلب معاه — زرار تسليم + باقي الإجراءات
     const phone = o.phone ? o.phone.replace(/[^\d+]/g, '') : '';
+    // 🆕 v15: لو فيه طلب تحويل pending للأوردر ده، اعرض حالة بدل الزر
+    const pendingTransfer = (o._pendingTransfer || _pendingTransfersMap[o.id]);
+    const transferBtnHtml = pendingTransfer
+      ? `<div style="margin-top:6px;padding:8px 10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);border-radius:8px;color:#fbbf24;font-size:12px;text-align:center">⏳ طلب تحويل قيد المراجعة (${pendingTransfer.targetType === 'bosta' ? 'بوسطة' : 'مندوب آخر'})</div>`
+      : `<button class="act-btn full" onclick="openTransferRequest('${o.id}')" style="background:transparent;color:#fbbf24;border-color:rgba(251,191,36,.4)">🔄 طلب تحويل لمندوب آخر / بوسطة</button>`;
+
     actionsHtml = `<div class="actions-row">
       ${phone ? `<a class="act-btn" href="tel:${phone}">📞 اتصال</a>` : ''}
       ${phone ? `<a class="act-btn" href="https://wa.me/2${phone.replace(/^\+?2?0?/, '0')}" target="_blank">💬 واتساب</a>` : ''}
@@ -1263,6 +1435,7 @@ function renderOrderCard(o, tabId){
       ${!o.paid ? `<button class="act-btn full" onclick="openPaymentChange('${o.id}')">💳 تحويل لمدفوع أونلاين</button>` : ''}
       <button class="act-btn success full" onclick="openDeliver('${o.id}')">✅ تم التسليم</button>
       <button class="act-btn danger full" onclick="openUndeliverable('${o.id}')">❌ لم يتم التسليم (مؤقتاً)</button>
+      ${transferBtnHtml}
       <button class="act-btn full" onclick="openCancelOrder('${o.id}')" style="background:transparent;color:#fca5a5;border-color:rgba(239,68,68,.4)">🚫 إلغاء الطلب (العميل رفض)</button>
     </div>`;
   } else if(tabId === 'new-orders'){
@@ -1273,9 +1446,14 @@ function renderOrderCard(o, tabId){
   } else if(tabId === 'completed'){
     // طلب مسلّم — عرض تاريخ التسليم
     const t = o.deliveredAt ? new Date(o.deliveredAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '';
+    // 🆕 v15: زر تراجع — يرجع الطلب لـ "جاري التوصيل"
+    const isSettled = o.status === 'مسوّى' || o.settledAt;
     actionsHtml = `<div style="margin-top:10px;padding:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;font-size:12px;color:#34d399;text-align:center">
       ✅ تم التسليم ${t ? 'الساعة ' + t : ''}
-    </div>`;
+    </div>
+    ${!isSettled ? `<div class="actions-row" style="margin-top:8px">
+      <button class="act-btn full" onclick="undoDeliver('${o.id}')" style="background:transparent;color:#fbbf24;border-color:rgba(251,191,36,.4)">↩️ رجّع نشط (لو سلمت بالغلط)</button>
+    </div>` : `<div style="margin-top:8px;font-size:11px;color:var(--muted);text-align:center">🔒 الطلب اتسوّى — مينفعش رجوع</div>`}`;
   } else if(tabId === 'cancelled'){
     // طلب ملغي بانتظار استلام الإدارة
     const cancelTime = o.cancelledAt ? new Date(o.cancelledAt).toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '';
@@ -1400,6 +1578,130 @@ async function confirmDeliver(){
 }
 
 // ===== PICKUP ORDER (استلام من المحل) =====
+// 🆕 v15: state للـ pending transfer requests
+let _pendingTransfersMap = {}; // orderId -> {id, targetType, status}
+
+async function loadMyPendingTransfers(){
+  try{
+    const list = await api('/api/courier/my-transfer-requests');
+    _pendingTransfersMap = {};
+    (list || []).forEach(t => {
+      if(t.status === 'pending') _pendingTransfersMap[t.orderId] = t;
+    });
+  }catch(e){ /* silent */ }
+}
+
+// 🆕 v15: فتح modal لطلب تحويل شحن
+function openTransferRequest(orderId){
+  const order = (_data?.withMe || []).find(o => o.id === orderId);
+  if(!order){ toast('الطلب مش معاك دلوقتي', 'error'); return; }
+
+  // ابني الـ modal
+  let modal = document.getElementById('m-transfer-request');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'm-transfer-request';
+    modal.className = 'modal-overlay';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="modal-sheet">
+      <button class="modal-close" onclick="closeModal('m-transfer-request')">✕</button>
+      <div class="modal-handle"></div>
+      <div class="modal-title">🔄 طلب تحويل شحن</div>
+      <div style="background:var(--elev);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px">
+        <div><strong>الطلب:</strong> ${escapeHtml(orderId)}</div>
+        <div><strong>العميل:</strong> ${escapeHtml(order.name||'—')}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${escapeHtml(order.area||'')}</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">حول الطلب لـ:</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer">
+          <input type="radio" name="tr-target" value="bosta" checked style="width:18px;height:18px">
+          <div>
+            <div style="font-weight:700">📦 بوسطة</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">شحن خارج المنطقة عبر بوسطة</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer">
+          <input type="radio" name="tr-target" value="courier" style="width:18px;height:18px" onchange="document.getElementById('tr-courier-row').style.display=this.checked?'block':'none'">
+          <div>
+            <div style="font-weight:700">🚴 مندوب آخر</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">العنوان بقى في منطقة مندوب تاني</div>
+          </div>
+        </label>
+        <div id="tr-courier-row" style="display:none">
+          <select id="tr-courier-id" style="width:100%;padding:10px 12px;background:var(--elev);color:var(--text);border:1.5px solid var(--border);border-radius:8px;font-size:14px">
+            <option value="">— اختار المندوب —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label style="font-size:13px;font-weight:700;margin-bottom:6px;display:block">السبب (اختياري)</label>
+        <textarea id="tr-reason" placeholder="مثلاً: العميل غير عنوانه لمنطقة تانية" style="width:100%;min-height:70px;padding:10px;background:var(--elev);color:var(--text);border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px"></textarea>
+      </div>
+      <button class="act-btn success full" style="margin-top:14px" onclick="submitTransferRequest('${escapeAttr(orderId)}')">📤 إرسال الطلب</button>
+    </div>
+  `;
+  // املا dropdown المناديب
+  if(_data?.couriers){
+    const sel = document.getElementById('tr-courier-id');
+    if(sel){
+      sel.innerHTML = '<option value="">— اختار المندوب —</option>' +
+        _data.couriers
+          .filter(c => String(c.id) !== String(USER?.id))
+          .map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.zone ? ' — '+escapeHtml(c.zone) : ''}</option>`).join('');
+    }
+  }
+  modal.classList.add('show');
+}
+
+async function submitTransferRequest(orderId){
+  const targetEl = document.querySelector('input[name="tr-target"]:checked');
+  if(!targetEl){ toast('اختار وجهة التحويل', 'error'); return; }
+  const targetType = targetEl.value;
+  const reason = (document.getElementById('tr-reason')?.value || '').trim();
+
+  let targetCourierId = null;
+  if(targetType === 'courier'){
+    targetCourierId = +(document.getElementById('tr-courier-id')?.value);
+    if(!targetCourierId){ toast('اختار المندوب', 'error'); return; }
+  }
+
+  try{
+    const body = { orderId, targetType };
+    if(targetCourierId) body.targetCourierId = targetCourierId;
+    if(reason) body.reason = reason;
+    const r = await api('/api/shipping-transfers', { method: 'POST', body });
+    if(!r || !r.success){ toast('فشل الإرسال', 'error'); return; }
+    toast('✅ تم إرسال الطلب — في انتظار موافقة الإدارة');
+    closeModal('m-transfer-request');
+    // حدّث الـ pending map
+    _pendingTransfersMap[orderId] = {
+      id: r.id,
+      targetType,
+      targetCourierId,
+      status: 'pending',
+    };
+    loadOrders(); // re-render مع الـ banner
+  }catch(e){
+    toast('❌ ' + (e.message || 'فشل'), 'error');
+  }
+}
+
+// 🆕 v15: تراجع عن "تم التسليم" — يرجّع الطلب لـ "جاري التوصيل"
+async function undoDeliver(orderId){
+  if(!confirm('متأكد إنك عايز ترجّع الطلب لحالة "جاري التوصيل"؟\n\nالطلب هيرجع لقائمة "معاي".')) return;
+  try{
+    const r = await api(`/api/courier/orders/${orderId}/undo-deliver`, { method: 'POST' });
+    if(!r || !r.success){ toast('فشل', 'error'); return; }
+    toast('↩️ تم رجوع الطلب لقائمة "معاي"');
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + (e.message || 'فشل'), 'error');
+  }
+}
+
 async function pickupOrder(orderId){
   const o = _data.newOrders.find(x => x.id === orderId);
   if(!o){
@@ -1693,6 +1995,211 @@ async function saveZone(){
 }
 
 // ===== STATEMENT =====
+// 🆕 v13: DASHBOARD
+async function loadDashboard(){
+  const body = $('dashboard-body');
+  if(!body) return;
+  body.innerHTML = '<div class="loading"><div class="spinner"></div><div>جاري تحميل لوحة التحكم...</div></div>';
+  try{
+    const data = await api('/api/courier/dashboard');
+    body.innerHTML = renderDashboard(data);
+    // initialize chart بعد insert الـ HTML
+    if(data.dailyChart && data.dailyChart.length){
+      _renderDashboardChart(data.dailyChart);
+    }
+  }catch(e){
+    body.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">${e.message||'خطأ في التحميل'}</div></div>`;
+  }
+}
+
+function _fmtNum(n){
+  return (parseFloat(n)||0).toLocaleString('ar-EG', { maximumFractionDigits: 0 });
+}
+
+function _fmtMoney(n){
+  return (parseFloat(n)||0).toLocaleString('ar-EG', { maximumFractionDigits: 0 }) + ' ج';
+}
+
+function _fmtHours(h){
+  if (!h || h === 0) return '—';
+  if (h < 1) return Math.round(h * 60) + ' د';
+  if (h < 24) return h.toFixed(1) + ' س';
+  return Math.round(h / 24) + ' يوم';
+}
+
+function _changeArrow(pct){
+  if (pct > 5) return `<span style="color:#10b981">↑ ${pct}%</span>`;
+  if (pct < -5) return `<span style="color:#ef4444">↓ ${Math.abs(pct)}%</span>`;
+  return `<span style="color:var(--muted)">— ${pct > 0 ? '+' : ''}${pct}%</span>`;
+}
+
+function renderDashboard(d){
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'صباح الخير';
+    if (h < 17) return 'مساء الخير';
+    return 'مساء النور';
+  })();
+
+  return `
+    <!-- Hero greeting -->
+    <div style="background:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);border-radius:16px;padding:18px;margin-bottom:14px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.15)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:14px;opacity:0.9">${greeting} 👋</div>
+          <div style="font-size:22px;font-weight:800;margin-top:4px">${USER?.name || 'البطل'}</div>
+        </div>
+        ${d.streak > 0 ? `<div style="text-align:center;background:rgba(255,255,255,0.2);padding:8px 12px;border-radius:12px"><div style="font-size:22px">🔥</div><div style="font-size:11px;font-weight:700">${d.streak} يوم</div></div>` : ''}
+      </div>
+      ${d.ranking && d.ranking.total > 1 ? `<div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.2);font-size:13px">🏅 ترتيبك بين المناديب: <strong>#${d.ranking.rank}</strong> من ${d.ranking.total} (أفضل ${d.ranking.percentile}%)</div>` : ''}
+    </div>
+
+    <!-- Stats Grid: Earnings -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">💰 الأرباح من التوصيل</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">آخر 7 أيام</div>
+          <div style="font-size:18px;font-weight:800;color:#10b981;margin-top:4px">${_fmtMoney(d.last7?.earnings)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${_fmtNum(d.last7?.count)} طلب</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">آخر 30 يوم</div>
+          <div style="font-size:18px;font-weight:800;color:#10b981;margin-top:4px">${_fmtMoney(d.last30?.earnings)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${_fmtNum(d.last30?.count)} طلب</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">الشهر الحالي</div>
+          <div style="font-size:18px;font-weight:800;color:#3b82f6;margin-top:4px">${_fmtMoney(d.thisMonth?.earnings)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${_fmtNum(d.thisMonth?.count)} طلب · ${_changeArrow(d.monthChange||0)}</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">الشهر الماضي</div>
+          <div style="font-size:18px;font-weight:800;color:var(--muted);margin-top:4px">${_fmtMoney(d.lastMonth?.earnings)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${_fmtNum(d.lastMonth?.count)} طلب</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">⚡ الأداء</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">متوسط الطلبات اليومية</div>
+          <div style="font-size:20px;font-weight:800;margin-top:4px">${(d.avgDailyOrders||0).toFixed(1)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">طلب / يوم</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">سرعة التسليم</div>
+          <div style="font-size:20px;font-weight:800;margin-top:4px">${_fmtHours(d.avgDeliveryHours)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">من إنشاء الطلب للتسليم</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">نسبة النجاح</div>
+          <div style="font-size:20px;font-weight:800;margin-top:4px;color:${(d.successRate||0)>=85?'#10b981':(d.successRate||0)>=70?'#f59e0b':'#ef4444'}">${(d.successRate||0).toFixed(0)}%</div>
+          <div style="background:var(--elev);height:5px;border-radius:3px;overflow:hidden;margin-top:4px"><div style="background:${(d.successRate||0)>=85?'#10b981':(d.successRate||0)>=70?'#f59e0b':'#ef4444'};height:100%;width:${(d.successRate||0).toFixed(0)}%"></div></div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px">
+          <div style="font-size:11px;color:var(--muted)">المرتجع</div>
+          <div style="font-size:20px;font-weight:800;margin-top:4px;color:${(d.returnRate||0)<=10?'#10b981':(d.returnRate||0)<=20?'#f59e0b':'#ef4444'}">${(d.returnRate||0).toFixed(0)}%</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${(d.returnRate||0)<=10?'ممتاز 👍':(d.returnRate||0)<=20?'كويس':'محتاج اهتمام'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart: 30-day -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">📈 آخر 30 يوم</div>
+      <div id="dashboard-chart" style="height:120px;display:flex;align-items:flex-end;gap:2px"></div>
+      ${d.peakDay ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center">🏆 أحسن يوم: ${new Date(d.peakDay).toLocaleDateString('ar-EG',{month:'short',day:'numeric'})} — ${d.peakCount} طلب</div>` : ''}
+    </div>
+
+    <!-- Top Zones -->
+    ${(d.topZones && d.topZones.length) ? `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">📍 أكثر المناطق (آخر 30 يوم)</div>
+      ${d.topZones.map((z, i) => {
+        const max = d.topZones[0].count;
+        const pct = (z.count / max) * 100;
+        return `
+          <div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+              <span>${i+1}. ${z.zone}</span>
+              <strong>${z.count} طلب</strong>
+            </div>
+            <div style="background:var(--elev);height:5px;border-radius:3px;overflow:hidden">
+              <div style="background:linear-gradient(90deg,#3b82f6,#8b5cf6);height:100%;width:${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    ` : ''}
+
+    <!-- Comparison with peers -->
+    ${d.ranking && d.ranking.total > 1 ? `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">⚖️ مقارنة بالمناديب</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px">
+        <span style="color:var(--muted)">طلباتك (آخر 30 يوم)</span>
+        <strong style="color:#3b82f6">${d.ranking.myCount}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-top:1px solid var(--border)">
+        <span style="color:var(--muted)">متوسط المناديب</span>
+        <strong>${d.ranking.avgCount}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-top:1px solid var(--border)">
+        <span style="color:var(--muted)">ترتيبك</span>
+        <strong style="color:${d.ranking.rank<=3?'#10b981':'#3b82f6'}">#${d.ranking.rank} من ${d.ranking.total}</strong>
+      </div>
+      ${d.ranking.percentile >= 70 ? '<div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:8px;font-size:12px;color:#10b981;text-align:center;margin-top:8px">🎉 إنت في أفضل ' + (100-d.ranking.percentile) + '% من المناديب!</div>' : ''}
+    </div>
+    ` : ''}
+
+    <!-- Achievements -->
+    ${(d.achievements && d.achievements.length) ? `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">🏆 الإنجازات</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${d.achievements.map(a => `
+          <div style="background:${a.unlocked?'linear-gradient(135deg,#fbbf24,#f59e0b)':'var(--elev)'};color:${a.unlocked?'#fff':'var(--muted)'};padding:8px 12px;border-radius:10px;font-size:12px;font-weight:700;${!a.unlocked?'border:1px dashed var(--border)':''}">
+            <div>${a.icon} ${a.label}</div>
+            ${!a.unlocked && a.progress ? `<div style="font-size:10px;font-weight:400;margin-top:2px;opacity:0.8">${a.progress}% — باقي ${a.remaining}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- Lifetime stats -->
+    <div style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:12px;padding:14px;color:#fff;text-align:center;margin-bottom:14px">
+      <div style="font-size:11px;opacity:0.7">إجمالي مسيرتك معنا</div>
+      <div style="font-size:28px;font-weight:800;margin-top:6px">${_fmtNum(d.lifetime?.count)} طلب</div>
+      <div style="font-size:14px;opacity:0.85;margin-top:2px">${_fmtMoney(d.lifetime?.earnings)} مكسوبين</div>
+    </div>
+  `;
+}
+
+function _renderDashboardChart(daily){
+  const el = document.getElementById('dashboard-chart');
+  if(!el) return;
+  const max = Math.max(...daily.map(d => d.count), 1);
+  el.innerHTML = daily.map(d => {
+    const h = (d.count / max) * 100;
+    const isToday = d.date === new Date().toISOString().slice(0,10);
+    const color = isToday ? '#fbbf24' : (d.count === 0 ? 'var(--border)' : 'linear-gradient(180deg,#3b82f6,#8b5cf6)');
+    const date = new Date(d.date);
+    const day = date.getDate();
+    return `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%" title="${date.toLocaleDateString('ar-EG')}: ${d.count} طلب">
+        <div style="background:${color};width:100%;height:${Math.max(h, d.count > 0 ? 4 : 2)}%;border-radius:3px 3px 0 0;min-height:2px;transition:opacity 0.2s" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'"></div>
+        ${(day === 1 || day === 15) ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">${day}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
 async function loadStatement(){
   const body = $('statement-body');
   body.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -2195,9 +2702,15 @@ async function confirmShopTransfer(orderId){
   }
 }
 
+// 🆕 v14: visibility-aware polling
+let _starsPageVisible = !document.hidden;
+document.addEventListener('visibilitychange', () => {
+  _starsPageVisible = !document.hidden;
+});
+
 // Auto-refresh shop orders every 60s
 setInterval(() => {
-  if(TOKEN && ROLE === 'shop' && $('page-shop').classList.contains('active')) loadShopOrders();
+  if(_starsPageVisible && TOKEN && ROLE === 'shop' && $('page-shop').classList.contains('active')) loadShopOrders();
 }, 60000);
 
 // ============================================================
@@ -2222,9 +2735,9 @@ document.addEventListener('DOMContentLoaded', () => {
     api(checkEndpoint).then(() => showApp()).catch(() => logout());
   }
 
-  // auto refresh للـ orders كل دقيقة (courier mode)
+  // auto refresh للـ orders كل دقيقة (courier mode) - visibility-aware
   setInterval(() => {
-    if(TOKEN && ROLE === 'courier' && $('page-orders').classList.contains('active')) loadOrders();
+    if(_starsPageVisible && TOKEN && ROLE === 'courier' && $('page-orders').classList.contains('active')) loadOrders();
   }, 60000);
 });
 
@@ -2931,7 +3444,6 @@ async function toggleCam() {
       msg = '❌ الكاميرا مستخدمة من تطبيق آخر — اقفله وحاول تاني';
     }
     toast(msg, 'error');
-    alert(msg);
   }
 }
 
@@ -2973,7 +3485,7 @@ async function completePre() {
     else if (s > r) issues.push(`${i.name}: تم سكان ${s} (أكتر من المطلوب ${r}!)`);
   });
   if (issues.length) {
-    alert('⚠️ لا يمكن إتمام التحضير:\n\n' + issues.join('\n'));
+    toast('⚠️ ناقص: ' + issues[0] + (issues.length > 1 ? ` (و ${issues.length - 1} غيره)` : ''), 'error');
     playBeep(0);
     return;
   }
@@ -2995,7 +3507,7 @@ async function completePre() {
     playBeep(0);
     const msg = e.message || 'فشل';
     if (msg.includes('غير مكتمل') || msg.includes('زائدة')) {
-      alert('⚠️ ' + msg + '\n\nراجع الكميات وحاول تاني.');
+      toast('⚠️ ' + msg + ' — راجع الكميات', 'error');
     } else {
       toast('❌ ' + msg, 'error');
     }
