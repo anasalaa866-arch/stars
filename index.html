@@ -747,6 +747,12 @@ a{color:inherit;text-decoration:none}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
+// ===== Stars v17 — PARTIAL DELIVERY =====
+// 2026-04-29: ميزة التسليم الجزئي + إصلاح زرار التحويل
+// - زر "تسليم جزئي" جديد: المندوب يختار اللي اتسلم والباقي يبقى زي الملغي
+// - إصلاح زرار "تحويل لمندوب آخر/بوسطة" (كانت قائمة المناديب فاضية)
+// - حساب تلقائي للمبلغ المُحصَّل من المنتجات المختارة
+
 // 🆕 v14: Global error handlers
 window.addEventListener('error', (ev) => {
   console.error('🔥 Unhandled error:', ev.error || ev.message, ev.filename, ev.lineno);
@@ -1434,6 +1440,7 @@ function renderOrderCard(o, tabId){
       <button class="act-btn" onclick="openZoneEdit('${o.id}')">📍 تعديل المنطقة</button>
       ${!o.paid ? `<button class="act-btn full" onclick="openPaymentChange('${o.id}')">💳 تحويل لمدفوع أونلاين</button>` : ''}
       <button class="act-btn success full" onclick="openDeliver('${o.id}')">✅ تم التسليم</button>
+      <button class="act-btn full" onclick="openPartialDeliver('${o.id}')" style="background:rgba(245,158,11,.15);color:#fbbf24;border-color:rgba(245,158,11,.4)">📦 تسليم جزئي</button>
       <button class="act-btn danger full" onclick="openUndeliverable('${o.id}')">❌ لم يتم التسليم (مؤقتاً)</button>
       ${transferBtnHtml}
       <button class="act-btn full" onclick="openCancelOrder('${o.id}')" style="background:transparent;color:#fca5a5;border-color:rgba(239,68,68,.4)">🚫 إلغاء الطلب (العميل رفض)</button>
@@ -1577,6 +1584,198 @@ async function confirmDeliver(){
   }
 }
 
+// ===== 🆕 v17: PARTIAL DELIVERY (تسليم جزئي) =====
+// state للـ partial delivery
+let _partialDeliveryItems = []; // [{name, quantity, price, delivered: bool}]
+let _partialOrderId = null;
+
+function openPartialDeliver(orderId){
+  const o = (_data?.withMe || []).find(x => x.id === orderId);
+  if(!o){ toast('الطلب مش معاك دلوقتي', 'error'); return; }
+  
+  // parse الـ items من الطلب
+  const items = _safeParseItems(o.items);
+  if(!items.length){
+    toast('❌ الطلب ده مفيهوش منتجات محددة - استخدم "تم التسليم" العادي', 'error');
+    return;
+  }
+  
+  _partialOrderId = orderId;
+  _partialDeliveryItems = items.map(item => ({
+    name: item.name || item.title || '—',
+    quantity: parseInt(item.quantity || 1),
+    price: parseFloat(item.price || 0),
+    delivered: true // افتراضياً كله مُسلَّم
+  }));
+  
+  // ابني الـ modal
+  let modal = document.getElementById('m-partial-deliver');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'm-partial-deliver';
+    modal.className = 'modal-overlay';
+    document.body.appendChild(modal);
+  }
+  
+  renderPartialDeliverModal(o);
+  modal.classList.add('show');
+}
+
+function renderPartialDeliverModal(order){
+  const modal = document.getElementById('m-partial-deliver');
+  if(!modal) return;
+  
+  // بناء قائمة المنتجات مع checkboxes
+  const itemsHtml = _partialDeliveryItems.map((item, idx) => {
+    const itemTotal = item.price * item.quantity;
+    return `
+      <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1.5px solid ${item.delivered ? 'rgba(16,185,129,.4)' : 'var(--border)'};border-radius:10px;cursor:pointer;background:${item.delivered ? 'rgba(16,185,129,.08)' : 'var(--elev)'};margin-bottom:8px;transition:all .15s">
+        <input type="checkbox" ${item.delivered ? 'checked' : ''} 
+               onchange="togglePartialItem(${idx})" 
+               style="width:20px;height:20px;accent-color:#10b981;cursor:pointer">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${escapeHtml(item.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">
+            ${item.quantity}× · ${item.price.toLocaleString()} ج للقطعة
+          </div>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:${item.delivered ? '#10b981' : 'var(--muted)'};text-align:left">
+          ${itemTotal.toLocaleString()} ج
+        </div>
+      </label>`;
+  }).join('');
+  
+  // حساب المبالغ
+  const deliveredTotal = _partialDeliveryItems
+    .filter(i => i.delivered)
+    .reduce((s, i) => s + (i.price * i.quantity), 0);
+  const returnedTotal = _partialDeliveryItems
+    .filter(i => !i.delivered)
+    .reduce((s, i) => s + (i.price * i.quantity), 0);
+  const deliveredCount = _partialDeliveryItems.filter(i => i.delivered).length;
+  const returnedCount = _partialDeliveryItems.filter(i => !i.delivered).length;
+  
+  // التحقق: لازم في حاجة اتسلمت وفي حاجة رجعت
+  const isValid = deliveredCount > 0 && returnedCount > 0;
+  
+  modal.innerHTML = `
+    <div class="modal-sheet" style="max-height:90vh;overflow-y:auto">
+      <button class="modal-close" onclick="closeModal('m-partial-deliver')">✕</button>
+      <div class="modal-handle"></div>
+      <div class="modal-title">📦 تسليم جزئي</div>
+      
+      <div style="background:var(--elev);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px">
+        <div><strong>الطلب:</strong> ${escapeHtml(order.id)}</div>
+        <div><strong>العميل:</strong> ${escapeHtml(order.name||'—')}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${escapeHtml(order.area||'')}</div>
+      </div>
+      
+      <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#fbbf24">
+        ⚠️ علّم على المنتجات اللي <strong>اتسلمت فعلاً</strong>. اللي مش هتعلّم عليها هترجع للمحل كملغي.
+      </div>
+      
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">المنتجات:</div>
+      <div style="margin-bottom:14px">
+        ${itemsHtml}
+      </div>
+      
+      <!-- ملخص المبالغ -->
+      <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="color:#10b981;font-weight:700">✅ اتسلم (${deliveredCount} منتج)</span>
+          <span style="font-size:18px;font-weight:800;color:#10b981">${deliveredTotal.toLocaleString()} ج</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="color:#ef4444;font-weight:700">❌ مرتجع (${returnedCount} منتج)</span>
+          <span style="font-size:14px;font-weight:700;color:#ef4444">${returnedTotal.toLocaleString()} ج</span>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:14px;font-weight:700">💰 المطلوب تحصيله:</span>
+            <span style="font-size:22px;font-weight:900;color:var(--gold)">${deliveredTotal.toLocaleString()} ج</span>
+          </div>
+          ${order.paid ? '<div style="font-size:11px;color:var(--muted);text-align:left;margin-top:4px">الطلب مدفوع أونلاين — لا تحصيل</div>' : ''}
+        </div>
+      </div>
+      
+      <!-- سبب الإرجاع -->
+      <div class="form-group" style="margin-bottom:14px">
+        <label style="font-size:13px;font-weight:700;margin-bottom:6px;display:block">سبب الإرجاع (اختياري)</label>
+        <textarea id="partial-reason" placeholder="مثلاً: العميل بصّ على المنتج وما عجبوش..." style="width:100%;min-height:60px;padding:10px;background:var(--elev);color:var(--text);border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
+      </div>
+      
+      ${!isValid ? `
+        <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px;color:#fca5a5;text-align:center">
+          ${deliveredCount === 0 ? '⚠️ لازم تختار منتج واحد على الأقل اتسلم' : '⚠️ لو كل المنتجات اتسلمت، استخدم "تم التسليم" العادي'}
+        </div>
+      ` : ''}
+      
+      <button class="act-btn success full" 
+              onclick="submitPartialDeliver()" 
+              ${!isValid ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}>
+        ✅ تأكيد التسليم الجزئي
+      </button>
+    </div>
+  `;
+}
+
+function togglePartialItem(idx){
+  if(_partialDeliveryItems[idx]){
+    _partialDeliveryItems[idx].delivered = !_partialDeliveryItems[idx].delivered;
+    // re-render مع نفس الطلب
+    const order = (_data?.withMe || []).find(x => x.id === _partialOrderId);
+    if(order) renderPartialDeliverModal(order);
+  }
+}
+
+async function submitPartialDeliver(){
+  if(!_partialOrderId){ toast('خطأ - حاول تاني', 'error'); return; }
+  
+  const deliveredItems = _partialDeliveryItems.filter(i => i.delivered).map(i => ({
+    name: i.name,
+    quantity: i.quantity,
+    price: i.price
+  }));
+  const returnedItems = _partialDeliveryItems.filter(i => !i.delivered).map(i => ({
+    name: i.name,
+    quantity: i.quantity,
+    price: i.price
+  }));
+  
+  if(!deliveredItems.length){ toast('اختار منتج واحد على الأقل اتسلم', 'error'); return; }
+  if(!returnedItems.length){ toast('استخدم "تم التسليم" لو الكل اتسلم', 'error'); return; }
+  
+  const collectedAmount = deliveredItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const returnReason = (document.getElementById('partial-reason')?.value || '').trim();
+  
+  // تأكيد نهائي
+  const confirmMsg = `هل أنت متأكد من التسليم الجزئي؟\n\n` +
+    `✅ مُسلَّم: ${deliveredItems.length} منتج (${collectedAmount.toLocaleString()} ج)\n` +
+    `❌ مُرجَع: ${returnedItems.length} منتج\n\n` +
+    `الجزء المُرجَع لازم ترجعه للمحل!`;
+  if(!confirm(confirmMsg)) return;
+  
+  try{
+    const r = await api(`/api/courier/orders/${_partialOrderId}/partial-deliver`, {
+      method: 'POST',
+      body: { deliveredItems, returnedItems, collectedAmount, returnReason }
+    });
+    
+    if(!r || !r.success){ toast('فشل العملية', 'error'); return; }
+    
+    closeModal('m-partial-deliver');
+    toast(`✅ تم التسليم الجزئي - تم تحصيل ${collectedAmount.toLocaleString()} ج`, 'success');
+    
+    // reset state
+    _partialDeliveryItems = [];
+    _partialOrderId = null;
+    
+    loadOrders();
+  }catch(e){
+    toast('❌ ' + (e.message || 'فشل'), 'error');
+  }
+}
+
 // ===== PICKUP ORDER (استلام من المحل) =====
 // 🆕 v15: state للـ pending transfer requests
 let _pendingTransfersMap = {}; // orderId -> {id, targetType, status}
@@ -1592,9 +1791,20 @@ async function loadMyPendingTransfers(){
 }
 
 // 🆕 v15: فتح modal لطلب تحويل شحن
-function openTransferRequest(orderId){
+async function openTransferRequest(orderId){
   const order = (_data?.withMe || []).find(o => o.id === orderId);
   if(!order){ toast('الطلب مش معاك دلوقتي', 'error'); return; }
+
+  // 🆕 v17: لو القائمة مش موجودة، نجيبها من السيرفر
+  if(!_data?.couriers || !_data.couriers.length){
+    try{
+      // جرّب نجيب الـ orders تاني (هيرجع couriers كمان لو السيرفر v108+)
+      const r = await api('/api/courier/my-orders');
+      if(r && r.couriers){
+        _data.couriers = r.couriers;
+      }
+    }catch(e){ console.warn('Failed to load couriers:', e.message); }
+  }
 
   // ابني الـ modal
   let modal = document.getElementById('m-transfer-request');
@@ -1644,13 +1854,17 @@ function openTransferRequest(orderId){
     </div>
   `;
   // املا dropdown المناديب
-  if(_data?.couriers){
-    const sel = document.getElementById('tr-courier-id');
-    if(sel){
+  const sel = document.getElementById('tr-courier-id');
+  if(sel){
+    if(_data?.couriers && _data.couriers.length){
       sel.innerHTML = '<option value="">— اختار المندوب —</option>' +
         _data.couriers
           .filter(c => String(c.id) !== String(USER?.id))
           .map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.zone ? ' — '+escapeHtml(c.zone) : ''}</option>`).join('');
+    } else {
+      // 🆕 v17: لو مفيش مناديب متاحين، اعرض رسالة واضحة
+      sel.innerHTML = '<option value="">— مفيش مناديب آخرين متاحين —</option>';
+      sel.disabled = true;
     }
   }
   modal.classList.add('show');
