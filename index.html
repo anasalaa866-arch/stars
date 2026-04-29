@@ -747,9 +747,12 @@ a{color:inherit;text-decoration:none}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
-// ===== Stars v17 — PARTIAL DELIVERY =====
+// ===== Stars v17 — PARTIAL DELIVERY (UPDATED) =====
 // 2026-04-29: ميزة التسليم الجزئي + إصلاح زرار التحويل
 // - زر "تسليم جزئي" جديد: المندوب يختار اللي اتسلم والباقي يبقى زي الملغي
+// - يستخدم lineItemsJson (تفاصيل كاملة) أو fallback لـ items text parser
+// - دعم الطلبات القديمة بدون JSON: يفسّر النص "Product x2, Product2 x1"
+// - حساب الأسعار تقريبياً للطلبات القديمة
 // - إصلاح زرار "تحويل لمندوب آخر/بوسطة" (كانت قائمة المناديب فاضية)
 // - حساب تلقائي للمبلغ المُحصَّل من المنتجات المختارة
 
@@ -1593,10 +1596,33 @@ function openPartialDeliver(orderId){
   const o = (_data?.withMe || []).find(x => x.id === orderId);
   if(!o){ toast('الطلب مش معاك دلوقتي', 'error'); return; }
   
-  // parse الـ items من الطلب
-  const items = _safeParseItems(o.items);
+  // 🆕 v17: parse الـ items من lineItemsJson (تفاصيل كاملة) أو items كـ fallback
+  let items = [];
+  
+  // المصدر الأساسي: lineItemsJson (JSON من Shopify فيه name, quantity, price)
+  if(o.lineItemsJson){
+    try{
+      const parsed = typeof o.lineItemsJson === 'string' 
+        ? JSON.parse(o.lineItemsJson) 
+        : o.lineItemsJson;
+      if(Array.isArray(parsed) && parsed.length > 0){
+        items = parsed;
+      }
+    }catch(e){ console.warn('Failed to parse lineItemsJson:', e); }
+  }
+  
+  // fallback: جرّب الـ items field (لو بـ JSON format)
   if(!items.length){
-    toast('❌ الطلب ده مفيهوش منتجات محددة - استخدم "تم التسليم" العادي', 'error');
+    items = _safeParseItems(o.items);
+  }
+  
+  // fallback نهائي: لو الـ items نص عادي ("Product1 x1, Product2 x2")، نحاول نفهمه
+  if(!items.length && typeof o.items === 'string' && o.items.trim()){
+    items = _parseTextItems(o.items, o.total || 0);
+  }
+  
+  if(!items.length){
+    toast('❌ مش قادرين نقرا منتجات الطلب - استخدم "تم التسليم" العادي', 'error');
     return;
   }
   
@@ -1621,9 +1647,60 @@ function openPartialDeliver(orderId){
   modal.classList.add('show');
 }
 
+// 🆕 v17: parser للطلبات القديمة اللي الـ items فيها نص عادي
+// مثال: "Milka Choco Wafer x1, Davidoff Coffee x2"
+// بيرجع: [{name: "Milka Choco Wafer", quantity: 1, price: ?}, ...]
+function _parseTextItems(text, totalAmount){
+  if(!text || typeof text !== 'string') return [];
+  
+  // شيل الـ prefix زي 'BB:" 10-5-2026 "' لو موجود
+  let cleaned = text.replace(/^[^"]*"[^"]*"\s*"?/, '').replace(/"?$/, '').trim();
+  if(!cleaned) cleaned = text;
+  
+  // قسّم بالفاصلة
+  const parts = cleaned.split(/,\s*/).map(s => s.trim()).filter(s => s.length > 0);
+  if(!parts.length) return [];
+  
+  // parse كل جزء: "Product Name x2" → {name, quantity}
+  const items = [];
+  let totalQty = 0;
+  
+  parts.forEach(part => {
+    // البحث عن "x" + رقم في النهاية: "Product x2" أو "Product ×2"
+    const match = part.match(/^(.+?)\s*[xX×]\s*(\d+)\s*$/);
+    if(match){
+      const name = match[1].trim();
+      const qty = parseInt(match[2]) || 1;
+      if(name){
+        items.push({ name, quantity: qty, price: 0 });
+        totalQty += qty;
+      }
+    } else if(part.length > 0){
+      items.push({ name: part, quantity: 1, price: 0 });
+      totalQty += 1;
+    }
+  });
+  
+  // قسّم المبلغ الإجمالي على المنتجات بالنسبة للكمية (تقريبي)
+  if(totalAmount > 0 && totalQty > 0 && items.length > 0){
+    const pricePerUnit = totalAmount / totalQty;
+    items.forEach(item => {
+      item.price = Math.round(pricePerUnit);
+    });
+  }
+  
+  return items;
+}
+
 function renderPartialDeliverModal(order){
   const modal = document.getElementById('m-partial-deliver');
   if(!modal) return;
+  
+  // 🆕 v17: تحقق لو الأسعار محسوبة تقريبياً (طلبات قديمة بدون lineItemsJson)
+  const hasPriceData = _partialDeliveryItems.some(i => i.price > 0);
+  const totalSum = _partialDeliveryItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const expectedTotal = parseFloat(order.total) || 0;
+  const isEstimated = !order.lineItemsJson && Math.abs(totalSum - expectedTotal) < 1;
   
   // بناء قائمة المنتجات مع checkboxes
   const itemsHtml = _partialDeliveryItems.map((item, idx) => {
@@ -1673,6 +1750,12 @@ function renderPartialDeliverModal(order){
       <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#fbbf24">
         ⚠️ علّم على المنتجات اللي <strong>اتسلمت فعلاً</strong>. اللي مش هتعلّم عليها هترجع للمحل كملغي.
       </div>
+      
+      ${isEstimated ? `
+      <div style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#93c5fd">
+        ℹ️ الأسعار محسوبة تقريبياً (طلب قديم) - راجع المبلغ قبل التحصيل
+      </div>
+      ` : ''}
       
       <div style="font-size:13px;font-weight:700;margin-bottom:8px">المنتجات:</div>
       <div style="margin-bottom:14px">
