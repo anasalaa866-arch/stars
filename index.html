@@ -424,6 +424,78 @@ a{color:inherit;text-decoration:none}
     </div>
   </div>
 
+  <!-- 🆕 v18: STOCKTAKE PAGE -->
+  <div class="page" id="page-stocktake">
+    <div class="header">
+      <div style="font-weight:800;font-size:18px;color:var(--gold)" id="stk-page-title">🔍 الجرد</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px" id="stk-page-subtitle">اختار جلسة الجرد</div>
+    </div>
+    
+    <!-- Sessions list view -->
+    <div id="stk-sessions-view" style="padding:14px;padding-bottom:80px">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+    
+    <!-- Active session view (hidden by default) -->
+    <div id="stk-session-view" style="padding:14px;padding-bottom:80px;display:none">
+      <button class="btn-secondary" onclick="stkBackToList()" style="margin-bottom:14px">← رجوع للقائمة</button>
+      
+      <!-- Session info card -->
+      <div id="stk-session-info"></div>
+      
+      <!-- 🆕 v20: Scan area (يختفي عند فتح card المنتج) -->
+      <div id="stk-scan-area">
+        <div style="background:var(--elev);border:2px solid var(--gold);border-radius:14px;padding:18px;margin:14px 0;text-align:center">
+          <div style="font-size:48px;margin-bottom:8px">📱</div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:14px">امسح الباركود لفتح المنتج</div>
+          
+          <button class="btn-primary" id="stk-camera-btn" onclick="stkStartCamera()" style="width:100%;font-size:15px;padding:14px;margin-bottom:10px">
+            📷 فتح الكاميرا
+          </button>
+          
+          <div style="font-size:11px;color:var(--muted);margin:10px 0">— أو —</div>
+          
+          <input type="text" id="stk-manual-barcode" placeholder="ادخل الباركود يدوياً" style="width:100%;padding:14px;border-radius:8px;border:1px solid var(--border);background:var(--elev);color:var(--text);font-family:Cairo,sans-serif;font-size:14px;text-align:center;margin-bottom:8px">
+          <button class="btn-secondary" onclick="stkSubmitManual()" style="width:100%">🔍 افتح المنتج</button>
+        </div>
+        
+        <!-- Camera viewport -->
+        <div id="stk-camera-view" style="display:none;background:#000;border-radius:14px;overflow:hidden;margin-bottom:14px;position:relative">
+          <video id="stk-video" style="width:100%;display:block" playsinline autoplay muted></video>
+          <div style="position:absolute;top:50%;left:10%;right:10%;height:80px;border:3px solid #fbbf24;border-radius:8px;transform:translateY(-50%);box-shadow:0 0 0 9999px rgba(0,0,0,.4);pointer-events:none">
+            <div style="position:absolute;left:0;right:0;top:50%;height:2px;background:#ef4444;transform:translateY(-50%);box-shadow:0 0 8px #ef4444"></div>
+          </div>
+          <button onclick="stkStopCamera()" style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif">✕ إغلاق</button>
+          <div id="stk-cam-status" style="position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#fbbf24;font-size:12px;font-weight:700;text-shadow:0 0 4px #000">🔍 وجّه الكاميرا للباركود...</div>
+        </div>
+      </div>
+      
+      <!-- Stats area -->
+      <div id="stk-stats-area">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0">
+          <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:var(--muted)">المعدود</div>
+            <div style="font-size:18px;font-weight:800;color:var(--gold)" id="stk-stat-counted">0</div>
+          </div>
+          <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:var(--muted)">الإجمالي</div>
+            <div style="font-size:18px;font-weight:800" id="stk-stat-total">0</div>
+          </div>
+          <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:var(--muted)">فروقات</div>
+            <div style="font-size:18px;font-weight:800;color:#fbbf24" id="stk-stat-diff">0</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Recent scans area -->
+      <div id="stk-recent-area">
+        <div style="font-weight:700;margin:14px 0 8px 0;font-size:13px">📋 آخر العمليات:</div>
+        <div id="stk-recent-list"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
     <div class="nav-item active" data-page="orders" data-role="courier">
@@ -441,6 +513,11 @@ a{color:inherit;text-decoration:none}
     <div class="nav-item" data-page="shop" data-role="shop" style="display:none">
       <div class="nav-ico">🏪</div>
       <div>طلبات المحل</div>
+    </div>
+    <!-- 🆕 v18: Stocktake tab -->
+    <div class="nav-item" data-page="stocktake" style="display:none" id="nav-stocktake">
+      <div class="nav-ico">🔍</div>
+      <div>الجرد</div>
     </div>
   </div>
 </div>
@@ -747,7 +824,36 @@ a{color:inherit;text-decoration:none}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
-// ===== Stars v17 — PARTIAL DELIVERY (UPDATED) =====
+// ===== Stars v20 — STOCKTAKE MANUAL ENTRY =====
+// 2026-05-05: scan = يفتح المنتج، الموظف يدخل الكمية يدوياً
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ scan لا يزيد عداد - يفتح card فيه بيانات المنتج
+// 2. ✅ الموظف يدخل الكمية + ملاحظة المكان (رف 1، ...)
+// 3. ✅ يقدر يضيف نفس المنتج من أكتر من مكان (entries)
+// 4. ✅ النظام يجمع entries في إجمالي
+// 5. ✅ إظهار/إخفاء كمية النظام (on_hand) حسب إعدادات الجلسة
+// 6. ✅ زرار 🗑️ لحذف entry معين
+// =================================
+// السابق: Stars v19 — STOCKTAKER ROLE
+// 2026-05-05: الجرد لمتخصصي الجرد فقط (مش المناديب)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ role جديد: stocktaker
+// 2. ✅ stocktaker → بيشوف tab الجرد فقط
+// 3. ✅ courier → ما يشوفش tab الجرد خالص
+// 4. ✅ admin (web) → بيقدر يدير الجرد بالـ admin token
+// =================================
+// السابق: Stars v18 — STOCKTAKE
+// 2026-05-05: واجهة موبايل لجرد المخزن (Phase 6)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ Tab "🔍 جرد" في الـ bottom nav
+// 2. ✅ قائمة الجلسات النشطة
+// 3. ✅ Camera scanner (BarcodeDetector API)
+// 4. ✅ إدخال يدوي للباركود
+// 5. ✅ صوت + اهتزاز عند الـ scan
+// 6. ✅ stats live (معدود/إجمالي/فروقات)
+// 7. ✅ آخر 8 scans في الأسفل
+// =================================
+// السابق: Stars v17 — PARTIAL DELIVERY
 // 2026-04-29: ميزة التسليم الجزئي + إصلاح زرار التحويل
 // - زر "تسليم جزئي" جديد: المندوب يختار اللي اتسلم والباقي يبقى زي الملغي
 // - يستخدم lineItemsJson (تفاصيل كاملة) أو fallback لـ items text parser
@@ -1175,6 +1281,29 @@ function showApp(){
       el.style.display = 'none';
     }
   });
+  
+  // 🆕 v19: Stocktake tab - للـ stocktaker بس
+  const stkNav = document.getElementById('nav-stocktake');
+  if(stkNav){
+    if(ROLE === 'stocktaker'){
+      stkNav.style.display = '';
+    } else {
+      stkNav.style.display = 'none';
+    }
+  }
+  
+  // 🆕 v19: لو stocktaker - اخفي كل الـ nav التانية وروح للجرد على طول
+  if(ROLE === 'stocktaker'){
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if(el.id !== 'nav-stocktake') el.style.display = 'none';
+    });
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    if(stkNav) stkNav.classList.add('active');
+    $('page-stocktake').classList.add('active');
+    loadStkSessions();
+    return;
+  }
 
   // اختار الصفحة الأولى حسب الـ role
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1193,6 +1322,504 @@ function showApp(){
   }
 }
 
+// ============================================================
+// 🆕 v18: STOCKTAKE (الجرد)
+// ============================================================
+let _stkActiveSession = null;
+let _stkActiveItems = [];
+let _stkScanner = null;
+let _stkScanStream = null;
+
+async function loadStkSessions(){
+  const container = $('stk-sessions-view');
+  if(!container) return;
+  
+  // اظهر sessions view واخفي session view
+  $('stk-session-view').style.display = 'none';
+  $('stk-sessions-view').style.display = 'block';
+  
+  $('stk-page-title').textContent = '🔍 الجرد';
+  $('stk-page-subtitle').textContent = 'اختار جلسة الجرد';
+  
+  container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  
+  try{
+    const r = await apiFetch('/api/stocktake/history?status=in_progress');
+    const sessions = r?.sessions || [];
+    
+    if(!sessions.length){
+      container.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:var(--muted)">
+          <div style="font-size:64px;margin-bottom:14px;opacity:.4">🔍</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">مفيش جلسات جرد نشطة</div>
+          <div style="font-size:12px">المدير لازم يبدأ جلسة جرد من النظام أولاً</div>
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = sessions.map(s => {
+      const total = parseInt(s.items_total) || 0;
+      const counted = parseInt(s.items_counted) || 0;
+      const progress = total > 0 ? Math.round(counted * 100 / total) : 0;
+      const startedDate = new Date(s.started_at).toLocaleDateString('ar-EG');
+      
+      return `
+        <div onclick="openStkSession(${s.id})" style="background:var(--elev);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;transition:all .15s" 
+             onmousedown="this.style.transform='scale(.98)'" onmouseup="this.style.transform=''" ontouchstart="this.style.transform='scale(.98)'" ontouchend="this.style.transform=''">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:800;font-size:14px;margin-bottom:3px;color:var(--gold)">${escapeHtml(s.title || 'جرد')}</div>
+              <div style="font-size:11px;color:var(--muted)">📦 ${escapeHtml(s.warehouse_name || '—')}</div>
+              <div style="font-size:11px;color:var(--muted)">📅 ${startedDate} · 👤 ${escapeHtml(s.started_by || '')}</div>
+            </div>
+            <div style="background:#fbbf24;color:#000;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:800">⚡ نشط</div>
+          </div>
+          ${total > 0 ? `
+            <div style="background:var(--bg);border-radius:99px;height:6px;overflow:hidden;margin-top:10px">
+              <div style="background:var(--gold);height:100%;width:${progress}%"></div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">${counted} / ${total} (${progress}%)</div>
+          ` : `
+            <div style="font-size:11px;color:var(--muted);margin-top:6px">📱 جلسة Scan فاضية - ابدأ بالـ scan</div>
+          `}
+        </div>
+      `;
+    }).join('');
+  }catch(e){
+    container.innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444">❌ فشل التحميل: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function openStkSession(sessionId){
+  $('stk-sessions-view').style.display = 'none';
+  $('stk-session-view').style.display = 'block';
+  
+  $('stk-page-title').textContent = '🔍 جلسة جرد';
+  $('stk-page-subtitle').textContent = 'جاري التحميل...';
+  
+  try{
+    const r = await apiFetch('/api/stocktake/sessions/' + sessionId);
+    if(!r || !r.session){ toast('❌ مفيش بيانات', 'error'); return; }
+    
+    _stkActiveSession = r.session;
+    _stkActiveItems = r.items || [];
+    
+    $('stk-page-subtitle').textContent = r.session.title || '';
+    
+    renderStkActiveSession();
+    
+    // Focus على input
+    setTimeout(() => $('stk-manual-barcode')?.focus(), 100);
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function stkBackToList(){
+  // وقّف الكاميرا لو شغالة
+  stkStopCamera();
+  _stkActiveSession = null;
+  _stkActiveItems = [];
+  loadStkSessions();
+}
+
+function renderStkActiveSession(){
+  const s = _stkActiveSession;
+  const items = _stkActiveItems;
+  
+  const total = items.length;
+  const counted = items.filter(i => i.counted_qty != null).length;
+  const differences = items.filter(i => i.counted_qty != null && i.counted_qty !== i.system_qty).length;
+  
+  // Session info
+  $('stk-session-info').innerHTML = `
+    <div style="background:var(--elev);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:14px">
+      <div style="font-weight:800;font-size:14px;color:var(--gold);margin-bottom:4px">${escapeHtml(s.title || '')}</div>
+      <div style="font-size:11px;color:var(--muted)">📦 ${escapeHtml(s.warehouse_name || '—')}</div>
+    </div>
+  `;
+  
+  // Stats
+  $('stk-stat-counted').textContent = counted;
+  $('stk-stat-total').textContent = total;
+  $('stk-stat-diff').textContent = differences;
+  
+  // Recent scans (آخر 8)
+  const recent = [...items]
+    .filter(i => i.counted_at)
+    .sort((a,b) => new Date(b.counted_at) - new Date(a.counted_at))
+    .slice(0, 8);
+  
+  const recentList = $('stk-recent-list');
+  if(!recentList) return;
+  
+  if(!recent.length){
+    recentList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">لسه ما اتعملش scan لأي منتج</div>';
+    return;
+  }
+  
+  recentList.innerHTML = recent.map(i => {
+    const diff = i.counted_qty - i.system_qty;
+    const diffColor = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'var(--muted)';
+    const diffStr = diff === 0 ? '✓' : (diff > 0 ? `+${diff}` : `${diff}`);
+    
+    return `
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(i.product_title || '')}</div>
+          <div style="font-size:10px;color:var(--muted)">${escapeHtml(i.sku || '—')}</div>
+        </div>
+        <div style="text-align:center;flex-shrink:0">
+          <div style="font-size:11px;color:var(--muted)">عُدّ</div>
+          <div style="font-weight:800;font-size:16px;color:var(--gold)">${i.counted_qty}</div>
+        </div>
+        <div style="text-align:center;flex-shrink:0;min-width:40px">
+          <div style="font-size:11px;color:var(--muted)">فرق</div>
+          <div style="font-weight:800;font-size:14px;color:${diffColor}">${diffStr}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Scan باركود يدوي ───
+async function stkSubmitManual(){
+  const barcode = $('stk-manual-barcode').value.trim();
+  if(!barcode){ toast('❌ ادخل الباركود', 'error'); return; }
+  
+  await stkProcessScan(barcode);
+  $('stk-manual-barcode').value = '';
+}
+
+// 🆕 v20: scan = يجيب المنتج + يفتح card الإدخال
+async function stkProcessScan(barcode){
+  if(!_stkActiveSession){ return; }
+  
+  try{
+    const r = await apiFetch('/api/stocktake/sessions/' + _stkActiveSession.id + '/scan', 'POST', {
+      barcode
+    });
+    
+    if(r && r.success){
+      // صوت + اهتزاز نجاح
+      try { 
+        if(navigator.vibrate) navigator.vibrate(50);
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 1200;
+        gain.gain.setValueAtTime(.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(.01, ctx.currentTime + .1);
+        osc.start();
+        osc.stop(ctx.currentTime + .1);
+      } catch(e){}
+      
+      // 🆕 v20: افتح modal بيانات المنتج بدل ما نزود العداد
+      stkOpenProductCard(r);
+      
+    } else {
+      try { if(navigator.vibrate) navigator.vibrate([100,50,100]); } catch(e){}
+      toast('❌ ' + (r?.error || 'منتج مش موجود'), 'error');
+      
+      const cam = $('stk-cam-status');
+      if(cam){
+        cam.textContent = '❌ ' + (r?.error || 'مش موجود');
+        cam.style.color = '#ef4444';
+        setTimeout(() => {
+          cam.textContent = '🔍 وجّه الكاميرا للباركود...';
+          cam.style.color = '#fbbf24';
+        }, 1500);
+      }
+    }
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// 🆕 v20: افتح card المنتج بعد الـ scan
+let _stkCurrentProduct = null;
+function stkOpenProductCard(scanResult){
+  // وقّف الكاميرا مؤقتاً
+  stkStopCamera();
+  
+  _stkCurrentProduct = scanResult;
+  const p = scanResult.product;
+  const showSysQty = p.showSystemQty === true && p.systemQty !== null;
+  const totalSoFar = scanResult.totalCountedSoFar || 0;
+  const entries = scanResult.entries || [];
+  
+  // entries previous
+  const entriesHtml = entries.length ? `
+    <div style="background:rgba(99,102,241,.1);border:1px solid var(--gold);border-radius:10px;padding:10px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:6px">📍 تم العد قبل كده في:</div>
+      ${entries.map(e => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.1);font-size:12px">
+          <span>${e.location_note ? '📌 '+escapeHtml(e.location_note) : '📍 موقع رئيسي'}</span>
+          <span style="font-weight:800;color:var(--gold);font-size:14px">${e.qty}</span>
+          <span style="font-size:10px;color:var(--muted)">${escapeHtml(e.counted_by || '')}</span>
+          <button onclick="stkDeleteEntry(${e.id})" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:2px 6px">🗑️</button>
+        </div>
+      `).join('')}
+      <div style="display:flex;justify-content:space-between;padding:8px 0 0 0;font-weight:800;color:var(--gold);font-size:13px">
+        <span>الإجمالي حتى الآن:</span>
+        <span style="font-size:18px">${totalSoFar}</span>
+      </div>
+    </div>
+  ` : '';
+  
+  const html = `
+    <div style="padding:16px;padding-bottom:80px">
+      <button class="btn-secondary" onclick="stkClosseProductCard()" style="margin-bottom:14px">← رجوع للـ scan</button>
+      
+      <!-- Product info -->
+      <div style="background:var(--elev);border:2px solid var(--gold);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">
+          ${p.imageUrl 
+            ? `<img src="${escapeHtml(p.imageUrl)}" style="width:60px;height:60px;border-radius:8px;object-fit:cover">`
+            : '<div style="width:60px;height:60px;border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:30px">📦</div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:800;font-size:14px;color:var(--gold);margin-bottom:4px">${escapeHtml(p.title || '')}</div>
+            ${p.variant ? `<div style="font-size:12px;color:var(--muted)">${escapeHtml(p.variant)}</div>` : ''}
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">SKU: ${escapeHtml(p.sku || '—')}</div>
+          </div>
+        </div>
+        
+        ${showSysQty ? `
+          <div style="background:rgba(34,197,94,.1);border:1px solid #22c55e;border-radius:8px;padding:10px;text-align:center;margin-top:10px">
+            <div style="font-size:11px;color:#86efac">الكمية الفعلية في النظام (on_hand):</div>
+            <div style="font-size:24px;font-weight:800;color:#22c55e;margin-top:2px">${p.systemQty}</div>
+          </div>
+        ` : `
+          <div style="background:rgba(251,191,36,.1);border:1px solid #fbbf24;border-radius:8px;padding:10px;text-align:center;margin-top:10px">
+            <div style="font-size:12px;color:#fbbf24">🔒 جرد أعمى - لن تظهر الكمية الموجودة في النظام</div>
+          </div>
+        `}
+      </div>
+      
+      ${entriesHtml}
+      
+      <!-- إدخال كمية جديدة -->
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:var(--gold)">${entries.length ? '➕ أضف عد من موقع تاني' : '✏️ أدخل الكمية'}</div>
+        
+        <div style="margin-bottom:10px">
+          <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">الكمية اللي عددتها:</label>
+          <input type="number" id="stk-card-qty" min="0" placeholder="0" style="width:100%;padding:14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:24px;text-align:center;font-weight:800">
+        </div>
+        
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">المكان (اختياري - مثلاً: رف 1، الكرتونة، الواجهة...)</label>
+          <input type="text" id="stk-card-location" placeholder="رف 1 / الكرتونة / تحت الكاونتر..." style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+        </div>
+        
+        <button class="btn-primary" onclick="stkSaveEntry()" style="width:100%;font-size:15px;padding:14px">💾 حفظ العد</button>
+      </div>
+      
+      <button class="btn-secondary" onclick="stkClosseProductCard()" style="width:100%">← رجوع لـ scan منتج تاني</button>
+    </div>
+  `;
+  
+  // اخفي السكان وأظهر الـ card
+  document.getElementById('stk-scan-area').style.display = 'none';
+  document.getElementById('stk-stats-area').style.display = 'none';
+  document.getElementById('stk-recent-area').style.display = 'none';
+  
+  let cardEl = document.getElementById('stk-product-card');
+  if(!cardEl){
+    cardEl = document.createElement('div');
+    cardEl.id = 'stk-product-card';
+    document.getElementById('stk-session-view').appendChild(cardEl);
+  }
+  cardEl.style.display = 'block';
+  cardEl.innerHTML = html;
+  
+  // focus على الـ input
+  setTimeout(() => $('stk-card-qty')?.focus(), 100);
+}
+
+function stkClosseProductCard(){
+  _stkCurrentProduct = null;
+  const cardEl = document.getElementById('stk-product-card');
+  if(cardEl) cardEl.style.display = 'none';
+  
+  document.getElementById('stk-scan-area').style.display = 'block';
+  document.getElementById('stk-stats-area').style.display = 'block';
+  document.getElementById('stk-recent-area').style.display = 'block';
+  
+  // أعد تحميل الجلسة عشان الـ stats تتحدث
+  reloadStkSession();
+  
+  setTimeout(() => $('stk-manual-barcode')?.focus(), 100);
+}
+
+// 🆕 v20: حفظ entry
+async function stkSaveEntry(){
+  if(!_stkCurrentProduct || !_stkActiveSession) return;
+  
+  const qty = parseInt($('stk-card-qty').value);
+  const location = $('stk-card-location').value.trim();
+  
+  if(isNaN(qty) || qty < 0){
+    toast('❌ ادخل كمية صحيحة', 'error');
+    return;
+  }
+  
+  try {
+    const r = await apiFetch('/api/stocktake/sessions/' + _stkActiveSession.id + '/entries', 'POST', {
+      variantId: _stkCurrentProduct.product.variantId,
+      qty,
+      locationNote: location
+    });
+    
+    if(r && r.success){
+      try { if(navigator.vibrate) navigator.vibrate([50,30,50]); } catch(e){}
+      toast(`✅ تم حفظ ${qty} - الإجمالي: ${r.totalCounted}`, 'success');
+      
+      // اقفل الـ card ورجع للـ scan
+      stkClosseProductCard();
+    } else {
+      toast('❌ ' + (r?.error || 'فشل'), 'error');
+    }
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// 🆕 v20: حذف entry
+async function stkDeleteEntry(entryId){
+  if(!confirm('حذف هذا العد؟')) return;
+  
+  try {
+    const r = await apiFetch('/api/stocktake/entries/' + entryId, 'DELETE');
+    if(r && r.success){
+      toast('✅ اتحذف', 'success');
+      
+      // أعد فتح الـ card مع البيانات الجديدة
+      const barcode = _stkCurrentProduct?.product?.barcode || _stkCurrentProduct?.product?.sku;
+      if(barcode){
+        stkProcessScan(barcode);
+      } else {
+        stkClosseProductCard();
+      }
+    } else {
+      toast('❌ ' + (r?.error || 'فشل'), 'error');
+    }
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function reloadStkSession(){
+  if(!_stkActiveSession) return;
+  try {
+    const r = await apiFetch('/api/stocktake/sessions/' + _stkActiveSession.id);
+    if(r){
+      _stkActiveSession = r.session;
+      _stkActiveItems = r.items || [];
+      renderStkActiveSession();
+    }
+  } catch(e){}
+}
+
+// ─── Camera Scanner (BarcodeDetector API) ───
+let _stkScanCooldown = false;
+
+async function stkStartCamera(){
+  if(!_stkActiveSession){ toast('❌ اختار جلسة أولاً', 'error'); return; }
+  
+  const view = $('stk-camera-view');
+  const video = $('stk-video');
+  const btn = $('stk-camera-btn');
+  
+  if(!view || !video) return;
+  
+  try{
+    // طلب صلاحية الكاميرا
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+    
+    _stkScanStream = stream;
+    video.srcObject = stream;
+    view.style.display = 'block';
+    btn.textContent = '📷 الكاميرا شغالة...';
+    btn.disabled = true;
+    
+    // ابدأ الـ detection
+    await stkStartDetection(video);
+    
+  }catch(e){
+    toast('❌ ما قدرناش نفتح الكاميرا: ' + e.message, 'error');
+    if(btn){ btn.textContent = '📷 فتح الكاميرا'; btn.disabled = false; }
+  }
+}
+
+async function stkStartDetection(video){
+  // طريقة 1: BarcodeDetector API (Chrome/Edge على Android)
+  if('BarcodeDetector' in window){
+    try {
+      const detector = new BarcodeDetector({
+        formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code']
+      });
+      
+      const scan = async () => {
+        if(!_stkScanStream) return;
+        try {
+          const codes = await detector.detect(video);
+          if(codes.length > 0 && !_stkScanCooldown){
+            _stkScanCooldown = true;
+            const barcode = codes[0].rawValue;
+            // 🆕 v20: يفتح card المنتج (لا يضيف أوتوماتيكياً)
+            await stkProcessScan(barcode);
+            // الـ cooldown أطول عشان الـ card يفتح مرة واحدة
+            setTimeout(() => { _stkScanCooldown = false; }, 3000);
+          }
+        } catch(e){}
+        if(_stkScanStream) requestAnimationFrame(scan);
+      };
+      requestAnimationFrame(scan);
+      return;
+    } catch(e){
+      console.warn('BarcodeDetector failed:', e);
+    }
+  }
+  
+  // طريقة 2: fallback - استخدم input فقط
+  toast('⚠️ الكاميرا فُتحت، لكن المتصفح لا يدعم scan تلقائي. استخدم الإدخال اليدوي.', 'info');
+  $('stk-cam-status').textContent = 'ℹ️ المتصفح لا يدعم scan تلقائي';
+}
+
+function stkStopCamera(){
+  if(_stkScanStream){
+    _stkScanStream.getTracks().forEach(t => t.stop());
+    _stkScanStream = null;
+  }
+  const view = $('stk-camera-view');
+  if(view) view.style.display = 'none';
+  
+  const btn = $('stk-camera-btn');
+  if(btn){ btn.textContent = '📷 فتح الكاميرا'; btn.disabled = false; }
+}
+
+// Enter key على input
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && document.activeElement?.id === 'stk-manual-barcode'){
+    e.preventDefault();
+    stkSubmitManual();
+  }
+});
+
+// ============================================================
+// END: STOCKTAKE
+// ============================================================
+
 // ===== BOTTOM NAV =====
 document.querySelectorAll('.nav-item').forEach(el => {
   el.addEventListener('click', () => {
@@ -1205,6 +1832,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if(page === 'dashboard') loadDashboard();
     if(page === 'statement') loadStatement();
     if(page === 'shop') loadShopOrders();
+    if(page === 'stocktake') loadStkSessions();
   });
 });
 
@@ -1644,7 +2272,8 @@ function openPartialDeliver(orderId){
   }
   
   renderPartialDeliverModal(o);
-  modal.classList.add('show');
+  modal.classList.add('open'); // 🐛 v17 fix: الـ class الصحيح هو 'open' مش 'show'
+  document.body.style.overflow = 'hidden';
 }
 
 // 🆕 v17: parser للطلبات القديمة اللي الـ items فيها نص عادي
@@ -1950,7 +2579,8 @@ async function openTransferRequest(orderId){
       sel.disabled = true;
     }
   }
-  modal.classList.add('show');
+  modal.classList.add('open'); // 🐛 v17 fix: الـ class الصحيح هو 'open' مش 'show'
+  document.body.style.overflow = 'hidden';
 }
 
 async function submitTransferRequest(orderId){
