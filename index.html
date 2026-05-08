@@ -496,6 +496,372 @@ a{color:inherit;text-decoration:none}
     </div>
   </div>
 
+  <!-- 🆕 v21: POS PAGE (نقطة البيع) -->
+  <div class="page" id="page-pos">
+    <div class="header" style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:800;font-size:16px;color:var(--gold)" id="pos-store-name">💰 نقطة البيع</div>
+        <div style="font-size:11px;color:var(--muted)" id="pos-cashier-info">—</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <div id="pos-online-indicator" style="font-size:11px;padding:4px 8px;border-radius:99px;background:#22c55e;color:#fff">🟢 Online</div>
+        <button onclick="posOpenSalesHistory()" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">📋 السجل</button>
+        <button onclick="posOpenStats()" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">📊 اليوم</button>
+        <button onclick="posForceRefresh()" style="padding:6px 10px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
+        <button onclick="posOpenPrinterSettings()" id="pos-printer-btn" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer" title="إعداد الطابعة">🖨️</button>
+      </div>
+    </div>
+    
+    <!-- Main POS layout - search + cart -->
+    <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;padding:10px;height:calc(100vh - 140px);overflow:hidden">
+      
+      <!-- LEFT: Search + Products -->
+      <div style="display:flex;flex-direction:column;gap:10px;overflow:hidden">
+        
+        <!-- Customer + Search bar -->
+        <div style="background:var(--elev);border-radius:10px;padding:10px">
+          <!-- Customer -->
+          <div id="pos-customer-display" style="display:none;background:rgba(212,175,55,.15);border:1px solid var(--gold);border-radius:8px;padding:8px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-size:11px;color:var(--muted)">العميل:</div>
+                <div style="font-weight:800;font-size:14px;color:var(--gold)" id="pos-customer-name">—</div>
+                <div style="font-size:11px" id="pos-customer-phone">—</div>
+              </div>
+              <button onclick="posClearCustomer()" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:18px">×</button>
+            </div>
+          </div>
+          
+          <div style="display:flex;gap:6px">
+            <button onclick="posOpenCustomer()" style="padding:10px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer;white-space:nowrap">👤 عميل</button>
+            <input type="text" id="pos-scan-input" placeholder="🔍 امسح/ابحث..." 
+                   style="flex:1;padding:12px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:14px;font-weight:700"
+                   autocomplete="off">
+          </div>
+        </div>
+        
+        <!-- Products grid -->
+        <div id="pos-products-grid" style="flex:1;overflow-y:auto;background:var(--elev);border-radius:10px;padding:8px"></div>
+      </div>
+      
+      <!-- RIGHT: Cart -->
+      <div style="display:flex;flex-direction:column;gap:8px;overflow:hidden;background:var(--elev);border-radius:10px;padding:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+          <div style="font-weight:800;font-size:14px;color:var(--gold)">🛒 السلة</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <!-- 🆕 v26: Hold + Held buttons -->
+            <button onclick="posHoldOrder()" id="pos-hold-btn" style="padding:4px 8px;background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid #fbbf24;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer;font-weight:700">⏸️ تعليق</button>
+            <button onclick="posShowHeldOrders()" id="pos-held-btn" style="padding:4px 8px;background:rgba(168,85,247,.15);color:#a855f7;border:1px solid #a855f7;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer;font-weight:700">📋 المعلّقة <span id="pos-held-count" style="background:#a855f7;color:#fff;padding:1px 5px;border-radius:99px;font-size:9px;display:none">0</span></button>
+            <button onclick="posClearCart()" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:11px">🗑️</button>
+          </div>
+        </div>
+        
+        <div id="pos-cart-items" style="flex:1;overflow-y:auto"></div>
+        
+        <!-- Promo code -->
+        <div id="pos-promo-area" style="border-top:1px solid var(--border);padding-top:8px">
+          <div id="pos-promo-applied" style="display:none;background:rgba(34,197,94,.15);border:1px solid #22c55e;border-radius:8px;padding:8px;margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+              <div>
+                <div style="font-weight:800;color:#22c55e" id="pos-promo-code-display">—</div>
+                <div style="font-size:11px;color:var(--muted)" id="pos-promo-discount-display">خصم: 0 ج</div>
+              </div>
+              <button onclick="posClearPromo()" style="background:transparent;border:none;color:#ef4444;cursor:pointer">×</button>
+            </div>
+          </div>
+          <button id="pos-promo-btn" onclick="posOpenPromo()" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px dashed var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">🎟️ ادخل برومو كود</button>
+        </div>
+        
+        <!-- Totals -->
+        <div style="border-top:2px solid var(--gold);padding-top:10px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+            <span>المجموع:</span>
+            <span style="font-weight:700" id="pos-subtotal">0 ج</span>
+          </div>
+          <div id="pos-discount-row" style="display:none;justify-content:space-between;font-size:13px;margin-bottom:4px;color:#22c55e">
+            <span>الخصم:</span>
+            <span style="font-weight:700" id="pos-discount-amt">-0 ج</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:var(--gold);border-top:1px dashed var(--border);padding-top:6px;margin-top:6px">
+            <span>الإجمالي:</span>
+            <span id="pos-total">0 ج</span>
+          </div>
+        </div>
+        
+        <!-- Payment buttons - 🆕 v24: 4 أزرار -->
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px">
+          <button id="pos-pay-cash" onclick="posCheckout('cash')" style="padding:14px 8px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+            💵 كاش
+          </button>
+          <button id="pos-pay-visa" onclick="posCheckout('visa')" style="padding:14px 8px;background:#3b82f6;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+            💳 فيزا
+          </button>
+          <button id="pos-pay-instapay" onclick="posCheckout('instapay')" style="padding:14px 8px;background:#a855f7;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+            📱 انستاباي
+          </button>
+          <button id="pos-pay-mixed" onclick="posOpenMixedPay()" style="padding:14px 8px;background:#ea580c;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+            🔀 دمج
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 🆕 v24: Mixed Payment Modal -->
+
+  <!-- 🛡️ v27: Visa/Instapay Reference Modal -->
+  <div id="pos-ref-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1001;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:450px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)" id="ref-modal-title">💳 بيانات الفيزا</h3>
+        <button onclick="posCloseRefValidation()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      
+      <div style="background:rgba(212,175,55,.1);border:1px solid var(--gold);border-radius:8px;padding:12px;margin-bottom:14px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">المبلغ المفروض على الماكينة</div>
+        <div style="font-size:28px;font-weight:800;color:var(--gold)" id="ref-expected">0 ج</div>
+      </div>
+      
+      <div style="background:rgba(59,130,246,.1);border:1px solid #3b82f6;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;line-height:1.7;color:#1e3a8a">
+        <strong>⚠️ مهم:</strong><br>
+        1. اعمل الـ transaction على الماكينة الأول<br>
+        2. ادخل المبلغ الفعلي اللي اتحصّل + رقم العملية<br>
+        3. لو فيه أي فرق - لازم موافقة المدير
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;display:block">المبلغ المتحصّل من الماكينة *</label>
+        <input type="number" id="ref-charged" min="0" step="0.01" 
+               style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:20px;text-align:center;font-weight:800" 
+               oninput="posUpdateRefDiff()">
+        <div id="ref-diff-display" style="margin-top:6px;text-align:center;font-size:13px;font-weight:800"></div>
+      </div>
+      
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;display:block">رقم العملية (Reference Number) *</label>
+        <input type="text" id="ref-number" placeholder="من إيصال الماكينة" 
+               style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:14px">
+      </div>
+      
+      <div id="ref-warning" style="margin-bottom:14px;display:none"></div>
+      
+      <div style="display:flex;gap:8px">
+        <button onclick="posCloseRefValidation()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
+        <button onclick="posConfirmRefValidation()" id="ref-confirm-btn" style="flex:2;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد البيع</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 🛡️ v27: Manager PIN Modal -->
+  <div id="pos-pin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:1002;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:380px;margin:0 auto;border-radius:14px;padding:20px;border:2px solid #ef4444">
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="font-size:48px">🔐</div>
+        <h3 style="margin:8px 0 4px 0;color:#ef4444">PIN المدير</h3>
+        <div style="font-size:11px;color:var(--muted)">لازم تأكيد المدير لـ:</div>
+        <div style="font-size:13px;font-weight:700;margin-top:4px" id="pin-modal-action">—</div>
+      </div>
+      
+      <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+             placeholder="••••" 
+             onkeypress="if(event.key==='Enter') posSubmitPin()"
+             style="width:100%;padding:18px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:monospace;font-size:28px;text-align:center;font-weight:800;letter-spacing:8px;margin-bottom:10px">
+      
+      <div id="pin-error" style="display:none;color:#ef4444;font-size:12px;text-align:center;margin-bottom:10px;font-weight:700"></div>
+      
+      <div style="display:flex;gap:8px">
+        <button onclick="posCancelPin()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
+        <button onclick="posSubmitPin()" style="flex:2;padding:14px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">🔓 تأكيد</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 🆕 v26: Mixed Payment Modal -->
+  <div id="pos-mixed-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:450px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)">🔀 دفع مدمج</h3>
+        <button onclick="posCloseMixedPay()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      
+      <div style="background:rgba(212,175,55,.1);border:1px solid var(--gold);border-radius:8px;padding:12px;margin-bottom:14px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">المطلوب دفعه</div>
+        <div style="font-size:24px;font-weight:800;color:var(--gold)" id="mixed-total-display">0 ج</div>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px">
+        <label style="font-weight:700;color:#22c55e">💵 كاش:</label>
+        <input type="number" id="mixed-cash" min="0" step="any" placeholder="0" style="padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:16px;font-weight:800;text-align:center" oninput="posUpdateMixedTotals()">
+      </div>
+      
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px">
+        <label style="font-weight:700;color:#3b82f6">💳 فيزا:</label>
+        <input type="number" id="mixed-visa" min="0" step="any" placeholder="0" style="padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:16px;font-weight:800;text-align:center" oninput="posUpdateMixedTotals()">
+      </div>
+      
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:14px">
+        <label style="font-weight:700;color:#a855f7">📱 انستاباي:</label>
+        <input type="number" id="mixed-instapay" min="0" step="any" placeholder="0" style="padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:16px;font-weight:800;text-align:center" oninput="posUpdateMixedTotals()">
+      </div>
+      
+      <div id="mixed-status" style="background:var(--elev);border-radius:8px;padding:12px;margin-bottom:14px;text-align:center">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+          <span>المجموع المدخل:</span>
+          <span style="font-weight:800" id="mixed-entered">0 ج</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800" id="mixed-diff-row">
+          <span>المتبقي:</span>
+          <span id="mixed-diff" style="color:#fbbf24">0 ج</span>
+        </div>
+      </div>
+      
+      <button id="pos-mixed-confirm" onclick="posCheckoutMixed()" disabled style="width:100%;padding:14px;background:#9ca3af;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:not-allowed">
+        ✅ تأكيد الدفع
+      </button>
+    </div>
+  </div>
+  
+  <!-- POS Modals -->
+  <div id="pos-customer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:500px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)">👤 العميل</h3>
+        <button onclick="posCloseCustomer()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">رقم الموبايل:</label>
+        <input type="tel" id="pos-cust-phone" placeholder="01xxxxxxxxx" 
+               style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:16px;text-align:center"
+               oninput="posDebounceSearchCustomer()">
+      </div>
+      
+      <div id="pos-cust-result" style="margin:10px 0"></div>
+      
+      <!-- New customer form (hidden initially) -->
+      <div id="pos-cust-new-form" style="display:none;background:var(--elev);border-radius:8px;padding:12px;margin-top:10px">
+        <div style="font-weight:700;margin-bottom:8px;color:var(--gold)">➕ إضافة عميل جديد</div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:11px;color:var(--muted)">الاسم *</label>
+          <input type="text" id="pos-cust-name" placeholder="اسم العميل" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:Cairo,sans-serif">
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--muted)">إيميل (اختياري)</label>
+          <input type="email" id="pos-cust-email" placeholder="email@example.com" style="width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:Cairo,sans-serif">
+        </div>
+        <button onclick="posCreateCustomer()" class="btn-primary" style="width:100%">💾 حفظ + إضافة للطلب</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="pos-promo-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;padding:14px">
+    <div style="background:var(--bg);max-width:400px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)">🎟️ برومو كود</h3>
+        <button onclick="posClosePromo()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      <input type="text" id="pos-promo-input" placeholder="ادخل الكود" 
+             style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:18px;text-align:center;font-weight:800;text-transform:uppercase">
+      <div id="pos-promo-error" style="color:#ef4444;font-size:12px;margin-top:8px;text-align:center;display:none"></div>
+      <button onclick="posApplyPromo()" class="btn-primary" style="width:100%;margin-top:10px">✓ تطبيق</button>
+    </div>
+  </div>
+  
+  <!-- 🆕 v26: Held Orders Modal -->
+  <div id="pos-held-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:600px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)">📋 الطلبات المعلّقة</h3>
+        <button onclick="posCloseHeldOrders()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      <div id="pos-held-list"></div>
+    </div>
+  </div>
+  
+  <!-- 🆕 v26: Printer Settings Modal -->
+  <div id="pos-printer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:500px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)">🖨️ إعداد الطابعة</h3>
+        <button onclick="posClosePrinterSettings()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      
+      <div id="pos-printer-status" style="background:var(--elev);border-radius:8px;padding:14px;margin-bottom:14px;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">🔌</div>
+        <div style="font-weight:700;font-size:14px" id="pos-printer-status-text">جاري التحميل...</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px" id="pos-printer-status-detail"></div>
+      </div>
+      
+      <div style="background:rgba(59,130,246,.1);border:1px solid #3b82f6;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;line-height:1.7;color:#1e3a8a">
+        <strong>💡 ملاحظات مهمة:</strong><br>
+        • الطابعة لازم تكون ESC/POS متوافقة (Bluetooth)<br>
+        • الـ paper width = 80mm<br>
+        • شغّل البلوتوث في التابلت قبل الربط<br>
+        • متصفح Chrome/Edge بس (مش Safari/Firefox)
+      </div>
+      
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button onclick="posConnectPrinter()" id="pos-printer-connect" style="padding:14px;background:#3b82f6;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🔗 ربط طابعة Bluetooth</button>
+        <button onclick="posDisconnectPrinter()" id="pos-printer-disconnect" style="display:none;padding:14px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🔌 فصل الطابعة</button>
+        <button onclick="posTestPrint()" id="pos-printer-test" style="display:none;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🧪 طباعة اختبار</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="pos-receipt-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
+    <div style="background:#fff;color:#000;max-width:380px;margin:0 auto;border-radius:14px;padding:20px;font-family:'Courier New',monospace" id="pos-receipt-content">
+      <!-- Receipt content -->
+    </div>
+    <div style="max-width:380px;margin:14px auto 0;display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="posPrintReceipt()" style="flex:1;min-width:100px;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">🖨️ طباعة</button>
+      <button id="pos-whatsapp-btn" onclick="posSendWhatsApp()" style="flex:1;min-width:100px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;display:none">📱 WhatsApp</button>
+      <button onclick="posCloseReceipt()" style="flex:1;min-width:100px;padding:14px;background:var(--gold);color:#000;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">✓ بيعة جديدة</button>
+    </div>
+  </div>
+
+  <!-- 🆕 v23: STORE MANAGER PAGE -->
+  <div class="page" id="page-store-mgr">
+    <div class="header" style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-weight:800;font-size:16px;color:var(--gold)" id="smgr-store-name">👨‍💼 إدارة المحل</div>
+        <div style="font-size:11px;color:var(--muted)" id="smgr-mgr-name">—</div>
+      </div>
+      <button onclick="smgrRefresh()" style="padding:6px 12px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">🔄 تحديث</button>
+    </div>
+    
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;padding:8px;background:var(--elev);border-bottom:1px solid var(--border);overflow-x:auto">
+      <button class="smgr-tab on" onclick="smgrSwitchTab('overview', this)" style="padding:8px 14px;background:var(--gold);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">📊 الملخص</button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('cashiers', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">👥 الكاشييرز</button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('sales', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📋 البيعات</button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('settlements', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💰 سجل التصفيات</button>
+    </div>
+    
+    <div id="smgr-content" style="padding:14px;padding-bottom:80px"></div>
+  </div>
+  
+  <!-- Settlement Modal -->
+  <div id="smgr-settlement-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:500px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)">💰 تصفية الكاشير</h3>
+        <button onclick="smgrCloseSettlement()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      <div id="smgr-settlement-content"></div>
+    </div>
+  </div>
+  
+  <!-- Sale Detail Modal -->
+  <div id="smgr-sale-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:500px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:var(--gold)" id="smgr-sale-title">📋 تفاصيل البيعة</h3>
+        <button onclick="smgrCloseSale()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+      <div id="smgr-sale-content"></div>
+    </div>
+  </div>
+
   <!-- BOTTOM NAV -->
   <div class="bottom-nav">
     <div class="nav-item active" data-page="orders" data-role="courier">
@@ -518,6 +884,16 @@ a{color:inherit;text-decoration:none}
     <div class="nav-item" data-page="stocktake" style="display:none" id="nav-stocktake">
       <div class="nav-ico">🔍</div>
       <div>الجرد</div>
+    </div>
+    <!-- 🆕 v21: POS tab (للكاشير) -->
+    <div class="nav-item" data-page="pos" style="display:none" id="nav-pos">
+      <div class="nav-ico">💰</div>
+      <div>نقطة البيع</div>
+    </div>
+    <!-- 🆕 v23: Store Manager tab -->
+    <div class="nav-item" data-page="store-mgr" style="display:none" id="nav-store-mgr">
+      <div class="nav-ico">👨‍💼</div>
+      <div>إدارة المحل</div>
     </div>
   </div>
 </div>
@@ -824,7 +1200,91 @@ a{color:inherit;text-decoration:none}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
-// ===== Stars v20 — STOCKTAKE MANUAL ENTRY =====
+// ===== Stars v27 — ANTI-THEFT SYSTEM =====
+// 2026-05-05: حماية ضد السرقة
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ Visa/Instapay Reference + Validation
+//    • مبلغ متحصّل + رقم العملية إجباري
+//    • فرق < 1 ج → يعدّي
+//    • فرق متوسط → PIN المدير
+//    • فرق > 5% → block
+// 2. ✅ Manager PIN modal للحركات الحساسة
+// 3. ✅ Hold delete يحتاج PIN
+// 4. ✅ كل tolerance diff يتسجّل في audit log
+// 5. ✅ Mixed payment - validation لكل دفعة فيزا/انستاباي
+// =================================
+// السابق: Stars v26 — HOLD ORDER + BLUETOOTH PRINTING
+// 2026-05-05: تعليق الطلب + الطباعة Bluetooth
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ زر "⏸️ تعليق" - يحفظ السلة + العميل + البرومو
+// 2. ✅ زر "📋 المعلّقة" - عرض كل الطلبات المعلّقة
+// 3. ✅ زر "▶️ استئناف" - يرجّع كل البيانات للسلة
+// 4. ✅ ملاحظة لكل طلب معلّق
+// 5. ✅ Bluetooth printing (ESC/POS) - طباعة فورية
+// 6. ✅ Web Bluetooth API
+// 7. ✅ زر إعداد الطابعة 🖨️ في الـ header
+// 8. ✅ طباعة اختبار قبل الاستخدام
+// 9. ✅ Auto-fallback لطباعة المتصفح لو الطابعة مش متصلة
+// =================================
+// السابق: Stars v25 — WHATSAPP MESSAGING
+// 2026-05-05: رسائل WhatsApp تلقائية بعد البيع
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ بعد الطباعة - يفتح WhatsApp تلقائياً
+// 2. ✅ زر 📱 WhatsApp في الإيصال (لو فيه عميل)
+// 3. ✅ يستبدل المتغيرات بقيم البيعة الفعلية
+// 4. ✅ يتعامل مع رقم مصري/دولي
+// 5. ✅ يستخدم التيمبليت النشط من السيرفر
+// =================================
+// السابق: Stars v24 — MIXED PAYMENTS
+// 2026-05-05: تحسينات الدفع والتصفية
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ زر "🔀 دمج" للدفع المختلط (كاش + فيزا + انستاباي)
+// 2. ✅ Modal بـ 3 inputs - لازم المجموع = الإجمالي
+// 3. ✅ كل بيعة بتسجل طريقة الدفع بالتفصيل
+// 4. ✅ التصفية بـ 3 inputs - كل طريقة دفع منفصلة
+// 5. ✅ سجل التصفيات يعرض تفاصيل كل طريقة (مفروض/فعلي/فرق)
+// 6. ✅ زرار "عرض البيعات" يفتح كل بيعات التصفية مع طرق الدفع
+// =================================
+// السابق: Stars v23 — STORE MANAGER ROLE
+// 2026-05-05: نظام صلاحيات هرمي للمحل
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ role جديد: store_manager
+// 2. ✅ شاشة منفصلة لمدير المحل
+// 3. ✅ 4 tabs: ملخص / كاشييرز / بيعات / تصفيات
+// 4. ✅ بيشوف بيعات محله بس
+// 5. ✅ بيراجع البيعات + يعمل مراجعة
+// 6. ✅ بيصفّي الكاشير (cash settlement مع تتبع الفروقات)
+// 7. ✅ سجل التصفيات السابقة
+// =================================
+// السابق: Stars v22 — POS Phase 2 (OFFLINE MODE)
+// 2026-05-05: نظام POS بـ offline support كامل
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ IndexedDB للـ catalog + customers + pending sales
+// 2. ✅ scan/search من IndexedDB (سريع جداً)
+// 3. ✅ بيع offline بدون نت - يحفظ محلياً
+// 4. ✅ auto-sync لما النت يرجع
+// 5. ✅ bulk-sync API لرفع البيعات دفعة واحدة
+// 6. ✅ إنشاء عميل offline + يترفع لما النت يرجع
+// 7. ✅ pending badge في الـ online indicator
+// 8. ✅ زر 🔄 force refresh + sync
+// 9. ✅ auto-sync كل دقيقة في الخلفية
+// 10. ✅ anti-duplicate via clientUuid
+// =================================
+// السابق: Stars v21 — POS Phase 1
+// 2026-05-05: نقطة بيع كاملة في تطبيق Stars
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ role جديد: cashier
+// 2. ✅ شاشة بيع سريعة (search + scan + cart)
+// 3. ✅ Auto-add to cart بعد scan
+// 4. ✅ 3 طرق دفع (cash/visa/instapay)
+// 5. ✅ بحث عن العميل برقم الموبايل
+// 6. ✅ إنشاء عميل جديد على Shopify
+// 7. ✅ تطبيق برومو كود
+// 8. ✅ كتابة الطلب على Shopify فوراً
+// 9. ✅ إيصال + طباعة
+// 10. ✅ Online/Offline indicator
+// =================================
+// السابق: Stars v20 — STOCKTAKE MANUAL ENTRY
 // 2026-05-05: scan = يفتح المنتج، الموظف يدخل الكمية يدوياً
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 1. ✅ scan لا يزيد عداد - يفتح card فيه بيانات المنتج
@@ -1245,9 +1705,13 @@ function showApp(){
   $('login-screen').style.display = 'none';
   $('app').classList.add('active');
   $('user-name').textContent = USER?.displayName || USER?.name || '';
+  
+  // 🆕 v21: cache courier name لاستخدامه في الـ POS
+  window.cachedCourierName = USER?.displayName || USER?.name || '';
 
   // اعرف الدور الفعلي من المستخدم (السيرفر بيرجعه)
   const userRole = (USER && USER.role) || ROLE || 'courier';
+  ROLE = userRole; // 🆕 v21: حدّث ROLE من السيرفر
 
   // ===== Preparer flow — نظام التحضير =====
   if (userRole === 'preparer') {
@@ -1292,6 +1756,26 @@ function showApp(){
     }
   }
   
+  // 🆕 v21: POS tab - للـ cashier بس
+  const posNav = document.getElementById('nav-pos');
+  if(posNav){
+    if(ROLE === 'cashier'){
+      posNav.style.display = '';
+    } else {
+      posNav.style.display = 'none';
+    }
+  }
+  
+  // 🆕 v23: Store Manager tab
+  const smgrNav = document.getElementById('nav-store-mgr');
+  if(smgrNav){
+    if(ROLE === 'store_manager'){
+      smgrNav.style.display = '';
+    } else {
+      smgrNav.style.display = 'none';
+    }
+  }
+  
   // 🆕 v19: لو stocktaker - اخفي كل الـ nav التانية وروح للجرد على طول
   if(ROLE === 'stocktaker'){
     document.querySelectorAll('.nav-item').forEach(el => {
@@ -1302,6 +1786,32 @@ function showApp(){
     if(stkNav) stkNav.classList.add('active');
     $('page-stocktake').classList.add('active');
     loadStkSessions();
+    return;
+  }
+  
+  // 🆕 v21: لو cashier - اخفي كل الـ nav التانية وروح للـ POS
+  if(ROLE === 'cashier'){
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if(el.id !== 'nav-pos') el.style.display = 'none';
+    });
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    if(posNav) posNav.classList.add('active');
+    $('page-pos').classList.add('active');
+    loadPosPage();
+    return;
+  }
+  
+  // 🆕 v23: لو store_manager - اخفي الباقي
+  if(ROLE === 'store_manager'){
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if(el.id !== 'nav-store-mgr') el.style.display = 'none';
+    });
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    if(smgrNav) smgrNav.classList.add('active');
+    $('page-store-mgr').classList.add('active');
+    loadStoreMgrPage();
     return;
   }
 
@@ -1820,6 +2330,2843 @@ document.addEventListener('keydown', (e) => {
 // END: STOCKTAKE
 // ============================================================
 
+// ============================================================
+// 🆕 v22: POS OFFLINE STORAGE (IndexedDB)
+// ============================================================
+const POS_DB_NAME = 'cafelax-pos';
+const POS_DB_VERSION = 2; // 🆕 v26: bumped for heldOrders + printerSettings
+const POS_STORES_NAMES = {
+  catalog: 'catalog',
+  customers: 'customers',
+  pendingSales: 'pendingSales',
+  pendingCustomers: 'pendingCustomers',
+  heldOrders: 'heldOrders',
+  meta: 'meta'
+};
+
+let _posDB = null;
+
+function posDBOpen(){
+  return new Promise((resolve, reject) => {
+    if(_posDB){ resolve(_posDB); return; }
+    
+    const req = indexedDB.open(POS_DB_NAME, POS_DB_VERSION);
+    
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      
+      if(!db.objectStoreNames.contains('catalog')){
+        const store = db.createObjectStore('catalog', { keyPath: 'variant_id' });
+        store.createIndex('barcode', 'barcode', { unique: false });
+        store.createIndex('sku', 'sku', { unique: false });
+      }
+      if(!db.objectStoreNames.contains('customers')){
+        const store = db.createObjectStore('customers', { keyPath: 'phone' });
+      }
+      if(!db.objectStoreNames.contains('pendingSales')){
+        const store = db.createObjectStore('pendingSales', { keyPath: 'clientUuid' });
+        store.createIndex('createdAt', 'createdAt');
+      }
+      if(!db.objectStoreNames.contains('pendingCustomers')){
+        const store = db.createObjectStore('pendingCustomers', { keyPath: 'tempId' });
+      }
+      // 🆕 v26: held orders
+      if(!db.objectStoreNames.contains('heldOrders')){
+        const store = db.createObjectStore('heldOrders', { keyPath: 'id' });
+        store.createIndex('heldAt', 'heldAt');
+      }
+      if(!db.objectStoreNames.contains('meta')){
+        db.createObjectStore('meta', { keyPath: 'key' });
+      }
+    };
+    
+    req.onsuccess = () => { _posDB = req.result; resolve(_posDB); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function posDBPut(storeName, value){
+  const db = await posDBOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const req = tx.objectStore(storeName).put(value);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function posDBGet(storeName, key){
+  const db = await posDBOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function posDBGetAll(storeName){
+  const db = await posDBOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function posDBDelete(storeName, key){
+  const db = await posDBOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const req = tx.objectStore(storeName).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function posDBClear(storeName){
+  const db = await posDBOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const req = tx.objectStore(storeName).clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function posDBBulkPut(storeName, values){
+  const db = await posDBOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    let count = 0;
+    for(const v of values){
+      const req = store.put(v);
+      req.onsuccess = () => { count++; };
+    }
+    tx.oncomplete = () => resolve(count);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function posDBSearchByIndex(storeName, indexName, value){
+  const db = await posDBOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).index(indexName).get(value);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ============================================================
+// 🆕 v21: POS SYSTEM
+// ============================================================
+let _posStore = null;
+let _posCatalog = [];
+let _posCatalogByBarcode = {}; // barcode/sku -> product
+let _posCart = [];
+let _posCustomer = null;
+let _posPromo = null;
+let _posIsOnline = navigator.onLine;
+let _posSearchTimer = null;
+let _posAutoSyncInterval = null;
+
+async function loadPosPage(){
+  // 1. open IndexedDB أولاً
+  try { 
+    await posDBOpen(); 
+  } catch(e) {
+    toast('⚠️ فشل فتح التخزين المحلي - الـ offline mode هيشتغل بشكل محدود', 'warning');
+  }
+  
+  // 2. setup online indicator
+  posUpdateOnlineIndicator();
+  window.addEventListener('online', posOnReconnect);
+  window.addEventListener('offline', posUpdateOnlineIndicator);
+  
+  // 3. جيب المحلات (من cache لو offline)
+  try {
+    let stores = [];
+    
+    if(_posIsOnline){
+      try {
+        const r = await apiFetch('/api/pos/stores');
+        stores = r?.stores || [];
+        // cache في meta
+        if(stores.length){
+          await posDBPut('meta', { key: 'stores', value: stores, savedAt: Date.now() });
+        }
+      } catch(e) {
+        // fallback للـ cache
+        const cached = await posDBGet('meta', 'stores');
+        stores = cached?.value || [];
+      }
+    } else {
+      // offline - استخدم الـ cache
+      const cached = await posDBGet('meta', 'stores');
+      stores = cached?.value || [];
+    }
+    
+    if(!stores.length){
+      $('pos-products-grid').innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)"><div style="font-size:48px;opacity:.4">🏪</div><div>لازم المدير يضيف محل من النظام أولاً</div><div style="font-size:11px;margin-top:8px">(ولازم تفتح الصفحة مرة واحدة وفي نت عشان يحمّل البيانات)</div></div>';
+      return;
+    }
+    
+    _posStore = stores[0];
+    $('pos-store-name').textContent = '🏪 ' + _posStore.name;
+    
+    const cashierName = (window.cachedCourierName) || 'الكاشير';
+    $('pos-cashier-info').textContent = `👤 ${cashierName}`;
+    
+    // 4. جيب الـ catalog
+    await loadPosCatalog();
+    
+    // 5. جرب رفع البيعات الـ pending
+    if(_posIsOnline) posSyncPendingItems();
+    
+    // 6. focus على الـ scan input
+    setTimeout(() => $('pos-scan-input')?.focus(), 200);
+    
+    // 7. attach scan listener
+    setupPosScanInput();
+    
+    // 8. عرض pending count
+    posUpdatePendingBadge();
+    posUpdateHeldCount(); // 🆕 v26: held orders count
+    
+    // 9. auto-sync كل دقيقة (لو online)
+    if(_posAutoSyncInterval) clearInterval(_posAutoSyncInterval);
+    _posAutoSyncInterval = setInterval(() => {
+      if(_posIsOnline){
+        posSyncPendingItems().catch(()=>{});
+      }
+    }, 60000); // كل دقيقة
+    
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function posUpdateOnlineIndicator(){
+  _posIsOnline = navigator.onLine;
+  const ind = $('pos-online-indicator');
+  if(ind){
+    ind.textContent = _posIsOnline ? '🟢 Online' : '🔴 Offline';
+    ind.style.background = _posIsOnline ? '#22c55e' : '#ef4444';
+  }
+}
+
+// 🆕 v22: لما النت يرجع
+async function posOnReconnect(){
+  posUpdateOnlineIndicator();
+  toast('🟢 النت رجع - جاري الرفع...', 'info');
+  await posSyncPendingItems();
+}
+
+// 🆕 v22: عرض عدد البيعات المعلّقة
+async function posUpdatePendingBadge(){
+  try {
+    const pending = await posDBGetAll('pendingSales');
+    const ind = $('pos-online-indicator');
+    if(ind && pending.length > 0){
+      ind.innerHTML = `${_posIsOnline ? '🟢' : '🔴'} ${_posIsOnline ? 'Online' : 'Offline'} <span style="background:rgba(255,255,255,.3);padding:1px 6px;border-radius:99px;margin-right:4px">⏳ ${pending.length}</span>`;
+    }
+  } catch(e){}
+}
+
+async function loadPosCatalog(){
+  if(!_posStore) return;
+  
+  // 1. حمّل من IndexedDB أولاً (سريع)
+  try {
+    const cached = await posDBGetAll('catalog');
+    if(cached.length){
+      _posCatalog = cached;
+      _posCatalogByBarcode = {};
+      _posCatalog.forEach(p => {
+        if(p.barcode) _posCatalogByBarcode[p.barcode.trim()] = p;
+        if(p.sku) _posCatalogByBarcode[p.sku.trim()] = p;
+      });
+      posRenderProducts();
+      
+      // عرض إنه من cache
+      const meta = await posDBGet('meta', 'catalogLastSync');
+      const ago = meta ? Math.round((Date.now() - meta.value) / 60000) : null;
+      if(ago != null && ago > 0){
+        toast(`📦 ${_posCatalog.length} منتج (آخر تحديث: من ${ago} دقيقة)`, 'info');
+      }
+    }
+  } catch(e){}
+  
+  // 2. لو online، حدّث من السيرفر في الخلفية
+  if(_posIsOnline){
+    try {
+      const r = await apiFetch('/api/pos/catalog?storeId=' + _posStore.id);
+      const products = r?.products || [];
+      
+      if(products.length){
+        // امسح القديم وضيف الجديد
+        await posDBClear('catalog');
+        await posDBBulkPut('catalog', products);
+        
+        // index
+        _posCatalog = products;
+        _posCatalogByBarcode = {};
+        _posCatalog.forEach(p => {
+          if(p.barcode) _posCatalogByBarcode[p.barcode.trim()] = p;
+          if(p.sku) _posCatalogByBarcode[p.sku.trim()] = p;
+        });
+        
+        await posDBPut('meta', { key: 'catalogLastSync', value: Date.now() });
+        
+        posRenderProducts();
+        toast(`✅ ${products.length} منتج محدّث`, 'success');
+      }
+    } catch(e) {
+      console.warn('catalog refresh failed:', e.message);
+      // مفيش مشكلة، هنستخدم الـ cache
+    }
+  } else if(!_posCatalog.length){
+    toast('🔴 Offline + مفيش بيانات محلية', 'error');
+  }
+}
+
+function posRenderProducts(filter = ''){
+  const grid = $('pos-products-grid');
+  if(!grid) return;
+  
+  let items = _posCatalog;
+  
+  if(filter){
+    const f = filter.toLowerCase();
+    items = items.filter(p => 
+      (p.product_title||'').toLowerCase().includes(f) ||
+      (p.variant_title||'').toLowerCase().includes(f) ||
+      (p.sku||'').toLowerCase().includes(f) ||
+      (p.barcode||'').toLowerCase().includes(f)
+    );
+  }
+  
+  // أول 30
+  items = items.slice(0, 30);
+  
+  if(!items.length){
+    grid.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">مفيش منتجات</div>';
+    return;
+  }
+  
+  grid.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">${items.map(p => {
+    const lowStock = (p.qty || 0) <= 0;
+    return `<div onclick="posAddToCart('${p.variant_id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;text-align:center;${lowStock?'opacity:.4':''}" 
+                 ontouchstart="this.style.transform='scale(.95)'" ontouchend="this.style.transform=''"
+                 onmousedown="this.style.transform='scale(.95)'" onmouseup="this.style.transform=''">
+      ${p.image_url 
+        ? `<img src="${escapeHtml(p.image_url)}" style="width:50px;height:50px;border-radius:6px;object-fit:cover;background:var(--elev)">` 
+        : '<div style="width:50px;height:50px;border-radius:6px;background:var(--elev);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto">📦</div>'}
+      <div style="font-size:11px;font-weight:700;margin-top:4px;height:30px;overflow:hidden;line-height:1.2">${escapeHtml(p.product_title || '')}${p.variant_title ? '<br>'+escapeHtml(p.variant_title) : ''}</div>
+      <div style="font-size:13px;font-weight:800;color:var(--gold);margin-top:2px">${parseFloat(p.price || 0).toFixed(0)} ج</div>
+      <div style="font-size:9px;color:${lowStock?'#ef4444':'var(--muted)'}">المخزون: ${p.qty || 0}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function setupPosScanInput(){
+  const inp = $('pos-scan-input');
+  if(!inp) return;
+  
+  inp.oninput = function(){
+    if(_posSearchTimer) clearTimeout(_posSearchTimer);
+    _posSearchTimer = setTimeout(() => {
+      const val = inp.value.trim();
+      
+      // لو الفالو شبه باركود (10+ أرقام أو حروف بدون مسافات)، جرب match مباشر
+      if(val.length >= 4 && /^[\w\d-]+$/.test(val)){
+        const product = _posCatalogByBarcode[val];
+        if(product){
+          posAddToCart(product.variant_id);
+          inp.value = '';
+          posRenderProducts();
+          return;
+        }
+      }
+      
+      // غير كده، اعمل filter
+      posRenderProducts(val);
+    }, 150);
+  };
+  
+  inp.onkeydown = function(e){
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const val = inp.value.trim();
+      if(!val) return;
+      
+      // جرب match مباشر
+      const product = _posCatalogByBarcode[val];
+      if(product){
+        posAddToCart(product.variant_id);
+        inp.value = '';
+        posRenderProducts();
+      } else {
+        // ابحث في الـ catalog
+        const found = _posCatalog.find(p => 
+          (p.barcode||'').trim() === val ||
+          (p.sku||'').trim() === val
+        );
+        if(found){
+          posAddToCart(found.variant_id);
+          inp.value = '';
+          posRenderProducts();
+        } else {
+          toast('❌ منتج مش موجود', 'error');
+          try { if(navigator.vibrate) navigator.vibrate([100,50,100]); } catch(e){}
+        }
+      }
+    }
+  };
+}
+
+function posAddToCart(variantId){
+  const product = _posCatalog.find(p => p.variant_id === variantId);
+  if(!product) return;
+  
+  // شوف لو موجود بالفعل في السلة
+  const existing = _posCart.find(c => c.variantId === variantId);
+  if(existing){
+    existing.qty++;
+  } else {
+    _posCart.push({
+      variantId: product.variant_id,
+      productTitle: product.product_title,
+      variantTitle: product.variant_title,
+      sku: product.sku,
+      barcode: product.barcode,
+      qty: 1,
+      unitPrice: parseFloat(product.price) || 0,
+      imageUrl: product.image_url
+    });
+  }
+  
+  // beep
+  try {
+    if(navigator.vibrate) navigator.vibrate(30);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 1500;
+    gain.gain.setValueAtTime(.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.01, ctx.currentTime + .08);
+    osc.start();
+    osc.stop(ctx.currentTime + .08);
+  } catch(e){}
+  
+  posRenderCart();
+  // أعد تحميل البرومو لو موجود
+  if(_posPromo) posRevalidatePromo();
+}
+
+function posRenderCart(){
+  const container = $('pos-cart-items');
+  if(!container) return;
+  
+  if(!_posCart.length){
+    container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:48px;opacity:.3">🛒</div><div style="font-size:12px;margin-top:6px">ابدأ بمسح/إضافة منتج</div></div>';
+    posUpdateTotals();
+    return;
+  }
+  
+  container.innerHTML = _posCart.map((item, idx) => `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:12px;line-height:1.2">${escapeHtml(item.productTitle)}${item.variantTitle ? ' - '+escapeHtml(item.variantTitle) : ''}</div>
+          <div style="font-size:10px;color:var(--muted)">${parseFloat(item.unitPrice).toFixed(0)} ج × ${item.qty} = <strong style="color:var(--gold)">${(item.unitPrice * item.qty).toFixed(0)} ج</strong></div>
+        </div>
+        <button onclick="posRemoveFromCart(${idx})" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">×</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
+        <button onclick="posUpdateQty(${idx}, -1)" style="width:30px;height:30px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700">−</button>
+        <span style="min-width:30px;text-align:center;font-weight:800;font-size:14px">${item.qty}</span>
+        <button onclick="posUpdateQty(${idx}, 1)" style="width:30px;height:30px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700">+</button>
+      </div>
+    </div>
+  `).join('');
+  
+  posUpdateTotals();
+}
+
+function posUpdateQty(idx, delta){
+  const item = _posCart[idx];
+  if(!item) return;
+  item.qty = Math.max(1, item.qty + delta);
+  posRenderCart();
+  if(_posPromo) posRevalidatePromo();
+}
+
+function posRemoveFromCart(idx){
+  _posCart.splice(idx, 1);
+  posRenderCart();
+  if(_posPromo) posRevalidatePromo();
+}
+
+function posClearCart(){
+  if(!_posCart.length) return;
+  if(!confirm('مسح السلة كاملة؟')) return;
+  _posCart = [];
+  _posPromo = null;
+  posClearPromo();
+  posRenderCart();
+}
+
+function posCalcSubtotal(){
+  return _posCart.reduce((s, item) => s + (item.qty * item.unitPrice), 0);
+}
+
+function posUpdateTotals(){
+  const subtotal = posCalcSubtotal();
+  const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
+  const total = subtotal - discount;
+  
+  $('pos-subtotal').textContent = subtotal.toFixed(0) + ' ج';
+  $('pos-total').textContent = total.toFixed(0) + ' ج';
+  
+  const discountRow = $('pos-discount-row');
+  if(discount > 0){
+    discountRow.style.display = 'flex';
+    $('pos-discount-amt').textContent = '-' + discount.toFixed(0) + ' ج';
+  } else {
+    discountRow.style.display = 'none';
+  }
+  
+  // Disable payment buttons لو مفيش items
+  const disabled = _posCart.length === 0;
+  ['pos-pay-cash','pos-pay-visa','pos-pay-instapay','pos-pay-mixed'].forEach(id => {
+    const btn = $(id);
+    if(btn){
+      btn.style.opacity = disabled ? '.4' : '1';
+      btn.style.pointerEvents = disabled ? 'none' : 'auto';
+    }
+  });
+}
+
+// ─── Customer ───
+function posOpenCustomer(){
+  $('pos-cust-phone').value = _posCustomer?.phone || '';
+  $('pos-cust-name').value = '';
+  $('pos-cust-email').value = '';
+  $('pos-cust-result').innerHTML = '';
+  $('pos-cust-new-form').style.display = 'none';
+  $('pos-customer-modal').style.display = 'block';
+  setTimeout(() => $('pos-cust-phone').focus(), 100);
+}
+
+function posCloseCustomer(){
+  $('pos-customer-modal').style.display = 'none';
+}
+
+function posDebounceSearchCustomer(){
+  if(_posSearchTimer) clearTimeout(_posSearchTimer);
+  _posSearchTimer = setTimeout(posSearchCustomer, 500);
+}
+
+async function posSearchCustomer(){
+  const phone = $('pos-cust-phone').value.trim();
+  if(phone.length < 7){
+    $('pos-cust-result').innerHTML = '';
+    $('pos-cust-new-form').style.display = 'none';
+    return;
+  }
+  
+  $('pos-cust-result').innerHTML = '<div style="text-align:center;padding:10px;color:var(--muted);font-size:12px">⏳ بحث...</div>';
+  
+  // 1. ابحث في IndexedDB أولاً
+  try {
+    const cached = await posDBGet('customers', phone);
+    if(cached){
+      $('pos-cust-result').innerHTML = `
+        <div style="background:rgba(34,197,94,.15);border:1px solid #22c55e;border-radius:8px;padding:10px">
+          <div style="font-weight:800;color:#22c55e;margin-bottom:4px">✅ عميل موجود</div>
+          <div style="font-weight:700">${escapeHtml(cached.name)}</div>
+          <div style="font-size:11px;color:var(--muted)">${escapeHtml(cached.phone)}</div>
+          <div style="font-size:10px;color:#a855f7;margin-top:3px">💾 من الذاكرة المحلية</div>
+          <button onclick='posSelectCustomer(${JSON.stringify(cached).replace(/'/g, "\\'")})' class="btn-primary" style="width:100%;margin-top:8px">+ إضافة للطلب</button>
+        </div>
+      `;
+      $('pos-cust-new-form').style.display = 'none';
+      return;
+    }
+  } catch(e){}
+  
+  // 2. لو offline، اعرض form لإنشاء عميل جديد
+  if(!_posIsOnline){
+    $('pos-cust-result').innerHTML = `
+      <div style="background:rgba(239,68,68,.15);border:1px solid #ef4444;border-radius:8px;padding:10px;text-align:center">
+        <div style="color:#ef4444;font-weight:700">🔴 Offline - مش موجود محلياً</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">ممكن تنشئ عميل جديد دلوقتي + يتسجل على Shopify لما النت يرجع</div>
+      </div>
+    `;
+    $('pos-cust-new-form').style.display = 'block';
+    setTimeout(() => $('pos-cust-name').focus(), 100);
+    return;
+  }
+  
+  // 3. ابحث في Shopify
+  try {
+    const r = await apiFetch('/api/pos/customers/search?phone=' + encodeURIComponent(phone));
+    
+    if(r?.customer){
+      // cache في IndexedDB
+      try { await posDBPut('customers', r.customer); } catch(e){}
+      
+      $('pos-cust-result').innerHTML = `
+        <div style="background:rgba(34,197,94,.15);border:1px solid #22c55e;border-radius:8px;padding:10px">
+          <div style="font-weight:800;color:#22c55e;margin-bottom:4px">✅ عميل موجود</div>
+          <div style="font-weight:700">${escapeHtml(r.customer.name)}</div>
+          <div style="font-size:11px;color:var(--muted)">${escapeHtml(r.customer.phone)}</div>
+          ${r.source === 'shopify' ? '<div style="font-size:10px;color:#3b82f6;margin-top:3px">من Shopify</div>' : ''}
+          <button onclick='posSelectCustomer(${JSON.stringify(r.customer).replace(/'/g, "\\'")})' class="btn-primary" style="width:100%;margin-top:8px">+ إضافة للطلب</button>
+        </div>
+      `;
+      $('pos-cust-new-form').style.display = 'none';
+    } else {
+      $('pos-cust-result').innerHTML = `
+        <div style="background:rgba(251,191,36,.15);border:1px solid #fbbf24;border-radius:8px;padding:10px;text-align:center">
+          <div style="color:#fbbf24;font-weight:700">⚠️ مفيش عميل بالرقم ده</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">ممكن تنشئ عميل جديد ⬇️</div>
+        </div>
+      `;
+      $('pos-cust-new-form').style.display = 'block';
+      setTimeout(() => $('pos-cust-name').focus(), 100);
+    }
+  } catch(e) {
+    $('pos-cust-result').innerHTML = `<div style="color:#ef4444;text-align:center;padding:10px">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function posSelectCustomer(customer){
+  _posCustomer = customer;
+  $('pos-customer-display').style.display = 'block';
+  $('pos-customer-name').textContent = customer.name;
+  $('pos-customer-phone').textContent = customer.phone;
+  posCloseCustomer();
+  toast('✅ تم اختيار العميل', 'success');
+}
+
+function posClearCustomer(){
+  _posCustomer = null;
+  $('pos-customer-display').style.display = 'none';
+}
+
+async function posCreateCustomer(){
+  const phone = $('pos-cust-phone').value.trim();
+  const name = $('pos-cust-name').value.trim();
+  const email = $('pos-cust-email').value.trim();
+  
+  if(!phone || !name){ toast('❌ الاسم والموبايل مطلوبين', 'error'); return; }
+  
+  // Online: ابعت لـ Shopify على طول
+  if(_posIsOnline){
+    try {
+      toast('⏳ جاري الإضافة...', 'info');
+      const r = await apiFetch('/api/pos/customers', 'POST', { phone, name, email });
+      if(r?.success){
+        // cache
+        try { await posDBPut('customers', r.customer); } catch(e){}
+        posSelectCustomer(r.customer);
+        toast('✅ تم إنشاء العميل', 'success');
+      } else {
+        toast('❌ ' + (r?.error || 'فشل'), 'error');
+      }
+    } catch(e) {
+      toast('❌ ' + e.message, 'error');
+    }
+    return;
+  }
+  
+  // 🆕 Offline: حفظ محلياً + queue للـ sync
+  try {
+    const tempId = 'offline-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const offlineCustomer = {
+      tempId,
+      phone, name, email,
+      shopifyId: null, // هيتحدد لما يتسجل
+      isPending: true,
+      createdAt: Date.now()
+    };
+    
+    await posDBPut('pendingCustomers', offlineCustomer);
+    
+    // ضيفه للـ customers cache كمان (عشان يلاقيه لو دور تاني)
+    await posDBPut('customers', { phone, name, shopifyId: null, tempId, isPending: true });
+    
+    posSelectCustomer({ phone, name, shopifyId: null, isPending: true });
+    toast('✅ اتسجل محلياً - هيترفع لما النت يرجع', 'success');
+  } catch(e) {
+    toast('❌ فشل الحفظ المحلي: ' + e.message, 'error');
+  }
+}
+
+// ─── Promo ───
+function posOpenPromo(){
+  $('pos-promo-input').value = '';
+  $('pos-promo-error').style.display = 'none';
+  $('pos-promo-modal').style.display = 'block';
+  setTimeout(() => $('pos-promo-input').focus(), 100);
+}
+
+function posClosePromo(){
+  $('pos-promo-modal').style.display = 'none';
+}
+
+async function posApplyPromo(){
+  const code = $('pos-promo-input').value.trim();
+  if(!code){ toast('❌ ادخل الكود'); return; }
+  
+  const subtotal = posCalcSubtotal();
+  if(subtotal <= 0){ toast('❌ السلة فاضية'); return; }
+  
+  try {
+    const r = await apiFetch('/api/pos/promo/validate', 'POST', { code, subtotal });
+    
+    if(r?.valid){
+      _posPromo = { 
+        ...r.promo,
+        code: r.promo.code
+      };
+      $('pos-promo-applied').style.display = 'block';
+      $('pos-promo-btn').style.display = 'none';
+      $('pos-promo-code-display').textContent = '🎟️ ' + r.promo.code;
+      $('pos-promo-discount-display').textContent = `خصم: ${parseFloat(r.promo.discount).toFixed(0)} ج`;
+      posUpdateTotals();
+      posClosePromo();
+      toast(`✅ خصم ${r.promo.discount.toFixed(0)} ج`, 'success');
+    } else {
+      $('pos-promo-error').textContent = r?.error || 'الكود غير صالح';
+      $('pos-promo-error').style.display = 'block';
+    }
+  } catch(e) {
+    $('pos-promo-error').textContent = e.message || 'فشل';
+    $('pos-promo-error').style.display = 'block';
+  }
+}
+
+function posClearPromo(){
+  _posPromo = null;
+  $('pos-promo-applied').style.display = 'none';
+  $('pos-promo-btn').style.display = 'block';
+  posUpdateTotals();
+}
+
+async function posRevalidatePromo(){
+  // re-validate الكود لو السلة اتغيرت
+  if(!_posPromo) return;
+  const code = _posPromo.code;
+  const subtotal = posCalcSubtotal();
+  
+  try {
+    const r = await apiFetch('/api/pos/promo/validate', 'POST', { code, subtotal });
+    if(r?.valid){
+      _posPromo = { ...r.promo, code: r.promo.code };
+      $('pos-promo-discount-display').textContent = `خصم: ${parseFloat(r.promo.discount).toFixed(0)} ج`;
+    } else {
+      // الكود مش صالح بعد التغيير
+      posClearPromo();
+      toast('⚠️ الكود لم يعد صالحاً بعد التغيير', 'warning');
+    }
+    posUpdateTotals();
+  } catch(e){}
+}
+
+// ─── Checkout ───
+async function posCheckout(method){
+  if(!_posCart.length){ toast('❌ السلة فاضية'); return; }
+  if(!_posStore){ toast('❌ مفيش محل محدد'); return; }
+  
+  const subtotal = posCalcSubtotal();
+  const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
+  const total = subtotal - discount;
+  
+  // 🛡️ v27: لو فيزا/انستاباي - افتح modal للـ reference + validation
+  if(method === 'visa' || method === 'instapay'){
+    posOpenRefValidation(method, total, subtotal, discount);
+    return;
+  }
+  
+  // كاش - مباشر
+  await posCompleteSale({ payments: [{ method, amount: total }], total, subtotal, discount });
+}
+
+// 🛡️ v27: Reference + Validation Modal للفيزا/انستاباي
+let _pendingRefData = null;
+
+function posOpenRefValidation(method, total, subtotal, discount){
+  _pendingRefData = { method, total, subtotal, discount, isMixed: false };
+  
+  const methodIcon = method === 'visa' ? '💳' : '📱';
+  const methodName = method === 'visa' ? 'فيزا' : 'انستاباي';
+  
+  $('ref-modal-title').textContent = `${methodIcon} بيانات ${methodName}`;
+  $('ref-expected').textContent = total.toFixed(2) + ' ج';
+  $('ref-charged').value = total.toFixed(2);
+  $('ref-number').value = '';
+  
+  posUpdateRefDiff();
+  
+  $('pos-ref-modal').style.display = 'block';
+  setTimeout(() => $('ref-charged').focus(), 100);
+}
+
+function posCloseRefValidation(){
+  $('pos-ref-modal').style.display = 'none';
+  _pendingRefData = null;
+  
+  // 🛡️ resolve mixed promise بـ null لو فيه
+  if(_refPromiseResolver){
+    _refPromiseResolver(null);
+    _refPromiseResolver = null;
+    $('ref-confirm-btn').onclick = posConfirmRefValidation;
+  }
+}
+
+function posUpdateRefDiff(){
+  if(!_pendingRefData) return;
+  
+  const expected = _pendingRefData.total;
+  const charged = parseFloat($('ref-charged').value) || 0;
+  const diff = charged - expected;
+  
+  const diffEl = $('ref-diff-display');
+  const warningEl = $('ref-warning');
+  const confirmBtn = $('ref-confirm-btn');
+  
+  // 5% threshold
+  const percent = expected > 0 ? Math.abs(diff) / expected * 100 : 0;
+  
+  if(Math.abs(diff) <= 1){
+    // مظبوط
+    diffEl.style.color = '#22c55e';
+    diffEl.textContent = '✅ مطابق';
+    warningEl.style.display = 'none';
+    confirmBtn.disabled = false;
+    confirmBtn.style.background = '#22c55e';
+    confirmBtn.style.cursor = 'pointer';
+    _pendingRefData.needsManagerPin = false;
+  } else if(percent > 5){
+    // فرق كبير جداً - منع
+    diffEl.style.color = '#ef4444';
+    diffEl.textContent = `⛔ فرق ${diff > 0 ? '+' : ''}${diff.toFixed(2)} ج (${percent.toFixed(1)}%)`;
+    warningEl.style.display = 'block';
+    warningEl.innerHTML = `<div style="background:#fee2e2;border:2px solid #ef4444;border-radius:8px;padding:10px;color:#991b1b;font-size:12px;font-weight:700;text-align:center">⛔ فرق كبير جداً (>5%)<br>تأكد من المبلغ في الماكينة</div>`;
+    confirmBtn.disabled = true;
+    confirmBtn.style.background = '#9ca3af';
+    confirmBtn.style.cursor = 'not-allowed';
+    _pendingRefData.needsManagerPin = true;
+  } else {
+    // فرق متوسط - يحتاج PIN
+    diffEl.style.color = '#fbbf24';
+    diffEl.textContent = `⚠️ فرق ${diff > 0 ? '+' : ''}${diff.toFixed(2)} ج`;
+    warningEl.style.display = 'block';
+    warningEl.innerHTML = `<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px;color:#92400e;font-size:12px;font-weight:700;text-align:center">⚠️ فيه فرق - لازم موافقة المدير قبل الحفظ</div>`;
+    confirmBtn.disabled = false;
+    confirmBtn.style.background = '#fbbf24';
+    confirmBtn.style.cursor = 'pointer';
+    confirmBtn.textContent = '🔐 تأكيد بـ PIN المدير';
+    _pendingRefData.needsManagerPin = true;
+    return;
+  }
+  
+  confirmBtn.textContent = '✅ تأكيد البيع';
+}
+
+async function posConfirmRefValidation(){
+  if(!_pendingRefData) return;
+  
+  const charged = parseFloat($('ref-charged').value);
+  const refNumber = $('ref-number').value.trim();
+  
+  if(isNaN(charged) || charged <= 0){
+    toast('❌ ادخل مبلغ صحيح', 'error'); return;
+  }
+  if(!refNumber){
+    toast('❌ ادخل رقم العملية من الماكينة', 'error'); return;
+  }
+  
+  let toleranceApprovedById = null;
+  let toleranceApprovedByName = null;
+  
+  // لو محتاج PIN
+  if(_pendingRefData.needsManagerPin){
+    const pinResult = await posVerifyPin(`فرق في ${_pendingRefData.method}`);
+    if(!pinResult) return;
+    toleranceApprovedById = pinResult.id;
+    toleranceApprovedByName = pinResult.name;
+  }
+  
+  const { method, total, subtotal, discount } = _pendingRefData;
+  posCloseRefValidation();
+  
+  await posCompleteSale({ 
+    payments: [{ 
+      method, 
+      amount: total,
+      chargedAmount: charged,
+      refNumber,
+      toleranceApprovedById,
+      toleranceApprovedByName
+    }], 
+    total, subtotal, discount 
+  });
+}
+
+// 🛡️ PIN verification helper - يفتح modal و ينتظر النتيجة
+let _pinResolver = null;
+
+function posVerifyPin(forAction){
+  return new Promise((resolve) => {
+    _pinResolver = resolve;
+    $('pin-modal-action').textContent = forAction;
+    $('pin-input').value = '';
+    $('pin-error').style.display = 'none';
+    $('pos-pin-modal').style.display = 'block';
+    setTimeout(() => $('pin-input').focus(), 100);
+  });
+}
+
+async function posSubmitPin(){
+  const pin = $('pin-input').value.trim();
+  if(!pin){
+    $('pin-error').textContent = '❌ ادخل PIN';
+    $('pin-error').style.display = 'block';
+    return;
+  }
+  
+  try {
+    const r = await apiFetch('/api/pos/verify-manager-pin', 'POST', {
+      pin,
+      action: $('pin-modal-action').textContent
+    });
+    
+    if(r?.success){
+      $('pos-pin-modal').style.display = 'none';
+      if(_pinResolver){
+        _pinResolver(r.manager);
+        _pinResolver = null;
+      }
+    }
+  } catch(e) {
+    $('pin-error').textContent = '❌ ' + (e.message || 'PIN غير صحيح');
+    $('pin-error').style.display = 'block';
+    $('pin-input').value = '';
+  }
+}
+
+function posCancelPin(){
+  $('pos-pin-modal').style.display = 'none';
+  if(_pinResolver){
+    _pinResolver(null);
+    _pinResolver = null;
+  }
+}
+
+// 🆕 v24: shared completion logic
+async function posCompleteSale({ payments, total, subtotal, discount }){
+  const methodNames = { cash: '💵 كاش', visa: '💳 فيزا', instapay: '📱 انستاباي' };
+  
+  // build confirmation message
+  let payMsg = '';
+  if(payments.length === 1){
+    payMsg = `طريقة الدفع: ${methodNames[payments[0].method] || payments[0].method}`;
+  } else {
+    payMsg = 'الدفع المدمج:\n' + payments.map(p => `${methodNames[p.method] || p.method}: ${parseFloat(p.amount).toFixed(0)} ج`).join('\n');
+  }
+  
+  const confirmMsg = `💰 تأكيد البيع؟\n\nالإجمالي: ${total.toFixed(0)} ج\n${payMsg}${_posCustomer ? '\n\nالعميل: ' + _posCustomer.name : ''}${!_posIsOnline ? '\n\n🔴 Offline - هيتحفظ محلياً ويترفع لما النت يرجع' : ''}`;
+  
+  if(!confirm(confirmMsg)) return;
+  
+  // ولّد client UUID
+  const clientUuid = 'pos-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+  const createdAt = Date.now();
+  
+  const sale = {
+    storeId: _posStore.id,
+    items: _posCart.map(c => ({
+      variantId: c.variantId,
+      productTitle: c.productTitle,
+      variantTitle: c.variantTitle,
+      sku: c.sku,
+      barcode: c.barcode,
+      qty: c.qty,
+      unitPrice: c.unitPrice
+    })),
+    customer: _posCustomer,
+    payments,
+    promoCode: _posPromo?.code || null,
+    promoCodeId: _posPromo?.id || null,
+    discountTotal: discount,
+    subtotal,
+    total,
+    clientUuid,
+    createdAt,
+    offlineCreated: !_posIsOnline
+  };
+  
+  // 🆕 v22: حفظ في IndexedDB أولاً (دايماً)
+  try {
+    await posDBPut('pendingSales', sale);
+  } catch(e) {
+    console.warn('saving to IndexedDB failed:', e.message);
+  }
+  
+  // عرض الإيصال فوراً (مهم للسرعة)
+  posShowReceipt({
+    saleNumber: 'OFFLINE-' + new Date().toISOString().slice(11,19).replace(/:/g,''),
+    items: [..._posCart],
+    subtotal, discount, total, payments,
+    customer: _posCustomer,
+    promo: _posPromo,
+    isOffline: !_posIsOnline
+  });
+  
+  // مسح السلة
+  _posCart = [];
+  _posCustomer = null;
+  _posPromo = null;
+  posClearCustomer();
+  posClearPromo();
+  posRenderCart();
+  
+  // beep success
+  try { 
+    if(navigator.vibrate) navigator.vibrate([50, 50, 100]);
+  } catch(e){}
+  
+  // 🆕 لو online، ابعت للسيرفر فوراً
+  if(_posIsOnline){
+    posSendSale(sale).then(result => {
+      if(result?.success){
+        toast(`✅ ${result.saleNumber}`, 'success');
+      }
+    }).catch(e => {
+      toast('⚠️ هيتم إعادة المحاولة...', 'warning');
+    });
+  } else {
+    toast('💾 اتحفظ محلياً - هيتم الرفع لما النت يرجع', 'info');
+  }
+  
+  posUpdatePendingBadge();
+}
+
+// 🆕 v22: ابعت بيعة واحدة للسيرفر
+async function posSendSale(sale){
+  try {
+    const r = await apiFetch('/api/pos/sales', 'POST', sale);
+    
+    if(r?.success){
+      // امسح من الـ pending
+      try { await posDBDelete('pendingSales', sale.clientUuid); } catch(e){}
+      posUpdatePendingBadge();
+      return r;
+    } else {
+      throw new Error(r?.error || 'فشل');
+    }
+  } catch(e) {
+    // لو فشل، يفضل في الـ pending
+    console.warn('send sale failed:', e.message);
+    throw e;
+  }
+}
+
+// 🆕 v22: رفع كل البيعات الـ pending للسيرفر
+let _posSyncRunning = false;
+
+async function posSyncPendingItems(){
+  if(_posSyncRunning) return;
+  _posSyncRunning = true;
+  
+  try {
+    // 1. رفع العملاء الجدد أولاً
+    await posSyncPendingCustomers();
+    
+    // 2. رفع البيعات
+    const pending = await posDBGetAll('pendingSales');
+    if(!pending.length){
+      _posSyncRunning = false;
+      return;
+    }
+    
+    toast(`🔄 رفع ${pending.length} بيعة معلّقة...`, 'info');
+    
+    // ابعتهم batch
+    try {
+      const r = await apiFetch('/api/pos/sales/bulk-sync', 'POST', { sales: pending });
+      
+      if(r?.results){
+        let removed = 0;
+        for(const result of r.results){
+          if(result.success){
+            try { await posDBDelete('pendingSales', result.clientUuid); removed++; } catch(e){}
+          }
+        }
+        
+        if(r.successCount > 0){
+          toast(`✅ تم رفع ${r.successCount} بيعة`, 'success');
+        }
+        if(r.failedCount > 0){
+          toast(`⚠️ ${r.failedCount} بيعة فشلت - هتترفع تاني`, 'warning');
+        }
+      }
+    } catch(e) {
+      toast('❌ فشل الرفع: ' + e.message, 'error');
+    }
+    
+    posUpdatePendingBadge();
+    
+  } finally {
+    _posSyncRunning = false;
+  }
+}
+
+// 🆕 v22: رفع العملاء الـ pending
+async function posSyncPendingCustomers(){
+  try {
+    const pending = await posDBGetAll('pendingCustomers');
+    if(!pending.length) return;
+    
+    const r = await apiFetch('/api/pos/customers/bulk-create', 'POST', { customers: pending });
+    
+    if(r?.results){
+      for(const result of r.results){
+        if(result.success && result.customer?.shopifyId){
+          // امسح من الـ pending
+          try { await posDBDelete('pendingCustomers', result.tempId); } catch(e){}
+          
+          // حدّث الـ customer cache بالـ shopifyId
+          try {
+            const cached = await posDBGet('customers', result.customer.phone);
+            if(cached){
+              await posDBPut('customers', { ...cached, shopifyId: result.customer.shopifyId, isPending: false, tempId: undefined });
+            }
+          } catch(e){}
+          
+          // 🆕 حدّث البيعات المعلّقة اللي عندها العميل ده
+          try {
+            const sales = await posDBGetAll('pendingSales');
+            for(const sale of sales){
+              if(sale.customer?.tempId === result.tempId || sale.customer?.phone === result.customer.phone){
+                sale.customer = {
+                  phone: result.customer.phone,
+                  name: result.customer.name,
+                  shopifyId: result.customer.shopifyId
+                };
+                await posDBPut('pendingSales', sale);
+              }
+            }
+          } catch(e){}
+        }
+      }
+    }
+  } catch(e) {
+    console.warn('sync pending customers:', e.message);
+  }
+}
+
+// 🆕 v24: Mixed Payment Modal
+function posOpenMixedPay(){
+  if(!_posCart.length){ toast('❌ السلة فاضية'); return; }
+  
+  const subtotal = posCalcSubtotal();
+  const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
+  const total = subtotal - discount;
+  
+  $('mixed-total-display').textContent = total.toFixed(0) + ' ج';
+  $('mixed-cash').value = '';
+  $('mixed-visa').value = '';
+  $('mixed-instapay').value = '';
+  
+  posUpdateMixedTotals();
+  
+  $('pos-mixed-modal').style.display = 'block';
+  setTimeout(() => $('mixed-cash').focus(), 100);
+}
+
+function posCloseMixedPay(){
+  $('pos-mixed-modal').style.display = 'none';
+}
+
+function posUpdateMixedTotals(){
+  const cash = parseFloat($('mixed-cash').value) || 0;
+  const visa = parseFloat($('mixed-visa').value) || 0;
+  const instapay = parseFloat($('mixed-instapay').value) || 0;
+  const entered = cash + visa + instapay;
+  
+  const subtotal = posCalcSubtotal();
+  const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
+  const total = subtotal - discount;
+  
+  const diff = total - entered;
+  
+  $('mixed-entered').textContent = entered.toFixed(0) + ' ج';
+  
+  const diffEl = $('mixed-diff');
+  const diffRow = $('mixed-diff-row');
+  
+  if(diff > 0){
+    diffEl.textContent = diff.toFixed(0) + ' ج';
+    diffEl.style.color = '#fbbf24';
+    diffRow.querySelector('span:first-child').textContent = 'المتبقي:';
+  } else if(diff < 0){
+    diffEl.textContent = '+' + Math.abs(diff).toFixed(0) + ' ج زيادة';
+    diffEl.style.color = '#ef4444';
+    diffRow.querySelector('span:first-child').textContent = 'فيه زيادة:';
+  } else {
+    diffEl.textContent = '✅ مظبوط';
+    diffEl.style.color = '#22c55e';
+    diffRow.querySelector('span:first-child').textContent = 'الحالة:';
+  }
+  
+  // Enable/disable confirm button
+  const btn = $('pos-mixed-confirm');
+  if(diff === 0 && entered > 0){
+    btn.disabled = false;
+    btn.style.background = '#22c55e';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.disabled = true;
+    btn.style.background = '#9ca3af';
+    btn.style.cursor = 'not-allowed';
+  }
+}
+
+async function posCheckoutMixed(){
+  const cash = parseFloat($('mixed-cash').value) || 0;
+  const visa = parseFloat($('mixed-visa').value) || 0;
+  const instapay = parseFloat($('mixed-instapay').value) || 0;
+  
+  const subtotal = posCalcSubtotal();
+  const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
+  const total = subtotal - discount;
+  
+  // 🛡️ v27: لو visa أو instapay، اطلب reference + validation
+  const payments = [];
+  if(cash > 0) payments.push({ method: 'cash', amount: cash });
+  
+  if(visa > 0){
+    posCloseMixedPay();
+    const result = await posPromptRefForPayment('visa', visa);
+    if(!result){ posOpenMixedPay(); return; }
+    payments.push({ 
+      method: 'visa', amount: visa, 
+      chargedAmount: result.chargedAmount, 
+      refNumber: result.refNumber,
+      toleranceApprovedById: result.toleranceApprovedById,
+      toleranceApprovedByName: result.toleranceApprovedByName
+    });
+  }
+  
+  if(instapay > 0){
+    if(visa <= 0) posCloseMixedPay();
+    const result = await posPromptRefForPayment('instapay', instapay);
+    if(!result){ if(visa <= 0) posOpenMixedPay(); return; }
+    payments.push({ 
+      method: 'instapay', amount: instapay,
+      chargedAmount: result.chargedAmount, 
+      refNumber: result.refNumber,
+      toleranceApprovedById: result.toleranceApprovedById,
+      toleranceApprovedByName: result.toleranceApprovedByName
+    });
+  }
+  
+  if(!payments.length){ toast('❌ ادخل قيم'); return; }
+  
+  if(visa <= 0 && instapay <= 0) posCloseMixedPay();
+  
+  await posCompleteSale({ payments, total, subtotal, discount });
+}
+
+// 🛡️ v27: helper - Promise-based reference prompt
+let _refPromiseResolver = null;
+
+function posPromptRefForPayment(method, amount){
+  return new Promise((resolve) => {
+    _refPromiseResolver = resolve;
+    _pendingRefData = { method, total: amount, subtotal: 0, discount: 0, isMixed: true };
+    
+    const methodIcon = method === 'visa' ? '💳' : '📱';
+    const methodName = method === 'visa' ? 'فيزا' : 'انستاباي';
+    
+    $('ref-modal-title').textContent = `${methodIcon} ${methodName} - ${amount.toFixed(2)} ج`;
+    $('ref-expected').textContent = amount.toFixed(2) + ' ج';
+    $('ref-charged').value = amount.toFixed(2);
+    $('ref-number').value = '';
+    
+    posUpdateRefDiff();
+    
+    // override the confirm function temporarily
+    $('ref-confirm-btn').onclick = posConfirmRefForMixed;
+    
+    $('pos-ref-modal').style.display = 'block';
+    setTimeout(() => $('ref-charged').focus(), 100);
+  });
+}
+
+async function posConfirmRefForMixed(){
+  if(!_pendingRefData || !_refPromiseResolver) return;
+  
+  const charged = parseFloat($('ref-charged').value);
+  const refNumber = $('ref-number').value.trim();
+  
+  if(isNaN(charged) || charged <= 0){ toast('❌ ادخل مبلغ صحيح', 'error'); return; }
+  if(!refNumber){ toast('❌ ادخل رقم العملية', 'error'); return; }
+  
+  let toleranceApprovedById = null;
+  let toleranceApprovedByName = null;
+  
+  if(_pendingRefData.needsManagerPin){
+    const pinResult = await posVerifyPin(`فرق في ${_pendingRefData.method}`);
+    if(!pinResult) return;
+    toleranceApprovedById = pinResult.id;
+    toleranceApprovedByName = pinResult.name;
+  }
+  
+  $('pos-ref-modal').style.display = 'none';
+  
+  // restore default
+  $('ref-confirm-btn').onclick = posConfirmRefValidation;
+  
+  const result = { chargedAmount: charged, refNumber, toleranceApprovedById, toleranceApprovedByName };
+  _pendingRefData = null;
+  
+  const resolve = _refPromiseResolver;
+  _refPromiseResolver = null;
+  resolve(result);
+}
+
+// ─── Receipt ───
+function posShowReceipt(data){
+  const receiptEl = $('pos-receipt-content');
+  if(!receiptEl) return;
+  
+  // 🆕 v25: احفظ بيانات البيعة لاستخدامها في WhatsApp
+  window._posLastSale = data;
+  
+  const dt = new Date().toLocaleString('ar-EG');
+  const methodNames = { cash: 'كاش', visa: 'فيزا', instapay: 'انستاباي' };
+  
+  receiptEl.innerHTML = `
+    <div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px">
+      <div style="font-size:20px;font-weight:800;letter-spacing:2px">CAFELAX</div>
+      <div style="font-size:11px">${escapeHtml(_posStore?.name || '')}</div>
+      <div style="font-size:10px">${dt}</div>
+      ${data.isOffline ? '<div style="font-size:9px;color:#666;margin-top:3px">⏳ بيعة Offline - في انتظار الرفع</div>' : ''}
+    </div>
+    
+    <div style="font-size:11px;margin-bottom:8px">
+      <div><strong>رقم البيعة:</strong> ${escapeHtml(data.saleNumber)}</div>
+      <div><strong>الكاشير:</strong> ${escapeHtml(window.cachedCourierName || '')}</div>
+      ${data.customer ? `<div><strong>العميل:</strong> ${escapeHtml(data.customer.name)} (${escapeHtml(data.customer.phone)})</div>` : ''}
+    </div>
+    
+    <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0;margin-bottom:8px">
+      ${data.items.map(item => `
+        <div style="margin-bottom:4px;font-size:11px">
+          <div style="font-weight:700">${escapeHtml(item.productTitle)}${item.variantTitle ? ' - '+escapeHtml(item.variantTitle) : ''}</div>
+          <div style="display:flex;justify-content:space-between">
+            <span>${item.qty} × ${parseFloat(item.unitPrice).toFixed(0)} ج</span>
+            <span style="font-weight:700">${(item.qty * item.unitPrice).toFixed(0)} ج</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    
+    <div style="font-size:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span>المجموع:</span>
+        <span>${data.subtotal.toFixed(0)} ج</span>
+      </div>
+      ${data.discount > 0 ? `
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span>الخصم${data.promo ? ' ('+escapeHtml(data.promo.code)+')' : ''}:</span>
+          <span>-${data.discount.toFixed(0)} ج</span>
+        </div>
+      ` : ''}
+      <div style="display:flex;justify-content:space-between;font-weight:800;font-size:14px;border-top:2px solid #000;padding-top:4px;margin-top:4px">
+        <span>الإجمالي:</span>
+        <span>${data.total.toFixed(0)} ج</span>
+      </div>
+      ${(() => {
+        const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
+        if(pays.length === 1){
+          return `<div style="display:flex;justify-content:space-between;margin-top:4px">
+            <span>الدفع:</span>
+            <span style="font-weight:700">${methodNames[pays[0].method] || pays[0].method}</span>
+          </div>`;
+        } else {
+          return `
+            <div style="margin-top:6px;padding-top:4px;border-top:1px dashed #000">
+              <div style="font-weight:700;margin-bottom:3px">طرق الدفع:</div>
+              ${pays.map(p => `
+                <div style="display:flex;justify-content:space-between;font-size:11px">
+                  <span>${methodNames[p.method] || p.method}:</span>
+                  <span style="font-weight:700">${parseFloat(p.amount).toFixed(0)} ج</span>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }
+      })()}
+    </div>
+    
+    <div style="text-align:center;margin-top:14px;font-size:10px;border-top:1px dashed #000;padding-top:8px">
+      شكراً لزيارتكم!<br>
+      نتمنى رؤيتكم مرة أخرى ☕
+    </div>
+  `;
+  
+  $('pos-receipt-modal').style.display = 'block';
+  
+  // 🆕 v25: إظهار زر WhatsApp لو فيه عميل برقم
+  const waBtn = $('pos-whatsapp-btn');
+  if(waBtn){
+    waBtn.style.display = data.customer?.phone ? '' : 'none';
+  }
+}
+
+async function posPrintReceipt(){
+  const sale = window._posLastSale;
+  
+  // 🆕 v26: لو الطابعة متصلة، استخدمها
+  if(_posPrinterCharacteristic && sale){
+    toast('🖨️ جاري الطباعة...', 'info');
+    const ok = await posPrintReceiptBluetooth(sale);
+    if(ok){
+      toast('✅ تمت الطباعة', 'success');
+      // افتح WhatsApp بعد 2 ثانية
+      if(sale.customer?.phone && _posIsOnline){
+        setTimeout(() => posSendWhatsApp(), 2000);
+      }
+      return;
+    }
+    toast('⚠️ فشلت طباعة Bluetooth - هنستخدم المتصفح', 'warning');
+  }
+  
+  // Fallback: طباعة عبر المتصفح (الـ popup)
+  const content = $('pos-receipt-content').innerHTML;
+  const w = window.open('', '_blank', 'width=400,height=700');
+  if(!w){ toast('❌ السماح للنافذة المنبثقة', 'error'); return; }
+  w.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl">
+    <head>
+      <title>إيصال</title>
+      <style>
+        @page { size: 80mm auto; margin: 0; }
+        body { font-family: 'Courier New', monospace; padding: 8px; max-width: 80mm; margin: 0 auto; }
+      </style>
+    </head>
+    <body>
+      ${content}
+      <script>window.print();setTimeout(()=>window.close(),500);<\/script>
+    </body>
+    </html>
+  `);
+  w.document.close();
+  
+  // 🆕 v25: لو فيه عميل برقم موبايل، افتح WhatsApp بعد ثانيتين
+  if(sale?.customer?.phone && _posIsOnline){
+    setTimeout(() => {
+      posSendWhatsApp();
+    }, 2000);
+  }
+}
+
+function posCloseReceipt(){
+  $('pos-receipt-modal').style.display = 'none';
+  setTimeout(() => $('pos-scan-input')?.focus(), 100);
+}
+
+// 🆕 v25: WhatsApp messaging
+async function posSendWhatsApp(){
+  const sale = window._posLastSale;
+  if(!sale){ toast('❌ مفيش بيعة'); return; }
+  if(!sale.customer?.phone){ toast('⚠️ مفيش رقم موبايل للعميل'); return; }
+  
+  // جيب التيمبليت النشط
+  let template = null;
+  try {
+    const r = await apiFetch('/api/whatsapp/active-template');
+    template = r?.template;
+  } catch(e){}
+  
+  if(!template){
+    toast('❌ مفيش تيمبليت نشط', 'error');
+    return;
+  }
+  
+  // ابني الرسالة بالقيم
+  const orderItemsList = (sale.items || []).map(it => {
+    const title = (it.productTitle || '') + (it.variantTitle ? ' - ' + it.variantTitle : '');
+    return `• ${title} (${it.qty} × ${parseFloat(it.unitPrice).toFixed(0)} ج)`;
+  }).join('\n');
+  
+  const customerName = sale.customer.name || 'حضرتك';
+  const firstName = customerName.split(/\s+/)[0];
+  
+  const msg = template.message
+    .replace(/\{name\}/g, firstName)
+    .replace(/\{full_name\}/g, customerName)
+    .replace(/\{order_items\}/g, orderItemsList)
+    .replace(/\{total\}/g, parseFloat(sale.total).toFixed(0))
+    .replace(/\{store_name\}/g, _posStore?.name || 'CAFELAX')
+    .replace(/\{cashier_name\}/g, window.cachedCourierName || '')
+    .replace(/\{sale_number\}/g, sale.saleNumber || '')
+    .replace(/\{date\}/g, new Date().toLocaleDateString('ar-EG'));
+  
+  // نظّف رقم الموبايل (شيل المسافات والشرطات والأقواس)
+  let phone = String(sale.customer.phone).replace(/[^\d+]/g, '');
+  
+  // لو الرقم مصري ومش بكود الدولة، ضيف 20
+  if(phone.startsWith('0')){
+    phone = '20' + phone.slice(1);
+  } else if(phone.startsWith('+')){
+    phone = phone.slice(1);
+  }
+  
+  // افتح WhatsApp
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+  
+  // سجّل الاستخدام (لمعرفة الأكتر استخداماً)
+  if(template.id){
+    try { await apiFetch(`/api/whatsapp/templates/${template.id}/used`, 'POST'); } catch(e){}
+  }
+  
+  toast('✅ تم فتح WhatsApp', 'success');
+}
+
+// ─── Sales History ───
+async function posOpenSalesHistory(){
+  // 🆕 v22: اعرض الـ pending أولاً
+  let pendingSales = [];
+  try { pendingSales = await posDBGetAll('pendingSales'); } catch(e){}
+  
+  let pendingHtml = '';
+  if(pendingSales.length){
+    const lines = pendingSales.map(s => {
+      const time = new Date(s.createdAt).toLocaleTimeString('ar-EG', {hour: '2-digit', minute: '2-digit'});
+      return `⏳ ${time} | ${s.total.toFixed(0)}ج (${s.items.length} منتج)`;
+    }).join('\n');
+    pendingHtml = `\n⏳ بيعات معلّقة (${pendingSales.length}):\n${lines}\n\n`;
+  }
+  
+  if(!_posIsOnline){
+    if(pendingSales.length){
+      const ok = confirm(`🔴 Offline\n\n${pendingHtml}اضغط OK لإعادة المحاولة لما النت يرجع.`);
+      return;
+    }
+    alert('🔴 Offline - مش هينفع تشوف السجل من السيرفر');
+    return;
+  }
+  
+  try {
+    const r = await apiFetch('/api/pos/sales?storeId=' + _posStore.id + '&today=1&limit=50');
+    const sales = r?.sales || [];
+    
+    let serverHtml = '';
+    if(sales.length){
+      const list = sales.map(s => {
+        const time = new Date(s.created_at).toLocaleTimeString('ar-EG', {hour: '2-digit', minute: '2-digit'});
+        const sync = s.synced_to_shopify ? '✅' : (s.sync_error ? '⚠️' : '⏳');
+        return `${time} | ${s.sale_number} | ${parseFloat(s.total).toFixed(0)}ج ${sync}`;
+      }).join('\n');
+      serverHtml = `📋 بيعات اليوم (${sales.length}):\n${list}`;
+    } else {
+      serverHtml = 'مفيش بيعات النهاردة';
+    }
+    
+    const fullMsg = pendingHtml + serverHtml;
+    
+    if(pendingSales.length){
+      if(confirm(fullMsg + '\n\nاضغط OK لرفع البيعات المعلّقة دلوقتي')){
+        await posSyncPendingItems();
+      }
+    } else {
+      alert(serverHtml);
+    }
+  } catch(e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function posOpenStats(){
+  // إحصائيات محلية (للـ pending)
+  let pendingSales = [];
+  try { pendingSales = await posDBGetAll('pendingSales'); } catch(e){}
+  
+  const localPending = pendingSales.reduce((sum, s) => sum + parseFloat(s.total || 0), 0);
+  let pendingMsg = pendingSales.length ? `\n⏳ بيعات معلّقة: ${pendingSales.length} (${localPending.toFixed(0)} ج)\n` : '';
+  
+  if(!_posIsOnline){
+    alert(`📊 الإحصائيات (Offline):\n${pendingMsg}\n🔴 لا يمكن جلب إحصائيات الخادم - حاول لما النت يرجع`);
+    return;
+  }
+  
+  try {
+    const r = await apiFetch('/api/pos/today-stats?storeId=' + _posStore.id);
+    
+    const byM = r.byMethod || {};
+    alert(`📊 إحصائيات اليوم:${pendingMsg}\n` +
+      `عدد البيعات: ${r.sales_count || 0}\n` +
+      `إجمالي المبيعات: ${parseFloat(r.total_amount || 0).toFixed(0)} ج\n` +
+      `قطع مباعة: ${r.items_sold || 0}\n\n` +
+      `💵 كاش: ${(byM.cash || 0).toFixed(0)} ج\n` +
+      `💳 فيزا: ${(byM.visa || 0).toFixed(0)} ج\n` +
+      `📱 انستاباي: ${(byM.instapay || 0).toFixed(0)} ج`);
+  } catch(e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// 🆕 v22: زر "حدّث الآن" لإعادة تحميل الـ catalog يدوياً
+async function posForceRefresh(){
+  if(!_posIsOnline){ toast('🔴 Offline - مش هتقدر تحدّث', 'warning'); return; }
+  toast('🔄 جاري التحديث...', 'info');
+  await loadPosCatalog();
+  await posSyncPendingItems();
+}
+
+// ============================================================
+// END: POS SYSTEM
+// ============================================================
+
+// ============================================================
+// 🆕 v26: HOLD ORDER
+// ============================================================
+
+async function posHoldOrder(){
+  if(!_posCart.length){ toast('❌ السلة فاضية', 'error'); return; }
+  
+  const note = prompt('اكتب ملاحظة للطلب المعلّق (مثلاً: عميل بيتفرج):', '');
+  if(note === null) return; // canceled
+  
+  const heldOrder = {
+    id: 'hold-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    cart: [..._posCart],
+    customer: _posCustomer,
+    promo: _posPromo,
+    note: note || '',
+    cashierName: window.cachedCourierName || '',
+    heldAt: Date.now()
+  };
+  
+  try {
+    await posDBPut('heldOrders', heldOrder);
+    
+    // مسح السلة الحالية
+    _posCart = [];
+    _posCustomer = null;
+    _posPromo = null;
+    posClearCustomer();
+    posClearPromo();
+    posRenderCart();
+    posUpdateHeldCount();
+    
+    toast('⏸️ تم تعليق الطلب', 'success');
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function posUpdateHeldCount(){
+  try {
+    const all = await posDBGetAll('heldOrders');
+    const badge = $('pos-held-count');
+    if(badge){
+      if(all.length > 0){
+        badge.textContent = all.length;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch(e){}
+}
+
+async function posShowHeldOrders(){
+  try {
+    const all = await posDBGetAll('heldOrders');
+    const list = $('pos-held-list');
+    
+    if(!all.length){
+      list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:48px;opacity:.3">📋</div><div>مفيش طلبات معلّقة</div></div>';
+    } else {
+      // ترتيب: الأحدث أولاً
+      all.sort((a, b) => b.heldAt - a.heldAt);
+      
+      list.innerHTML = all.map(h => {
+        const time = new Date(h.heldAt).toLocaleTimeString('ar-EG', {hour:'2-digit',minute:'2-digit'});
+        const total = h.cart.reduce((s, it) => s + (it.qty * it.unitPrice), 0);
+        const itemsCount = h.cart.length;
+        const totalQty = h.cart.reduce((s, it) => s + it.qty, 0);
+        
+        const safeId = h.id.replace(/'/g, "\\'");
+        
+        return `
+          <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px">
+              <div style="flex:1">
+                <div style="font-weight:800;font-size:13px;color:var(--gold)">⏸️ ${time} ${h.customer ? '· 👤 ' + escapeHtml(h.customer.name) : ''}</div>
+                ${h.note ? `<div style="font-size:11px;color:#fbbf24;margin-top:3px">📝 ${escapeHtml(h.note)}</div>` : ''}
+                <div style="font-size:11px;color:var(--muted);margin-top:3px">${itemsCount} منتج (${totalQty} قطعة) · بواسطة ${escapeHtml(h.cashierName)}</div>
+              </div>
+              <div style="text-align:left">
+                <div style="font-size:18px;font-weight:800;color:var(--gold)">${total.toFixed(0)} ج</div>
+              </div>
+            </div>
+            
+            <!-- preview -->
+            <div style="background:var(--bg);border-radius:6px;padding:8px;margin-bottom:8px;max-height:80px;overflow-y:auto;font-size:11px">
+              ${h.cart.map(it => `
+                <div style="display:flex;justify-content:space-between;padding:2px 0">
+                  <span>${escapeHtml(it.productTitle)}${it.variantTitle ? ' - '+escapeHtml(it.variantTitle) : ''}</span>
+                  <span style="font-weight:700">×${it.qty}</span>
+                </div>
+              `).join('')}
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <button onclick="posResumeHeld('${safeId}')" style="padding:10px;background:var(--gold);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">▶️ استئناف</button>
+              <button onclick="posDeleteHeld('${safeId}')" style="padding:10px;background:var(--bg);color:#ef4444;border:1px solid #ef4444;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">🗑️ حذف</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    $('pos-held-modal').style.display = 'block';
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function posCloseHeldOrders(){
+  $('pos-held-modal').style.display = 'none';
+}
+
+async function posResumeHeld(id){
+  try {
+    const held = await posDBGet('heldOrders', id);
+    if(!held){ toast('❌ مش موجود', 'error'); return; }
+    
+    // لو السلة الحالية فيها حاجة، اسأل
+    if(_posCart.length){
+      if(!confirm('في سلة شغّالة دلوقتي - استئناف الطلب ده هيمسحها\n\nاضغط OK للمتابعة أو احفظ السلة الحالية أولاً (تعليق).')) return;
+    }
+    
+    // استرجاع البيانات
+    _posCart = [...held.cart];
+    _posCustomer = held.customer || null;
+    _posPromo = held.promo || null;
+    
+    if(_posCustomer){
+      $('pos-customer-display').style.display = 'block';
+      $('pos-customer-name').textContent = _posCustomer.name;
+      $('pos-customer-phone').textContent = _posCustomer.phone || '—';
+    }
+    
+    if(_posPromo){
+      $('pos-promo-applied').style.display = 'block';
+      $('pos-promo-btn').style.display = 'none';
+      $('pos-promo-code-display').textContent = '🎟️ ' + _posPromo.code;
+      $('pos-promo-discount-display').textContent = `خصم: ${parseFloat(_posPromo.discount).toFixed(0)} ج`;
+    }
+    
+    // امسح من الـ held
+    await posDBDelete('heldOrders', id);
+    
+    posRenderCart();
+    posCloseHeldOrders();
+    posUpdateHeldCount();
+    
+    toast('▶️ تم استئناف الطلب', 'success');
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function posDeleteHeld(id){
+  if(!confirm('حذف الطلب المعلّق؟\n\n🔐 ملحوظة: ده هيطلب PIN المدير')) return;
+  
+  // 🛡️ v27: PIN required لمنع السرقة
+  const pinResult = await posVerifyPin('حذف طلب معلّق');
+  if(!pinResult) return;
+  
+  try {
+    await posDBDelete('heldOrders', id);
+    posUpdateHeldCount();
+    posShowHeldOrders(); // refresh modal
+    toast('✅ تم الحذف بإذن ' + pinResult.name, 'success');
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// 🆕 v26: BLUETOOTH PRINTING (ESC/POS)
+// ============================================================
+
+let _posPrinterDevice = null;
+let _posPrinterCharacteristic = null;
+
+// ESC/POS commands
+const ESC = '\x1b';
+const GS = '\x1d';
+const ESC_INIT = ESC + '@';
+const ESC_BOLD_ON = ESC + 'E\x01';
+const ESC_BOLD_OFF = ESC + 'E\x00';
+const ESC_DOUBLE_HEIGHT = GS + '!\x01';
+const ESC_DOUBLE_WIDTH = GS + '!\x10';
+const ESC_DOUBLE_BOTH = GS + '!\x11';
+const ESC_NORMAL = GS + '!\x00';
+const ESC_ALIGN_CENTER = ESC + 'a\x01';
+const ESC_ALIGN_LEFT = ESC + 'a\x00';
+const ESC_ALIGN_RIGHT = ESC + 'a\x02';
+const ESC_FEED_3 = '\n\n\n';
+const ESC_CUT = GS + 'V\x42\x00';
+
+// Generic Bluetooth printer service UUIDs (الأكثر شيوعاً)
+const PRINTER_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb', // generic printer
+  '0000ff00-0000-1000-8000-00805f9b34fb', // common alternate
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // BLE printers
+];
+const PRINTER_CHARS = [
+  '00002af1-0000-1000-8000-00805f9b34fb',
+  '0000ff02-0000-1000-8000-00805f9b34fb',
+  '49535343-8841-43f4-a8d4-ecbe34729bb3',
+];
+
+async function posOpenPrinterSettings(){
+  $('pos-printer-modal').style.display = 'block';
+  await posUpdatePrinterStatus();
+}
+
+function posClosePrinterSettings(){
+  $('pos-printer-modal').style.display = 'none';
+}
+
+async function posUpdatePrinterStatus(){
+  const statusEl = $('pos-printer-status');
+  const textEl = $('pos-printer-status-text');
+  const detailEl = $('pos-printer-status-detail');
+  const connectBtn = $('pos-printer-connect');
+  const disconnectBtn = $('pos-printer-disconnect');
+  const testBtn = $('pos-printer-test');
+  const headerBtn = $('pos-printer-btn');
+  
+  // Check if Bluetooth is supported
+  if(!navigator.bluetooth){
+    statusEl.innerHTML = '<div style="font-size:32px;margin-bottom:8px">❌</div><div style="font-weight:700;color:#ef4444">Bluetooth غير مدعوم</div><div style="font-size:11px;color:var(--muted);margin-top:4px">استخدم متصفح Chrome أو Edge</div>';
+    if(connectBtn) connectBtn.style.display = 'none';
+    return;
+  }
+  
+  if(_posPrinterDevice && _posPrinterDevice.gatt?.connected){
+    statusEl.innerHTML = `<div style="font-size:32px;margin-bottom:8px">✅</div><div style="font-weight:700;color:#22c55e" id="pos-printer-status-text">الطابعة متصلة</div><div style="font-size:11px;color:var(--muted);margin-top:4px" id="pos-printer-status-detail">${escapeHtml(_posPrinterDevice.name || 'Unknown')}</div>`;
+    if(connectBtn) connectBtn.style.display = 'none';
+    if(disconnectBtn) disconnectBtn.style.display = '';
+    if(testBtn) testBtn.style.display = '';
+    if(headerBtn){ headerBtn.style.color = '#22c55e'; headerBtn.style.borderColor = '#22c55e'; }
+  } else {
+    statusEl.innerHTML = `<div style="font-size:32px;margin-bottom:8px">🔌</div><div style="font-weight:700" id="pos-printer-status-text">مفيش طابعة متصلة</div><div style="font-size:11px;color:var(--muted);margin-top:4px" id="pos-printer-status-detail">اضغط زرار "ربط" تحت لاختيار طابعة</div>`;
+    if(connectBtn) connectBtn.style.display = '';
+    if(disconnectBtn) disconnectBtn.style.display = 'none';
+    if(testBtn) testBtn.style.display = 'none';
+    if(headerBtn){ headerBtn.style.color = 'var(--text)'; headerBtn.style.borderColor = 'var(--border)'; }
+  }
+}
+
+async function posConnectPrinter(){
+  if(!navigator.bluetooth){
+    toast('❌ Bluetooth غير مدعوم', 'error');
+    return;
+  }
+  
+  try {
+    toast('🔍 ابحث عن طابعات...', 'info');
+    
+    // ابحث عن أي device مع acceptAllDevices للسهولة
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: PRINTER_SERVICES
+    });
+    
+    toast('🔗 جاري الاتصال بـ ' + (device.name || 'الطابعة') + '...', 'info');
+    
+    const server = await device.gatt.connect();
+    
+    // جرب كل service
+    let characteristic = null;
+    for(const serviceUuid of PRINTER_SERVICES){
+      try {
+        const service = await server.getPrimaryService(serviceUuid);
+        // جرب كل characteristic
+        for(const charUuid of PRINTER_CHARS){
+          try {
+            characteristic = await service.getCharacteristic(charUuid);
+            if(characteristic) break;
+          } catch(e){}
+        }
+        if(characteristic) break;
+      } catch(e){}
+    }
+    
+    // لو مفيش، جرب أي writable characteristic
+    if(!characteristic){
+      const services = await server.getPrimaryServices();
+      for(const service of services){
+        try {
+          const chars = await service.getCharacteristics();
+          for(const ch of chars){
+            if(ch.properties.write || ch.properties.writeWithoutResponse){
+              characteristic = ch;
+              break;
+            }
+          }
+          if(characteristic) break;
+        } catch(e){}
+      }
+    }
+    
+    if(!characteristic){
+      throw new Error('مش لاقي characteristic للكتابة - تأكد إن الطابعة ESC/POS');
+    }
+    
+    _posPrinterDevice = device;
+    _posPrinterCharacteristic = characteristic;
+    
+    // listener للفصل
+    device.addEventListener('gattserverdisconnected', () => {
+      _posPrinterDevice = null;
+      _posPrinterCharacteristic = null;
+      toast('🔌 الطابعة اتفصلت', 'warning');
+      posUpdatePrinterStatus();
+    });
+    
+    // احفظ في localStorage عشان نحاول نتصل عند الـ reload
+    try {
+      localStorage.setItem('pos_printer_name', device.name || '');
+    } catch(e){}
+    
+    toast('✅ الطابعة متصلة!', 'success');
+    posUpdatePrinterStatus();
+    
+  } catch(e) {
+    if(e.name === 'NotFoundError'){
+      toast('⚠️ ما اختارتش طابعة', 'warning');
+    } else {
+      toast('❌ فشل: ' + e.message, 'error');
+    }
+  }
+}
+
+async function posDisconnectPrinter(){
+  if(_posPrinterDevice && _posPrinterDevice.gatt?.connected){
+    _posPrinterDevice.gatt.disconnect();
+  }
+  _posPrinterDevice = null;
+  _posPrinterCharacteristic = null;
+  try { localStorage.removeItem('pos_printer_name'); } catch(e){}
+  toast('🔌 تم الفصل', 'info');
+  posUpdatePrinterStatus();
+}
+
+// كتابة data للـ characteristic بـ chunks (الـ MTU عادة 20-512 بايت)
+async function _posWriteToPrinter(data){
+  if(!_posPrinterCharacteristic){ throw new Error('مفيش طابعة متصلة'); }
+  
+  const encoder = new TextEncoder();
+  const buffer = (typeof data === 'string') ? encoder.encode(data) : new Uint8Array(data);
+  
+  const CHUNK = 100; // safe size
+  for(let i = 0; i < buffer.length; i += CHUNK){
+    const chunk = buffer.slice(i, i + CHUNK);
+    if(_posPrinterCharacteristic.properties.writeWithoutResponse){
+      await _posPrinterCharacteristic.writeValueWithoutResponse(chunk);
+    } else {
+      await _posPrinterCharacteristic.writeValue(chunk);
+    }
+    // delay بسيط
+    await new Promise(r => setTimeout(r, 30));
+  }
+}
+
+async function posTestPrint(){
+  try {
+    let cmd = ESC_INIT;
+    cmd += ESC_ALIGN_CENTER;
+    cmd += ESC_DOUBLE_BOTH;
+    cmd += 'CAFELAX\n';
+    cmd += ESC_NORMAL;
+    cmd += ESC_BOLD_ON + 'Test Print\n' + ESC_BOLD_OFF;
+    cmd += '================================\n';
+    cmd += ESC_ALIGN_LEFT;
+    cmd += 'Date: ' + new Date().toLocaleString('en-GB') + '\n';
+    cmd += 'Printer: ' + (_posPrinterDevice?.name || 'Unknown') + '\n';
+    cmd += '================================\n';
+    cmd += ESC_ALIGN_CENTER;
+    cmd += '\n';
+    cmd += 'Test Successful! ✓\n';
+    cmd += ESC_FEED_3;
+    cmd += ESC_CUT;
+    
+    await _posWriteToPrinter(cmd);
+    toast('✅ تم إرسال التجربة', 'success');
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ─── طباعة الإيصال على Bluetooth ───
+async function posPrintReceiptBluetooth(data){
+  if(!_posPrinterCharacteristic){ return false; }
+  
+  try {
+    const dt = new Date().toLocaleString('en-GB');
+    const methodNames = { cash: 'Cash', visa: 'Visa', instapay: 'InstaPay' };
+    
+    let cmd = ESC_INIT;
+    
+    // Header
+    cmd += ESC_ALIGN_CENTER;
+    cmd += ESC_DOUBLE_BOTH;
+    cmd += 'CAFELAX\n';
+    cmd += ESC_NORMAL;
+    cmd += (_posStore?.name || '') + '\n';
+    cmd += dt + '\n';
+    if(data.isOffline) cmd += '*** OFFLINE - PENDING ***\n';
+    cmd += '================================\n';
+    
+    // Sale info
+    cmd += ESC_ALIGN_LEFT;
+    cmd += 'Sale: ' + (data.saleNumber || '') + '\n';
+    cmd += 'Cashier: ' + (window.cachedCourierName || '') + '\n';
+    if(data.customer){
+      cmd += 'Customer: ' + (data.customer.name || '') + '\n';
+      if(data.customer.phone) cmd += 'Phone: ' + data.customer.phone + '\n';
+    }
+    cmd += '--------------------------------\n';
+    
+    // Items
+    (data.items || []).forEach(it => {
+      const title = (it.productTitle || '') + (it.variantTitle ? ' ' + it.variantTitle : '');
+      cmd += ESC_BOLD_ON + title.slice(0, 32) + '\n' + ESC_BOLD_OFF;
+      const lineTotal = (it.qty * it.unitPrice).toFixed(0);
+      const left = `  ${it.qty} x ${parseFloat(it.unitPrice).toFixed(0)}`;
+      const right = lineTotal + ' EGP';
+      const padding = Math.max(1, 32 - left.length - right.length);
+      cmd += left + ' '.repeat(padding) + right + '\n';
+    });
+    
+    cmd += '--------------------------------\n';
+    
+    // Totals
+    const subtotalLine = `Subtotal:`.padEnd(20) + (data.subtotal.toFixed(0) + ' EGP').padStart(12);
+    cmd += subtotalLine + '\n';
+    
+    if(data.discount > 0){
+      const discLabel = `Discount${data.promo ? ' ('+data.promo.code+')' : ''}:`;
+      const discLine = discLabel.padEnd(20) + ('-' + data.discount.toFixed(0) + ' EGP').padStart(12);
+      cmd += discLine + '\n';
+    }
+    
+    cmd += '================================\n';
+    cmd += ESC_DOUBLE_HEIGHT + ESC_BOLD_ON;
+    const totalLine = 'TOTAL:'.padEnd(16) + (data.total.toFixed(0) + ' EGP').padStart(16);
+    cmd += totalLine + '\n';
+    cmd += ESC_NORMAL + ESC_BOLD_OFF;
+    cmd += '================================\n';
+    
+    // Payments
+    const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
+    if(pays.length === 1){
+      cmd += 'Payment: ' + (methodNames[pays[0].method] || pays[0].method) + '\n';
+    } else {
+      cmd += 'Payments:\n';
+      pays.forEach(p => {
+        const left = '  ' + (methodNames[p.method] || p.method) + ':';
+        const right = parseFloat(p.amount).toFixed(0) + ' EGP';
+        const pad = Math.max(1, 32 - left.length - right.length);
+        cmd += left + ' '.repeat(pad) + right + '\n';
+      });
+    }
+    
+    cmd += '\n';
+    cmd += ESC_ALIGN_CENTER;
+    cmd += 'Thank you for visiting!\n';
+    cmd += 'See you again ;)\n';
+    cmd += ESC_FEED_3;
+    cmd += ESC_CUT;
+    
+    await _posWriteToPrinter(cmd);
+    return true;
+  } catch(e) {
+    console.error('bluetooth print failed:', e);
+    return false;
+  }
+}
+
+// ============================================================
+// END: BLUETOOTH PRINTING
+// ============================================================
+
+
+// ============================================================
+// 🆕 v23: STORE MANAGER
+// ============================================================
+let _smgrCurrentTab = 'overview';
+let _smgrCashiers = [];
+let _smgrSelectedCashier = null;
+
+async function loadStoreMgrPage(){
+  try {
+    // جيب معلومات المحل
+    const r = await apiFetch('/api/store-mgr/my-store');
+    if(r?.store){
+      $('smgr-store-name').textContent = '🏪 ' + r.store.name;
+      $('smgr-mgr-name').textContent = '👨‍💼 ' + (window.cachedCourierName || 'المدير');
+    }
+    
+    // افتح الـ tab الافتراضي
+    smgrLoadTab('overview');
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function smgrSwitchTab(tab, btn){
+  _smgrCurrentTab = tab;
+  
+  // update buttons
+  document.querySelectorAll('.smgr-tab').forEach(b => {
+    b.style.background = 'transparent';
+    b.style.color = 'var(--text)';
+    b.style.border = '1px solid var(--border)';
+    b.classList.remove('on');
+  });
+  if(btn){
+    btn.style.background = 'var(--gold)';
+    btn.style.color = '#000';
+    btn.style.border = 'none';
+    btn.classList.add('on');
+  }
+  
+  smgrLoadTab(tab);
+}
+
+async function smgrLoadTab(tab){
+  const c = $('smgr-content');
+  if(!c) return;
+  
+  c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ جاري التحميل...</div>';
+  
+  try {
+    if(tab === 'overview') await smgrLoadOverview();
+    else if(tab === 'cashiers') await smgrLoadCashiers();
+    else if(tab === 'sales') await smgrLoadSales();
+    else if(tab === 'settlements') await smgrLoadSettlements();
+  } catch(e) {
+    c.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function smgrRefresh(){
+  await smgrLoadTab(_smgrCurrentTab);
+}
+
+// ─── Overview Tab ───
+async function smgrLoadOverview(){
+  const r = await apiFetch('/api/store-mgr/today-stats');
+  const c = $('smgr-content');
+  
+  const byM = r.byMethod || {};
+  
+  c.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div style="background:var(--elev);border-radius:10px;padding:14px;text-align:center;border-right:4px solid var(--gold)">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">إجمالي اليوم</div>
+        <div style="font-size:24px;font-weight:800;color:var(--gold)">${parseFloat(r.total_amount || 0).toFixed(0)} ج</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${r.sales_count || 0} بيعة</div>
+      </div>
+      <div style="background:var(--elev);border-radius:10px;padding:14px;text-align:center;border-right:4px solid #fbbf24">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">⏳ مش متصفّى</div>
+        <div style="font-size:24px;font-weight:800;color:#fbbf24">${parseFloat(r.unsettled_amount || 0).toFixed(0)} ج</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${r.unsettled_count || 0} بيعة</div>
+      </div>
+    </div>
+    
+    <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-weight:800;font-size:13px;margin-bottom:10px;color:var(--gold)">💸 توزيع طرق الدفع (مش متصفّى)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px">💵</div>
+          <div style="font-size:10px;color:var(--muted)">كاش</div>
+          <div style="font-size:14px;font-weight:800;color:#22c55e">${(byM.cash || 0).toFixed(0)} ج</div>
+        </div>
+        <div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px">💳</div>
+          <div style="font-size:10px;color:var(--muted)">فيزا</div>
+          <div style="font-size:14px;font-weight:800;color:#3b82f6">${(byM.visa || 0).toFixed(0)} ج</div>
+        </div>
+        <div style="background:var(--bg);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px">📱</div>
+          <div style="font-size:10px;color:var(--muted)">انستاباي</div>
+          <div style="font-size:14px;font-weight:800;color:#a855f7">${(byM.instapay || 0).toFixed(0)} ج</div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="background:var(--elev);border-radius:10px;padding:14px">
+      <div style="font-weight:800;font-size:13px;margin-bottom:10px;color:var(--gold)">📦 المباع</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--muted)">إجمالي القطع:</span>
+        <span style="font-size:18px;font-weight:800">${r.items_sold || 0}</span>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Cashiers Tab ───
+async function smgrLoadCashiers(){
+  const r = await apiFetch('/api/store-mgr/cashiers');
+  _smgrCashiers = r?.cashiers || [];
+  const c = $('smgr-content');
+  
+  if(!_smgrCashiers.length){
+    c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px;opacity:.3">👥</div><div>مفيش كاشيرز في المحل</div><div style="font-size:11px;margin-top:6px">المدير لازم يضيفهم من OrderPro</div></div>';
+    return;
+  }
+  
+  c.innerHTML = _smgrCashiers.map(cash => {
+    const lastSale = cash.last_sale_at ? new Date(cash.last_sale_at).toLocaleString('ar-EG', {dateStyle: 'short', timeStyle: 'short'}) : '—';
+    
+    return `
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:14px;color:var(--gold)">👤 ${escapeHtml(cash.name)}</div>
+            <div style="font-size:11px;color:var(--muted)">📱 ${escapeHtml(cash.phone || '')}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px">آخر بيعة: ${lastSale}</div>
+          </div>
+          <span style="font-size:10px;padding:3px 8px;border-radius:99px;background:${cash.status === 'نشط' || !cash.status ? '#22c55e20' : '#ef444420'};color:${cash.status === 'نشط' || !cash.status ? '#22c55e' : '#ef4444'}">${cash.status || 'نشط'}</span>
+        </div>
+        
+        <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+            <span style="color:var(--muted)">بيعات اليوم:</span>
+            <span style="font-weight:800">${cash.today_sales || 0}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:14px">
+            <span style="color:var(--muted)">إجمالي اليوم:</span>
+            <span style="font-weight:800;color:var(--gold)">${parseFloat(cash.today_total || 0).toFixed(0)} ج</span>
+          </div>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button onclick="smgrViewCashierSales(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📋 بيعاته</button>
+          <button onclick="smgrOpenSettlement(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px;background:var(--gold);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">💰 تصفية</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Sales Tab ───
+let _smgrSalesFilter = { cashierId: null, today: true, reviewed: null };
+
+async function smgrLoadSales(){
+  const params = new URLSearchParams();
+  if(_smgrSalesFilter.cashierId) params.set('cashierId', _smgrSalesFilter.cashierId);
+  if(_smgrSalesFilter.today) params.set('today', '1');
+  if(_smgrSalesFilter.reviewed) params.set('reviewed', _smgrSalesFilter.reviewed);
+  params.set('limit', '50');
+  
+  const r = await apiFetch('/api/store-mgr/sales?' + params.toString());
+  const sales = r?.sales || [];
+  const c = $('smgr-content');
+  
+  // filter chips
+  let html = `
+    <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px">
+      <button onclick="smgrSetFilter('today', true)" style="padding:6px 12px;background:${_smgrSalesFilter.today?'var(--gold)':'var(--elev)'};color:${_smgrSalesFilter.today?'#000':'var(--text)'};border:1px solid ${_smgrSalesFilter.today?'var(--gold)':'var(--border)'};border-radius:99px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📅 اليوم</button>
+      <button onclick="smgrSetFilter('today', false)" style="padding:6px 12px;background:${!_smgrSalesFilter.today?'var(--gold)':'var(--elev)'};color:${!_smgrSalesFilter.today?'#000':'var(--text)'};border:1px solid ${!_smgrSalesFilter.today?'var(--gold)':'var(--border)'};border-radius:99px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📜 الكل</button>
+      <span style="border-right:1px solid var(--border);margin:0 4px"></span>
+      <button onclick="smgrSetFilter('reviewed', null)" style="padding:6px 12px;background:${_smgrSalesFilter.reviewed===null?'#3b82f6':'var(--elev)'};color:${_smgrSalesFilter.reviewed===null?'#fff':'var(--text)'};border:1px solid ${_smgrSalesFilter.reviewed===null?'#3b82f6':'var(--border)'};border-radius:99px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">الكل</button>
+      <button onclick="smgrSetFilter('reviewed', 'no')" style="padding:6px 12px;background:${_smgrSalesFilter.reviewed==='no'?'#fbbf24':'var(--elev)'};color:${_smgrSalesFilter.reviewed==='no'?'#000':'var(--text)'};border:1px solid ${_smgrSalesFilter.reviewed==='no'?'#fbbf24':'var(--border)'};border-radius:99px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">⏳ لم تراجع</button>
+      <button onclick="smgrSetFilter('reviewed', 'yes')" style="padding:6px 12px;background:${_smgrSalesFilter.reviewed==='yes'?'#22c55e':'var(--elev)'};color:${_smgrSalesFilter.reviewed==='yes'?'#fff':'var(--text)'};border:1px solid ${_smgrSalesFilter.reviewed==='yes'?'#22c55e':'var(--border)'};border-radius:99px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✅ مراجعة</button>
+    </div>
+  `;
+  
+  if(!sales.length){
+    html += '<div style="text-align:center;padding:40px;color:var(--muted)">مفيش بيعات</div>';
+    c.innerHTML = html;
+    return;
+  }
+  
+  html += sales.map(s => {
+    const time = new Date(s.created_at).toLocaleString('ar-EG', {dateStyle: 'short', timeStyle: 'short'});
+    const payments = s.payments || [];
+    const methodStr = payments.map(p => {
+      const ico = { cash: '💵', visa: '💳', instapay: '📱' }[p.method] || p.method;
+      return ico;
+    }).join(' ');
+    const settled = s.settlement_id ? '<span style="font-size:10px;background:#22c55e20;color:#22c55e;padding:2px 6px;border-radius:99px">✅ متصفّى</span>' : '<span style="font-size:10px;background:#fbbf2420;color:#fbbf24;padding:2px 6px;border-radius:99px">⏳ مش متصفّى</span>';
+    const reviewed = s.reviewed ? '<span style="font-size:10px;background:#3b82f620;color:#3b82f6;padding:2px 6px;border-radius:99px">👁️ مراجعة</span>' : '';
+    
+    return `
+      <div onclick="smgrViewSale(${s.id})" style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div>
+            <div style="font-weight:800;font-size:13px;font-family:monospace">${escapeHtml(s.sale_number)}</div>
+            <div style="font-size:10px;color:var(--muted)">${time}</div>
+          </div>
+          <div style="text-align:left">
+            <div style="font-size:18px;font-weight:800;color:var(--gold)">${parseFloat(s.total).toFixed(0)} ج</div>
+            <div style="font-size:14px">${methodStr}</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+          <div style="font-size:11px;color:var(--muted)">
+            👤 ${escapeHtml(s.cashier_name || '—')}
+            ${s.customer_name ? '· ' + escapeHtml(s.customer_name) : ''}
+            · ${s.items_count} منتج
+          </div>
+          <div style="display:flex;gap:4px">${reviewed} ${settled}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  c.innerHTML = html;
+}
+
+function smgrSetFilter(key, value){
+  _smgrSalesFilter[key] = value;
+  smgrLoadSales();
+}
+
+async function smgrViewCashierSales(cashierId, name){
+  _smgrSalesFilter.cashierId = cashierId;
+  _smgrCurrentTab = 'sales';
+  
+  // update tab buttons
+  document.querySelectorAll('.smgr-tab').forEach(b => {
+    b.style.background = 'transparent';
+    b.style.color = 'var(--text)';
+    b.style.border = '1px solid var(--border)';
+  });
+  const salesBtn = Array.from(document.querySelectorAll('.smgr-tab')).find(b => b.textContent.includes('البيعات'));
+  if(salesBtn){
+    salesBtn.style.background = 'var(--gold)';
+    salesBtn.style.color = '#000';
+    salesBtn.style.border = 'none';
+  }
+  
+  toast(`📋 بيعات: ${name}`, 'info');
+  await smgrLoadSales();
+}
+
+// ─── Sale Detail ───
+async function smgrViewSale(saleId){
+  try {
+    const r = await apiFetch('/api/pos/sales/' + saleId);
+    if(!r?.sale) return;
+    
+    const s = r.sale;
+    const items = r.items || [];
+    const payments = r.payments || [];
+    
+    $('smgr-sale-title').textContent = '📋 ' + (s.sale_number || '#' + s.id);
+    
+    const html = `
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted)">التاريخ:</div>
+        <div style="font-weight:700">${new Date(s.created_at).toLocaleString('ar-EG')}</div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted)">الكاشير:</div>
+        <div style="font-weight:700">${escapeHtml(s.cashier_name || '—')}</div>
+      </div>
+      ${s.customer_name ? `
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;color:var(--muted)">العميل:</div>
+          <div style="font-weight:700">${escapeHtml(s.customer_name)} · ${escapeHtml(s.customer_phone || '')}</div>
+        </div>
+      ` : ''}
+      
+      <div style="background:var(--elev);border-radius:8px;padding:10px;margin-bottom:14px">
+        <div style="font-weight:800;color:var(--gold);margin-bottom:8px;font-size:12px">المنتجات (${items.length})</div>
+        ${items.map(it => `
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px dashed var(--border)">
+            <span>${escapeHtml(it.product_title)}${it.variant_title ? ' - '+escapeHtml(it.variant_title) : ''}</span>
+            <span style="font-weight:700">${it.qty} × ${parseFloat(it.unit_price).toFixed(0)} = ${parseFloat(it.line_total).toFixed(0)} ج</span>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div style="background:var(--elev);border-radius:8px;padding:10px;margin-bottom:14px">
+        <div style="font-weight:800;color:var(--gold);margin-bottom:8px;font-size:12px">طرق الدفع</div>
+        ${payments.map(p => {
+          const name = { cash: '💵 كاش', visa: '💳 فيزا', instapay: '📱 انستاباي' }[p.method] || p.method;
+          return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span>${name}</span><span style="font-weight:700">${parseFloat(p.amount).toFixed(0)} ج</span></div>`;
+        }).join('')}
+      </div>
+      
+      <div style="background:var(--gold);color:#000;border-radius:8px;padding:12px;text-align:center;margin-bottom:14px">
+        <div style="font-size:11px">الإجمالي</div>
+        <div style="font-size:24px;font-weight:800">${parseFloat(s.total).toFixed(0)} ج</div>
+        ${s.discount_total > 0 ? `<div style="font-size:11px;margin-top:4px">خصم ${parseFloat(s.discount_total).toFixed(0)} ج (${escapeHtml(s.promo_code || '')})</div>` : ''}
+      </div>
+      
+      ${s.reviewed ? `
+        <div style="background:#3b82f620;color:#3b82f6;border-radius:8px;padding:10px;margin-bottom:14px">
+          ✅ روجعت بواسطة ${escapeHtml(s.reviewed_by || '')} في ${new Date(s.reviewed_at).toLocaleString('ar-EG')}
+          ${s.review_notes ? '<div style="font-size:11px;margin-top:4px">📝 ' + escapeHtml(s.review_notes) + '</div>' : ''}
+        </div>
+      ` : `
+        <div>
+          <textarea id="smgr-review-notes" placeholder="ملاحظات المراجعة (اختياري)..." style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;margin-bottom:8px;resize:vertical;min-height:60px"></textarea>
+          <button onclick="smgrReviewSale(${s.id})" style="width:100%;padding:12px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد المراجعة</button>
+        </div>
+      `}
+    `;
+    
+    $('smgr-sale-content').innerHTML = html;
+    $('smgr-sale-modal').style.display = 'block';
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function smgrCloseSale(){
+  $('smgr-sale-modal').style.display = 'none';
+}
+
+async function smgrReviewSale(saleId){
+  const notes = $('smgr-review-notes')?.value.trim() || '';
+  
+  if(!confirm('تأكيد مراجعة البيعة دي؟')) return;
+  
+  try {
+    const r = await apiFetch('/api/store-mgr/sales/' + saleId + '/review', 'POST', { notes });
+    if(r?.success){
+      toast('✅ تم المراجعة', 'success');
+      smgrCloseSale();
+      smgrLoadSales();
+    }
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ─── Settlement ───
+async function smgrOpenSettlement(cashierId, cashierName){
+  _smgrSelectedCashier = { id: cashierId, name: cashierName };
+  
+  // جيب الـ preview
+  $('smgr-settlement-content').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ جاري التحميل...</div>';
+  $('smgr-settlement-modal').style.display = 'block';
+  
+  try {
+    const r = await apiFetch('/api/store-mgr/settlement-preview?cashierId=' + cashierId);
+    
+    if(r.count === 0){
+      $('smgr-settlement-content').innerHTML = `
+        <div style="text-align:center;padding:30px">
+          <div style="font-size:48px;opacity:.3">✅</div>
+          <div style="font-weight:700;margin-top:10px">${escapeHtml(cashierName)}</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:6px">مفيش بيعات للتصفية</div>
+          <button onclick="smgrCloseSettlement()" style="margin-top:14px;padding:10px 20px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;cursor:pointer">إغلاق</button>
+        </div>
+      `;
+      return;
+    }
+    
+    const byM = r.byMethod || {};
+    const cash = byM.cash?.total || 0;
+    const visa = byM.visa?.total || 0;
+    const instapay = byM.instapay?.total || 0;
+    
+    const cashCount = byM.cash?.count || 0;
+    const visaCount = byM.visa?.count || 0;
+    const instapayCount = byM.instapay?.count || 0;
+    
+    const html = `
+      <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:800;font-size:14px;color:var(--gold);margin-bottom:4px">${escapeHtml(cashierName)}</div>
+        <div style="font-size:11px;color:var(--muted)">${r.count} بيعة - من ${new Date(r.first_sale_at).toLocaleString('ar-EG', {dateStyle:'short',timeStyle:'short'})} لـ ${new Date(r.last_sale_at).toLocaleString('ar-EG', {dateStyle:'short',timeStyle:'short'})}</div>
+      </div>
+      
+      <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:800;font-size:13px;color:var(--gold);margin-bottom:10px">💰 توزيع المبيعات (المفروض)</div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
+          <span>💵 كاش <span style="font-size:10px;color:var(--muted)">(${cashCount})</span></span>
+          <span style="font-weight:800;color:#22c55e">${cash.toFixed(0)} ج</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
+          <span>💳 فيزا <span style="font-size:10px;color:var(--muted)">(${visaCount})</span></span>
+          <span style="font-weight:800;color:#3b82f6">${visa.toFixed(0)} ج</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
+          <span>📱 انستاباي <span style="font-size:10px;color:var(--muted)">(${instapayCount})</span></span>
+          <span style="font-weight:800;color:#a855f7">${instapay.toFixed(0)} ج</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0 0 0;font-weight:800;font-size:15px">
+          <span>الإجمالي</span>
+          <span style="color:var(--gold)">${parseFloat(r.total).toFixed(0)} ج</span>
+        </div>
+      </div>
+      
+      <!-- 🆕 v24: 3 collections inputs -->
+      <div style="background:rgba(212,175,55,.1);border:2px solid var(--gold);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:800;color:var(--gold);font-size:13px;margin-bottom:10px;text-align:center">📊 المبالغ الفعلية</div>
+        
+        <!-- Cash -->
+        <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:8px;border-right:3px solid #22c55e">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+            <span>💵 كاش - المفروض:</span>
+            <span style="font-weight:800;color:#22c55e">${cash.toFixed(0)} ج</span>
+          </div>
+          <input type="number" id="smgr-cash-collected" value="${cash.toFixed(0)}" min="0" step="any" 
+                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #22c55e;border-radius:6px;font-family:Cairo,sans-serif;font-size:16px;text-align:center;font-weight:800" 
+                 oninput="smgrUpdateAllDiffs(${cash}, ${visa}, ${instapay})">
+          <div id="smgr-cash-diff" style="margin-top:4px;text-align:center;font-size:11px;font-weight:800;color:#22c55e">✅ مظبوط</div>
+        </div>
+        
+        <!-- Visa -->
+        <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:8px;border-right:3px solid #3b82f6">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+            <span>💳 فيزا - المفروض:</span>
+            <span style="font-weight:800;color:#3b82f6">${visa.toFixed(0)} ج</span>
+          </div>
+          <input type="number" id="smgr-visa-collected" value="${visa.toFixed(0)}" min="0" step="any" 
+                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #3b82f6;border-radius:6px;font-family:Cairo,sans-serif;font-size:16px;text-align:center;font-weight:800" 
+                 oninput="smgrUpdateAllDiffs(${cash}, ${visa}, ${instapay})">
+          <div id="smgr-visa-diff" style="margin-top:4px;text-align:center;font-size:11px;font-weight:800;color:#22c55e">✅ مظبوط</div>
+        </div>
+        
+        <!-- Instapay -->
+        <div style="background:var(--bg);border-radius:8px;padding:10px;border-right:3px solid #a855f7">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+            <span>📱 انستاباي - المفروض:</span>
+            <span style="font-weight:800;color:#a855f7">${instapay.toFixed(0)} ج</span>
+          </div>
+          <input type="number" id="smgr-instapay-collected" value="${instapay.toFixed(0)}" min="0" step="any" 
+                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #a855f7;border-radius:6px;font-family:Cairo,sans-serif;font-size:16px;text-align:center;font-weight:800" 
+                 oninput="smgrUpdateAllDiffs(${cash}, ${visa}, ${instapay})">
+          <div id="smgr-instapay-diff" style="margin-top:4px;text-align:center;font-size:11px;font-weight:800;color:#22c55e">✅ مظبوط</div>
+        </div>
+        
+        <!-- Total diff -->
+        <div id="smgr-total-diff" style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;text-align:center;font-weight:800;font-size:14px;color:#22c55e">
+          ✅ كل الفروقات مظبوطة
+        </div>
+      </div>
+      
+      <textarea id="smgr-settlement-notes" placeholder="ملاحظات (اختياري)..." style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;margin-bottom:14px;resize:vertical;min-height:60px"></textarea>
+      
+      <div style="display:flex;gap:8px">
+        <button onclick="smgrCloseSettlement()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
+        <button onclick="smgrConfirmSettlement()" style="flex:2;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد التصفية</button>
+      </div>
+    `;
+    
+    $('smgr-settlement-content').innerHTML = html;
+  } catch(e) {
+    $('smgr-settlement-content').innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// 🆕 v24: حساب الفروقات لكل طريقة
+function smgrUpdateAllDiffs(expectedCash, expectedVisa, expectedInstapay){
+  const cashCol = parseFloat($('smgr-cash-collected')?.value) || 0;
+  const visaCol = parseFloat($('smgr-visa-collected')?.value) || 0;
+  const instapayCol = parseFloat($('smgr-instapay-collected')?.value) || 0;
+  
+  const cashDiff = cashCol - expectedCash;
+  const visaDiff = visaCol - expectedVisa;
+  const instapayDiff = instapayCol - expectedInstapay;
+  const totalDiff = cashDiff + visaDiff + instapayDiff;
+  
+  const formatDiff = (diff) => {
+    if(diff === 0) return { text: '✅ مظبوط', color: '#22c55e' };
+    if(diff > 0) return { text: `📈 +${diff.toFixed(0)} ج`, color: '#3b82f6' };
+    return { text: `📉 ${diff.toFixed(0)} ج`, color: '#ef4444' };
+  };
+  
+  const cashFmt = formatDiff(cashDiff);
+  const visaFmt = formatDiff(visaDiff);
+  const instapayFmt = formatDiff(instapayDiff);
+  const totalFmt = formatDiff(totalDiff);
+  
+  const cashEl = $('smgr-cash-diff');
+  if(cashEl){ cashEl.textContent = cashFmt.text; cashEl.style.color = cashFmt.color; }
+  
+  const visaEl = $('smgr-visa-diff');
+  if(visaEl){ visaEl.textContent = visaFmt.text; visaEl.style.color = visaFmt.color; }
+  
+  const instapayEl = $('smgr-instapay-diff');
+  if(instapayEl){ instapayEl.textContent = instapayFmt.text; instapayEl.style.color = instapayFmt.color; }
+  
+  const totalEl = $('smgr-total-diff');
+  if(totalEl){
+    if(totalDiff === 0){
+      totalEl.textContent = '✅ كل الفروقات مظبوطة';
+      totalEl.style.color = '#22c55e';
+    } else {
+      totalEl.textContent = `الفرق الإجمالي: ${totalFmt.text}`;
+      totalEl.style.color = totalFmt.color;
+    }
+  }
+}
+
+function smgrCloseSettlement(){
+  $('smgr-settlement-modal').style.display = 'none';
+  _smgrSelectedCashier = null;
+}
+
+async function smgrConfirmSettlement(){
+  if(!_smgrSelectedCashier) return;
+  
+  const cashCollected = parseFloat($('smgr-cash-collected')?.value);
+  const visaCollected = parseFloat($('smgr-visa-collected')?.value);
+  const instapayCollected = parseFloat($('smgr-instapay-collected')?.value);
+  const notes = $('smgr-settlement-notes')?.value.trim() || '';
+  
+  if(isNaN(cashCollected) || cashCollected < 0){ toast('❌ ادخل كاش صحيح', 'error'); return; }
+  if(isNaN(visaCollected) || visaCollected < 0){ toast('❌ ادخل فيزا صحيح', 'error'); return; }
+  if(isNaN(instapayCollected) || instapayCollected < 0){ toast('❌ ادخل انستاباي صحيح', 'error'); return; }
+  
+  const confirmMsg = `تأكيد تصفية ${_smgrSelectedCashier.name}؟\n\n` +
+    `💵 كاش: ${cashCollected.toFixed(0)} ج\n` +
+    `💳 فيزا: ${visaCollected.toFixed(0)} ج\n` +
+    `📱 انستاباي: ${instapayCollected.toFixed(0)} ج\n\n` +
+    `بعد التصفية، البيعات هتتأشر "متصفّاة" ومش هتظهر في التصفيات الجاية.`;
+  
+  if(!confirm(confirmMsg)) return;
+  
+  try {
+    const r = await apiFetch('/api/store-mgr/settle-cashier', 'POST', {
+      cashierId: _smgrSelectedCashier.id,
+      cashCollected,
+      visaCollected,
+      instapayCollected,
+      notes
+    });
+    
+    if(r?.success){
+      const sum = r.summary;
+      const diffs = sum.differences;
+      let msg = `✅ تمت التصفية\n\n${sum.count} بيعة\nإجمالي: ${sum.total.toFixed(0)} ج\n`;
+      
+      if(diffs.cash !== 0) msg += `\n💵 كاش: ${diffs.cash > 0 ? '+' : ''}${diffs.cash.toFixed(0)} ج`;
+      if(diffs.visa !== 0) msg += `\n💳 فيزا: ${diffs.visa > 0 ? '+' : ''}${diffs.visa.toFixed(0)} ج`;
+      if(diffs.instapay !== 0) msg += `\n📱 انستاباي: ${diffs.instapay > 0 ? '+' : ''}${diffs.instapay.toFixed(0)} ج`;
+      if(diffs.total !== 0) msg += `\n\n📊 الفرق الإجمالي: ${diffs.total > 0 ? '+' : ''}${diffs.total.toFixed(0)} ج`;
+      else msg += `\n\n✅ كل الفروقات مظبوطة!`;
+      
+      alert(msg);
+      
+      smgrCloseSettlement();
+      await smgrLoadCashiers();
+    }
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ─── Settlements History ───
+async function smgrLoadSettlements(){
+  const r = await apiFetch('/api/store-mgr/settlements?limit=50');
+  const settlements = r?.settlements || [];
+  const c = $('smgr-content');
+  
+  if(!settlements.length){
+    c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px;opacity:.3">💰</div><div>مفيش تصفيات بعد</div></div>';
+    return;
+  }
+  
+  c.innerHTML = settlements.map(s => {
+    const date = new Date(s.settled_at).toLocaleString('ar-EG', {dateStyle: 'short', timeStyle: 'short'});
+    
+    const cashDiff = parseFloat(s.cash_difference) || 0;
+    const visaDiff = parseFloat(s.visa_difference) || 0;
+    const instapayDiff = parseFloat(s.instapay_difference) || 0;
+    const totalDiff = parseFloat(s.total_difference) || cashDiff;
+    
+    const fmtDiff = (d) => d === 0 ? '' : (d > 0 ? `+${d.toFixed(0)}` : `${d.toFixed(0)}`);
+    const colorDiff = (d) => d === 0 ? '#22c55e' : d > 0 ? '#3b82f6' : '#ef4444';
+    
+    const totalColor = colorDiff(totalDiff);
+    const totalText = totalDiff === 0 ? '✅ مظبوط' : totalDiff > 0 ? `📈 +${totalDiff.toFixed(0)} ج` : `📉 ${totalDiff.toFixed(0)} ج`;
+    
+    return `
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-weight:800;font-size:13px;color:var(--gold)">👤 ${escapeHtml(s.cashier_name)}</div>
+            <div style="font-size:10px;color:var(--muted)">${date} · بواسطة ${escapeHtml(s.manager_name || '')}</div>
+          </div>
+          <div style="text-align:left">
+            <div style="font-size:18px;font-weight:800">${parseFloat(s.total_amount).toFixed(0)} ج</div>
+            <div style="font-size:10px;color:var(--muted)">${s.sales_count} بيعة</div>
+          </div>
+        </div>
+        
+        <!-- 🆕 v24: تفاصيل كل طريقة دفع -->
+        <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:8px">
+          <div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:6px;font-size:10px;align-items:center">
+            <span></span>
+            <span style="text-align:center;color:var(--muted)">المفروض</span>
+            <span style="text-align:center;color:var(--muted)">الفعلي</span>
+            <span style="text-align:center;color:var(--muted)">الفرق</span>
+            
+            <span style="color:#22c55e;font-weight:700">💵</span>
+            <span style="text-align:center">${parseFloat(s.cash_amount || 0).toFixed(0)}</span>
+            <span style="text-align:center;font-weight:700">${parseFloat(s.cash_collected || 0).toFixed(0)}</span>
+            <span style="text-align:center;font-weight:800;color:${colorDiff(cashDiff)}">${cashDiff === 0 ? '✓' : fmtDiff(cashDiff)}</span>
+            
+            <span style="color:#3b82f6;font-weight:700">💳</span>
+            <span style="text-align:center">${parseFloat(s.visa_amount || 0).toFixed(0)}</span>
+            <span style="text-align:center;font-weight:700">${parseFloat(s.visa_collected || 0).toFixed(0)}</span>
+            <span style="text-align:center;font-weight:800;color:${colorDiff(visaDiff)}">${visaDiff === 0 ? '✓' : fmtDiff(visaDiff)}</span>
+            
+            <span style="color:#a855f7;font-weight:700">📱</span>
+            <span style="text-align:center">${parseFloat(s.instapay_amount || 0).toFixed(0)}</span>
+            <span style="text-align:center;font-weight:700">${parseFloat(s.instapay_collected || 0).toFixed(0)}</span>
+            <span style="text-align:center;font-weight:800;color:${colorDiff(instapayDiff)}">${instapayDiff === 0 ? '✓' : fmtDiff(instapayDiff)}</span>
+          </div>
+          
+          <div style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:800;font-size:12px">
+            <span>الفرق الإجمالي:</span>
+            <span style="color:${totalColor}">${totalText}</span>
+          </div>
+        </div>
+        
+        ${s.notes ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📝 ${escapeHtml(s.notes)}</div>` : ''}
+        
+        <button onclick="smgrViewSettlement(${s.id})" style="width:100%;padding:8px;background:var(--bg);color:var(--gold);border:1px solid var(--gold);border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">📋 عرض البيعات</button>
+      </div>
+    `;
+  }).join('');
+}
+
+// 🆕 v24: عرض تفاصيل تصفية (كل البيعات + طريقة دفع كل واحدة)
+async function smgrViewSettlement(settlementId){
+  try {
+    const r = await apiFetch('/api/store-mgr/settlements/' + settlementId);
+    if(!r?.settlement) return;
+    
+    const s = r.settlement;
+    const sales = r.sales || [];
+    
+    $('smgr-sale-title').textContent = `📋 تصفية ${s.cashier_name}`;
+    
+    const date = new Date(s.settled_at).toLocaleString('ar-EG');
+    
+    let html = `
+      <div style="background:var(--elev);border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:800;color:var(--gold);margin-bottom:6px">${escapeHtml(s.cashier_name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${date} · ${escapeHtml(s.manager_name || '')}</div>
+        <div style="font-size:14px;font-weight:800;margin-top:6px">${parseFloat(s.total_amount).toFixed(0)} ج · ${s.sales_count} بيعة</div>
+      </div>
+      
+      <div style="background:var(--elev);border-radius:8px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:800;color:var(--gold);font-size:12px;margin-bottom:8px">📊 الملخص</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <tr style="border-bottom:1px dashed var(--border)">
+            <th style="padding:4px 0;text-align:right">طريقة الدفع</th>
+            <th style="padding:4px 0;text-align:center">عدد</th>
+            <th style="padding:4px 0;text-align:center">المفروض</th>
+            <th style="padding:4px 0;text-align:center">الفعلي</th>
+            <th style="padding:4px 0;text-align:center">الفرق</th>
+          </tr>`;
+    
+    const methodCounts = { cash: 0, visa: 0, instapay: 0 };
+    sales.forEach(sale => {
+      (sale.payments || []).forEach(p => {
+        if(methodCounts[p.method] !== undefined) methodCounts[p.method]++;
+      });
+    });
+    
+    const methods = [
+      { key: 'cash', icon: '💵', name: 'كاش', color: '#22c55e', amount: s.cash_amount, collected: s.cash_collected, diff: s.cash_difference },
+      { key: 'visa', icon: '💳', name: 'فيزا', color: '#3b82f6', amount: s.visa_amount, collected: s.visa_collected, diff: s.visa_difference },
+      { key: 'instapay', icon: '📱', name: 'انستاباي', color: '#a855f7', amount: s.instapay_amount, collected: s.instapay_collected, diff: s.instapay_difference }
+    ];
+    
+    methods.forEach(m => {
+      const d = parseFloat(m.diff || 0);
+      const dColor = d === 0 ? '#22c55e' : d > 0 ? '#3b82f6' : '#ef4444';
+      const dText = d === 0 ? '✓' : (d > 0 ? `+${d.toFixed(0)}` : d.toFixed(0));
+      
+      html += `
+        <tr style="border-bottom:1px dashed var(--border)">
+          <td style="padding:6px 0"><span style="color:${m.color}">${m.icon}</span> ${m.name}</td>
+          <td style="text-align:center">${methodCounts[m.key]}</td>
+          <td style="text-align:center">${parseFloat(m.amount || 0).toFixed(0)}</td>
+          <td style="text-align:center;font-weight:700">${parseFloat(m.collected || 0).toFixed(0)}</td>
+          <td style="text-align:center;font-weight:800;color:${dColor}">${dText}</td>
+        </tr>`;
+    });
+    
+    html += `</table></div>`;
+    
+    // كل البيعات
+    if(sales.length){
+      html += `
+        <div style="background:var(--elev);border-radius:8px;padding:12px;margin-bottom:14px">
+          <div style="font-weight:800;color:var(--gold);font-size:12px;margin-bottom:8px">📋 كل البيعات (${sales.length})</div>
+          ${sales.map(sale => {
+            const time = new Date(sale.created_at).toLocaleTimeString('ar-EG', {hour: '2-digit', minute: '2-digit'});
+            const pays = sale.payments || [];
+            const payIcons = pays.map(p => {
+              const ico = { cash: '💵', visa: '💳', instapay: '📱' }[p.method] || '?';
+              return `${ico} ${parseFloat(p.amount).toFixed(0)}`;
+            }).join(' + ');
+            
+            return `
+              <div style="background:var(--bg);border-radius:6px;padding:8px;margin-bottom:6px;font-size:11px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+                  <span style="font-family:monospace;font-weight:700">${escapeHtml(sale.sale_number || '#'+sale.id)}</span>
+                  <span style="font-weight:800">${parseFloat(sale.total).toFixed(0)} ج</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:10px">
+                  <span>${time} · ${sale.items_count} منتج${sale.customer_name ? ' · '+escapeHtml(sale.customer_name) : ''}</span>
+                  <span>${payIcons}</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+    
+    if(s.notes){
+      html += `<div style="background:var(--elev);border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px">📝 ${escapeHtml(s.notes)}</div>`;
+    }
+    
+    $('smgr-sale-content').innerHTML = html;
+    $('smgr-sale-modal').style.display = 'block';
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// END: STORE MANAGER
+// ============================================================
+
 // ===== BOTTOM NAV =====
 document.querySelectorAll('.nav-item').forEach(el => {
   el.addEventListener('click', () => {
@@ -1833,6 +5180,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if(page === 'statement') loadStatement();
     if(page === 'shop') loadShopOrders();
     if(page === 'stocktake') loadStkSessions();
+    if(page === 'pos') loadPosPage();
   });
 });
 
