@@ -500,113 +500,315 @@ a{color:inherit;text-decoration:none}
 
   <!-- 🆕 v21: POS PAGE (نقطة البيع) -->
   <div class="page" id="page-pos">
-    <div class="header" style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-      <div>
-        <div style="font-weight:800;font-size:16px;color:var(--gold)" id="pos-store-name">💰 نقطة البيع</div>
-        <div style="font-size:11px;color:var(--muted)" id="pos-cashier-info">—</div>
+    <!-- 🆕 v34: Shopify-style POS Layout -->
+    <style>
+      /* POS-specific styles - مستقلة عن باقي الـ Stars */
+      #page-pos.active{display:block;background:#f3f3f3;height:100vh;overflow:hidden;padding:0}
+      .pos-topbar{background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;height:58px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+      .pos-topbar-left{display:flex;align-items:center;gap:14px;min-width:0}
+      .pos-store-info{min-width:0}
+      .pos-store-name{font-weight:800;font-size:15px;color:#111;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pos-cashier-name{font-size:11px;color:#6b7280;margin-top:2px}
+      .pos-topbar-actions{display:flex;gap:6px;align-items:center}
+      .pos-tb-btn{padding:7px 12px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s}
+      .pos-tb-btn:hover{background:#f9fafb;border-color:#9ca3af}
+      .pos-tb-btn.icon-only{padding:7px 9px}
+      .pos-online-pill{font-size:11px;padding:4px 10px;border-radius:99px;font-weight:700;display:inline-flex;align-items:center;gap:5px}
+      .pos-online-pill.online{background:#dcfce7;color:#15803d}
+      .pos-online-pill.offline{background:#fee2e2;color:#b91c1c}
+      
+      /* Main grid layout - LEFT search/products 65%, RIGHT cart 35% */
+      .pos-main{display:grid;grid-template-columns:65% 35%;gap:0;height:calc(100vh - 58px);overflow:hidden}
+      
+      /* LEFT panel */
+      .pos-left{display:flex;flex-direction:column;overflow:hidden;background:#f3f3f3}
+      .pos-search-area{padding:14px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+      .pos-search-wrap{position:relative}
+      .pos-search-input{width:100%;padding:13px 44px 13px 16px;background:#fff;color:#111;border:1.5px solid #d1d5db;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;transition:border-color .15s;text-align:right}
+      .pos-search-input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+      .pos-search-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#9ca3af;font-size:18px;pointer-events:none}
+      
+      /* Quick actions row */
+      .pos-quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+      .pos-qa-tile{background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;padding:14px 8px;text-align:center;cursor:pointer;transition:all .15s;position:relative;font-family:inherit}
+      .pos-qa-tile:hover{background:#fff;border-color:#9ca3af;transform:translateY(-1px)}
+      .pos-qa-tile:active{transform:scale(.97)}
+      .pos-qa-icon{font-size:24px;margin-bottom:6px;display:block}
+      .pos-qa-label{font-size:12px;font-weight:700;color:#374151}
+      .pos-qa-tile.has-value{background:#eff6ff;border-color:#2563eb;color:#1d4ed8}
+      .pos-qa-tile .pos-qa-badge{position:absolute;top:6px;left:6px;background:#dc2626;color:#fff;border-radius:99px;font-size:10px;font-weight:800;padding:1px 6px;min-width:18px;text-align:center}
+      
+      /* Products tiles area */
+      .pos-products-area{flex:1;overflow-y:auto;padding:14px 16px}
+      .pos-products-section-title{font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding:0 4px}
+      .pos-products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}
+      .pos-product-tile{background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:10px;cursor:pointer;transition:all .15s;text-align:right;position:relative;display:flex;flex-direction:column}
+      .pos-product-tile:hover{border-color:#2563eb;box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
+      .pos-product-tile:active{transform:scale(.97)}
+      .pos-product-tile.low-stock{opacity:.5}
+      .pos-product-tile.has-offer{border-color:#22c55e;background:linear-gradient(180deg,#f0fdf4 0%,#fff 30%)}
+      .pos-product-tile-img{width:100%;height:80px;border-radius:8px;object-fit:cover;background:#f3f4f6;margin-bottom:8px}
+      .pos-product-tile-img-placeholder{width:100%;height:80px;border-radius:8px;background:linear-gradient(135deg,#f3f4f6 0%,#e5e7eb 100%);display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:8px;color:#9ca3af}
+      .pos-product-tile-name{font-size:12px;font-weight:700;color:#111;line-height:1.3;height:32px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:6px}
+      .pos-product-tile-price-row{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-top:auto}
+      .pos-product-tile-price{font-size:14px;font-weight:800;color:#1d4ed8;font-family:Roboto,sans-serif}
+      .pos-product-tile-price.offer{color:#15803d}
+      .pos-product-tile-price-old{font-size:11px;color:#9ca3af;text-decoration:line-through;font-family:Roboto,sans-serif}
+      .pos-product-tile-stock{font-size:10px;color:#6b7280;font-weight:600}
+      .pos-product-tile-stock.zero{color:#dc2626}
+      .pos-product-tile-offer-badge{position:absolute;top:6px;right:6px;background:#22c55e;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;letter-spacing:.3px}
+      .pos-products-empty{text-align:center;padding:60px 20px;color:#9ca3af}
+      .pos-products-empty-icon{font-size:60px;margin-bottom:14px;opacity:.4}
+      .pos-products-empty-text{font-size:14px;font-weight:600}
+      
+      /* RIGHT cart sidebar */
+      .pos-cart{background:#fff;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+      .pos-cart-header{padding:14px 16px;border-bottom:1px solid #e5e7eb;background:#fff;flex-shrink:0}
+      .pos-cart-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+      .pos-cart-title{font-size:16px;font-weight:800;color:#111}
+      .pos-cart-actions{display:flex;gap:4px}
+      .pos-cart-action-btn{padding:5px 9px;background:transparent;border:1px solid transparent;border-radius:6px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;color:#6b7280;display:flex;align-items:center;gap:3px}
+      .pos-cart-action-btn:hover{background:#f3f4f6;color:#111}
+      .pos-cart-action-btn.warn{color:#d97706}
+      .pos-cart-action-btn.danger{color:#dc2626}
+      
+      /* Customer card in cart */
+      .pos-cart-customer{padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:0;display:flex;justify-content:space-between;align-items:center;gap:8px}
+      .pos-cart-customer-info{flex:1;min-width:0}
+      .pos-cart-customer-label{font-size:10px;color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+      .pos-cart-customer-name{font-weight:700;font-size:13px;color:#1e3a8a;margin-top:2px}
+      .pos-cart-customer-phone{font-size:11px;color:#1e40af;font-family:Roboto,sans-serif}
+      .pos-cart-add-customer{padding:9px 12px;background:#fff;border:1.5px dashed #d1d5db;border-radius:8px;color:#6b7280;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+      .pos-cart-add-customer:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
+      
+      /* Cart items list - larger, clearer */
+      .pos-cart-items{flex:1;overflow-y:auto;padding:10px 14px}
+      .pos-cart-item{padding:14px;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;margin-bottom:10px;transition:all .1s;display:flex;gap:14px;align-items:stretch}
+      .pos-cart-item.has-offer{border-color:#86efac;background:#f0fdf4}
+      .pos-cart-item-img{width:110px;height:110px;border-radius:12px;object-fit:cover;background:#f3f4f6;flex-shrink:0;border:1px solid #e5e7eb}
+      .pos-cart-item-img-placeholder{width:110px;height:110px;border-radius:12px;background:linear-gradient(135deg,#f3f4f6 0%,#e5e7eb 100%);display:flex;align-items:center;justify-content:center;font-size:50px;color:#9ca3af;flex-shrink:0}
+      .pos-cart-item-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+      .pos-cart-item-row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+      .pos-cart-item-name{flex:1;font-size:17px;font-weight:800;color:#111;line-height:1.3;min-width:0}
+      .pos-cart-item-variant{font-size:14px;color:#374151;font-weight:600;margin-top:4px}
+      .pos-cart-item-barcode{font-size:13px;color:#6b7280;font-family:Roboto,sans-serif;margin-top:6px;display:inline-block;background:#f3f4f6;padding:3px 10px;border-radius:5px;border:1px solid #e5e7eb;letter-spacing:.3px;font-weight:600}
+      .pos-cart-item-remove{background:transparent;border:none;color:#dc2626;cursor:pointer;font-size:26px;line-height:1;padding:2px 8px;flex-shrink:0;font-family:inherit;font-weight:300;border-radius:6px}
+      .pos-cart-item-remove:hover{background:#fee2e2}
+      .pos-cart-item-row2{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+      .pos-cart-item-price-info{font-size:14px;color:#374151;flex:1;min-width:0}
+      .pos-cart-item-price-line{font-family:Roboto,sans-serif;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;font-weight:600}
+      .pos-cart-item-price-line .strike{text-decoration:line-through;color:#9ca3af;font-size:13px}
+      .pos-cart-item-price-line .offer-price{color:#15803d;font-weight:700}
+      .pos-cart-item-line-total{font-weight:800;color:#111;font-family:Roboto,sans-serif;font-size:22px}
+      .pos-cart-item-line-total.offer{color:#15803d}
+      .pos-cart-item-offer-name{font-size:12px;color:#15803d;margin-top:4px;font-weight:700}
+      .pos-cart-item-qty{display:flex;gap:4px;align-items:center;background:#f3f4f6;border-radius:10px;padding:4px;flex-shrink:0}
+      .pos-cart-qty-btn{width:38px;height:38px;background:#fff;color:#111;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;font-weight:700;font-family:inherit;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+      .pos-cart-qty-btn:hover{background:#2563eb;color:#fff;border-color:#2563eb}
+      .pos-cart-qty-display{min-width:40px;text-align:center;font-weight:800;font-size:18px;font-family:Roboto,sans-serif}
+      
+      /* Highlight effect لما يضاف item جديد */
+      @keyframes posCartItemFlash {
+        0% { background: #fef3c7; border-color: #fbbf24; transform: scale(1); }
+        50% { background: #fef3c7; border-color: #fbbf24; transform: scale(1.02); }
+        100% { transform: scale(1); }
+      }
+      .pos-cart-item.flash{animation: posCartItemFlash 0.6s ease-out}
+      
+      .pos-cart-empty{text-align:center;padding:60px 20px;color:#9ca3af}
+      .pos-cart-empty-icon{font-size:64px;margin-bottom:12px;opacity:.4}
+      .pos-cart-empty-text{font-size:14px;font-weight:600}
+      .pos-cart-empty-hint{font-size:12px;margin-top:6px;color:#9ca3af}
+      
+      /* Promo + totals */
+      .pos-cart-promo-area{padding:10px 12px;border-top:1px solid #e5e7eb;background:#fafafa;flex-shrink:0}
+      .pos-cart-promo-applied{background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;font-size:12px}
+      .pos-cart-promo-applied-info{flex:1;min-width:0}
+      .pos-cart-promo-code{font-weight:800;color:#15803d}
+      .pos-cart-promo-discount{font-size:11px;color:#16a34a;font-family:Roboto,sans-serif;margin-top:1px}
+      .pos-cart-promo-remove{background:transparent;border:none;color:#dc2626;cursor:pointer;font-size:16px;font-family:inherit;padding:0 4px}
+      .pos-cart-promo-add{width:100%;padding:9px;background:#fff;border:1.5px dashed #d1d5db;border-radius:8px;color:#6b7280;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+      .pos-cart-promo-add:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
+      
+      .pos-cart-totals{padding:14px 16px;background:#fff;border-top:2px solid #e5e7eb;flex-shrink:0}
+      .pos-cart-total-row{display:flex;justify-content:space-between;font-size:13px;color:#374151;margin-bottom:6px;font-family:Roboto,sans-serif}
+      .pos-cart-total-row .label{font-family:Cairo,sans-serif;font-weight:600}
+      .pos-cart-total-row.discount{color:#15803d;font-weight:700}
+      .pos-cart-total-row.grand{font-size:20px;font-weight:800;color:#111;border-top:1px dashed #d1d5db;padding-top:8px;margin-top:6px;margin-bottom:0}
+      
+      /* Checkout buttons */
+      .pos-cart-checkout{padding:12px 16px;background:#fff;border-top:1px solid #e5e7eb;flex-shrink:0;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+      .pos-pay-btn{padding:14px 8px;color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;letter-spacing:.3px}
+      .pos-pay-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+      .pos-pay-btn:active{transform:scale(.97)}
+      .pos-pay-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+      .pos-pay-btn.cash{background:#16a34a}
+      .pos-pay-btn.cash:hover{background:#15803d}
+      .pos-pay-btn.visa{background:#2563eb}
+      .pos-pay-btn.visa:hover{background:#1d4ed8}
+      .pos-pay-btn.instapay{background:#9333ea}
+      .pos-pay-btn.instapay:hover{background:#7e22ce}
+      .pos-pay-btn.mixed{background:#ea580c}
+      .pos-pay-btn.mixed:hover{background:#c2410c}
+      
+      /* Mobile responsive */
+      @media (max-width: 900px){
+        .pos-main{grid-template-columns:1fr}
+        .pos-cart{display:none;position:fixed;inset:58px 0 0 0;z-index:50;background:#fff}
+        .pos-cart.mobile-open{display:flex}
+        .pos-quick-actions{grid-template-columns:repeat(4,1fr)}
+        .pos-products-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+        .pos-mobile-cart-fab{position:fixed;bottom:18px;left:18px;background:#1d4ed8;color:#fff;border:none;border-radius:99px;padding:14px 22px;font-family:inherit;font-weight:800;font-size:15px;box-shadow:0 4px 16px rgba(29,78,216,.4);cursor:pointer;display:flex;align-items:center;gap:8px;z-index:40}
+      }
+      @media (min-width: 901px){
+        .pos-mobile-cart-fab{display:none}
+      }
+    </style>
+    
+    <!-- TOP BAR -->
+    <div class="pos-topbar">
+      <div class="pos-topbar-left">
+        <div style="font-size:22px">⭐</div>
+        <div class="pos-store-info">
+          <div class="pos-store-name" id="pos-store-name">نقطة البيع</div>
+          <div class="pos-cashier-name" id="pos-cashier-info">—</div>
+        </div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <div id="pos-online-indicator" style="font-size:11px;padding:4px 8px;border-radius:99px;background:#22c55e;color:#fff">🟢 Online</div>
-        <button onclick="posOpenSalesHistory()" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">📋 السجل</button>
-        <!-- 🆕 v33: شيلنا زرار "📊 اليوم" - الكاشير مش لازم يشوف الإحصائيات -->
-        <button onclick="posForceRefresh()" style="padding:6px 10px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
-        <button onclick="posOpenPrinterSettings()" id="pos-printer-btn" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer" title="إعداد الطابعة">🖨️</button>
+      <div class="pos-topbar-actions">
+        <span class="pos-online-pill online" id="pos-online-indicator">🟢 Online</span>
+        <button class="pos-tb-btn" onclick="posOpenSalesHistory()" title="سجل البيعات">📋 السجل</button>
+        <button class="pos-tb-btn icon-only" onclick="posForceRefresh()" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
+        <button class="pos-tb-btn icon-only" onclick="posOpenPrinterSettings()" id="pos-printer-btn" title="إعداد الطابعة">🖨️</button>
+        <button class="pos-tb-btn icon-only" onclick="logout()" title="خروج" style="color:#dc2626;border-color:#fecaca">⏻</button>
       </div>
     </div>
     
-    <!-- Main POS layout - search + cart -->
-    <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;padding:10px;height:calc(100vh - 140px);overflow:hidden">
+    <!-- MAIN AREA -->
+    <div class="pos-main">
       
-      <!-- LEFT: Search + Products -->
-      <div style="display:flex;flex-direction:column;gap:10px;overflow:hidden">
+      <!-- LEFT: Search + Quick Actions + Products -->
+      <div class="pos-left">
         
-        <!-- Customer + Search bar -->
-        <div style="background:var(--elev);border-radius:10px;padding:10px">
-          <!-- Customer -->
-          <div id="pos-customer-display" style="display:none;background:rgba(212,175,55,.15);border:1px solid var(--gold);border-radius:8px;padding:8px;margin-bottom:8px">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div>
-                <div style="font-size:11px;color:var(--muted)">العميل:</div>
-                <div style="font-weight:800;font-size:14px;color:var(--gold)" id="pos-customer-name">—</div>
-                <div style="font-size:11px" id="pos-customer-phone">—</div>
-              </div>
-              <button onclick="posClearCustomer()" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:18px">×</button>
+        <!-- Search -->
+        <div class="pos-search-area">
+          <div class="pos-search-wrap">
+            <span class="pos-search-icon">🔍</span>
+            <input type="text" id="pos-scan-input" class="pos-search-input"
+                   placeholder="ابحث أو امسح باركود..."
+                   autocomplete="off" autocapitalize="off" spellcheck="false">
+          </div>
+        </div>
+        
+        <!-- Quick Actions Tiles -->
+        <div class="pos-quick-actions">
+          <div class="pos-qa-tile" id="pos-qa-customer" onclick="posOpenCustomer()">
+            <span class="pos-qa-icon">👤</span>
+            <div class="pos-qa-label">عميل</div>
+          </div>
+          <div class="pos-qa-tile" id="pos-qa-promo" onclick="posOpenPromo()">
+            <span class="pos-qa-icon">🎟️</span>
+            <div class="pos-qa-label">برومو كود</div>
+          </div>
+          <div class="pos-qa-tile" id="pos-qa-hold" onclick="posHoldOrder()">
+            <span class="pos-qa-icon">⏸️</span>
+            <div class="pos-qa-label">تعليق السلة</div>
+          </div>
+          <div class="pos-qa-tile" id="pos-qa-held" onclick="posShowHeldOrders()">
+            <span class="pos-qa-icon">📋</span>
+            <div class="pos-qa-label">المعلّقة</div>
+            <span class="pos-qa-badge" id="pos-held-count" style="display:none">0</span>
+          </div>
+        </div>
+        
+        <!-- Products area -->
+        <div class="pos-products-area">
+          <div class="pos-products-section-title" id="pos-products-section-title">المنتجات</div>
+          <div id="pos-products-grid"></div>
+        </div>
+      </div>
+      
+      <!-- RIGHT: Cart Sidebar -->
+      <div class="pos-cart" id="pos-cart-sidebar">
+        
+        <!-- Cart header -->
+        <div class="pos-cart-header">
+          <div class="pos-cart-header-row">
+            <div class="pos-cart-title">🛒 السلة <span id="pos-cart-count" style="color:#6b7280;font-weight:600;font-size:13px"></span></div>
+            <div class="pos-cart-actions">
+              <button class="pos-cart-action-btn danger" onclick="posClearCart()" title="مسح السلة">🗑️ مسح</button>
             </div>
           </div>
           
-          <div style="display:flex;gap:6px">
-            <button onclick="posOpenCustomer()" style="padding:10px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer;white-space:nowrap">👤 عميل</button>
-            <input type="text" id="pos-scan-input" placeholder="🔍 امسح/ابحث..." 
-                   style="flex:1;padding:12px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:14px;font-weight:700"
-                   autocomplete="off">
-          </div>
-        </div>
-        
-        <!-- Products grid -->
-        <div id="pos-products-grid" style="flex:1;overflow-y:auto;background:var(--elev);border-radius:10px;padding:8px"></div>
-      </div>
-      
-      <!-- RIGHT: Cart -->
-      <div style="display:flex;flex-direction:column;gap:8px;overflow:hidden;background:var(--elev);border-radius:10px;padding:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-          <div style="font-weight:800;font-size:14px;color:var(--gold)">🛒 السلة</div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <!-- 🆕 v26: Hold + Held buttons -->
-            <button onclick="posHoldOrder()" id="pos-hold-btn" style="padding:4px 8px;background:rgba(251,191,36,.2);color:#fbbf24;border:1px solid #fbbf24;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer;font-weight:700">⏸️ تعليق</button>
-            <button onclick="posShowHeldOrders()" id="pos-held-btn" style="padding:4px 8px;background:rgba(168,85,247,.15);color:#a855f7;border:1px solid #a855f7;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer;font-weight:700">📋 المعلّقة <span id="pos-held-count" style="background:#a855f7;color:#fff;padding:1px 5px;border-radius:99px;font-size:9px;display:none">0</span></button>
-            <button onclick="posClearCart()" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:11px">🗑️</button>
-          </div>
-        </div>
-        
-        <div id="pos-cart-items" style="flex:1;overflow-y:auto"></div>
-        
-        <!-- Promo code -->
-        <div id="pos-promo-area" style="border-top:1px solid var(--border);padding-top:8px">
-          <div id="pos-promo-applied" style="display:none;background:rgba(34,197,94,.15);border:1px solid #22c55e;border-radius:8px;padding:8px;margin-bottom:6px">
-            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
-              <div>
-                <div style="font-weight:800;color:#22c55e" id="pos-promo-code-display">—</div>
-                <div style="font-size:11px;color:var(--muted)" id="pos-promo-discount-display">خصم: 0 ج</div>
+          <!-- Customer (collapsible) -->
+          <div id="pos-customer-display" style="display:none">
+            <div class="pos-cart-customer">
+              <div class="pos-cart-customer-info">
+                <div class="pos-cart-customer-label">العميل</div>
+                <div class="pos-cart-customer-name" id="pos-customer-name">—</div>
+                <div class="pos-cart-customer-phone" id="pos-customer-phone">—</div>
               </div>
-              <button onclick="posClearPromo()" style="background:transparent;border:none;color:#ef4444;cursor:pointer">×</button>
+              <button onclick="posClearCustomer()" style="background:transparent;border:none;color:#dc2626;cursor:pointer;font-size:18px;font-family:inherit">×</button>
             </div>
           </div>
-          <button id="pos-promo-btn" onclick="posOpenPromo()" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px dashed var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">🎟️ ادخل برومو كود</button>
+        </div>
+        
+        <!-- Cart items -->
+        <div class="pos-cart-items" id="pos-cart-items"></div>
+        
+        <!-- Promo area -->
+        <div class="pos-cart-promo-area" id="pos-promo-area">
+          <div id="pos-promo-applied" style="display:none">
+            <div class="pos-cart-promo-applied">
+              <div class="pos-cart-promo-applied-info">
+                <div class="pos-cart-promo-code" id="pos-promo-code-display">—</div>
+                <div class="pos-cart-promo-discount" id="pos-promo-discount-display">خصم: 0 ج</div>
+              </div>
+              <button class="pos-cart-promo-remove" onclick="posClearPromo()">×</button>
+            </div>
+          </div>
+          <button class="pos-cart-promo-add" id="pos-promo-btn" onclick="posOpenPromo()">
+            🎟️ <span>إضافة برومو كود</span>
+          </button>
         </div>
         
         <!-- Totals -->
-        <div style="border-top:2px solid var(--gold);padding-top:10px">
-          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-            <span>المجموع:</span>
-            <span style="font-weight:700" id="pos-subtotal">0 ج</span>
+        <div class="pos-cart-totals">
+          <div class="pos-cart-total-row">
+            <span class="label">المجموع</span>
+            <span id="pos-subtotal">0.00 ج</span>
           </div>
-          <div id="pos-discount-row" style="display:none;justify-content:space-between;font-size:13px;margin-bottom:4px;color:#22c55e">
-            <span>الخصم:</span>
-            <span style="font-weight:700" id="pos-discount-amt">-0 ج</span>
+          <div class="pos-cart-total-row discount" id="pos-discount-row" style="display:none">
+            <span class="label">الخصم</span>
+            <span id="pos-discount-amt">-0.00 ج</span>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;color:var(--gold);border-top:1px dashed var(--border);padding-top:6px;margin-top:6px">
-            <span>الإجمالي:</span>
-            <span id="pos-total">0 ج</span>
+          <div class="pos-cart-total-row grand">
+            <span class="label">الإجمالي</span>
+            <span id="pos-total">0.00 ج</span>
           </div>
         </div>
         
-        <!-- Payment buttons - 🆕 v24: 4 أزرار -->
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px">
-          <button id="pos-pay-cash" onclick="posCheckout('cash')" style="padding:14px 8px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+        <!-- Checkout buttons -->
+        <div class="pos-cart-checkout">
+          <button class="pos-pay-btn cash" id="pos-pay-cash" onclick="posCheckout('cash')">
             💵 كاش
           </button>
-          <button id="pos-pay-visa" onclick="posCheckout('visa')" style="padding:14px 8px;background:#3b82f6;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+          <button class="pos-pay-btn visa" id="pos-pay-visa" onclick="posCheckout('visa')">
             💳 فيزا
           </button>
-          <button id="pos-pay-instapay" onclick="posCheckout('instapay')" style="padding:14px 8px;background:#a855f7;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
-            📱 انستاباي
+          <button class="pos-pay-btn instapay" id="pos-pay-instapay" onclick="posCheckout('instapay')">
+            📱 InstaPay
           </button>
-          <button id="pos-pay-mixed" onclick="posOpenMixedPay()" style="padding:14px 8px;background:#ea580c;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">
+          <button class="pos-pay-btn mixed" id="pos-pay-mixed" onclick="posOpenMixedPay()">
             🔀 دمج
           </button>
         </div>
       </div>
     </div>
+    
+    <!-- Mobile Cart FAB -->
+    <button class="pos-mobile-cart-fab" id="pos-mobile-cart-fab" onclick="posToggleMobileCart()" style="display:none">
+      🛒 <span id="pos-mobile-cart-fab-count">0</span> · <span id="pos-mobile-cart-fab-total">0 ج</span>
+    </button>
   </div>
   
   <!-- 🆕 v24: Mixed Payment Modal -->
@@ -851,12 +1053,12 @@ a{color:inherit;text-decoration:none}
   <!-- ═══════════════════════════════════════════════ -->
   <!-- 🆕 v28: PICKUP DELIVER MODAL -->
   <!-- ═══════════════════════════════════════════════ -->
-  <div id="pickup-deliver-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.6);align-items:flex-end;justify-content:center">
-    <div style="background:var(--bg);width:100%;max-width:520px;border-radius:20px 20px 0 0;max-height:90vh;display:flex;flex-direction:column">
+  <div id="pickup-deliver-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--bg);width:100%;max-width:520px;border-radius:16px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
       <!-- Header (sticky) -->
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 18px 0 18px;flex-shrink:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 18px 14px 18px;flex-shrink:0;border-bottom:1px solid var(--border)">
         <div style="font-weight:800;font-size:18px;color:var(--gold)">✅ تأكيد التسليم</div>
-        <button onclick="pickupCloseDeliverModal()" style="background:transparent;border:none;color:var(--muted);font-size:28px;cursor:pointer">×</button>
+        <button onclick="pickupCloseDeliverModal()" style="background:transparent;border:none;color:var(--muted);font-size:28px;cursor:pointer;line-height:1;padding:0 4px">×</button>
       </div>
       
       <!-- Scrollable body -->
@@ -898,9 +1100,9 @@ a{color:inherit;text-decoration:none}
       </div>
       
       <!-- Action buttons (sticky bottom) -->
-      <div style="display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0">
-        <button onclick="pickupCloseDeliverModal()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
-        <button onclick="pickupConfirmDeliver()" id="pickup-confirm-btn" style="flex:2;padding:14px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد التسليم</button>
+      <div style="display:flex;gap:8px;padding:16px 18px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;border-radius:0 0 16px 16px">
+        <button onclick="pickupCloseDeliverModal()" style="flex:1;padding:16px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:15px;cursor:pointer">إلغاء</button>
+        <button onclick="pickupConfirmDeliver()" id="pickup-confirm-btn" style="flex:2;padding:16px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 4px 12px rgba(22,163,74,.3)">✅ تأكيد التسليم</button>
       </div>
     </div>
   </div>
@@ -2592,6 +2794,8 @@ let _posCart = [];
 // 🆕 v29: Active offers map - key = product_id أو product_id:variant_id
 let _posOffers = {};
 let _posOffersFetchedAt = null;
+// 🆕 v34: للـ flash animation لما item جديد يتضاف
+let _posLastAddedVariantId = null;
 let _posCustomer = null;
 let _posPromo = null;
 let _posIsOnline = navigator.onLine;
@@ -2685,8 +2889,13 @@ function posUpdateOnlineIndicator(){
   _posIsOnline = navigator.onLine;
   const ind = $('pos-online-indicator');
   if(ind){
-    ind.textContent = _posIsOnline ? '🟢 Online' : '🔴 Offline';
-    ind.style.background = _posIsOnline ? '#22c55e' : '#ef4444';
+    if(_posIsOnline){
+      ind.className = 'pos-online-pill online';
+      ind.textContent = '🟢 Online';
+    } else {
+      ind.className = 'pos-online-pill offline';
+      ind.textContent = '🔴 Offline';
+    }
   }
 }
 
@@ -2767,16 +2976,49 @@ async function posUpdatePendingBadge(){
 }
 
 // 🆕 v33: helper لبناء barcode index (يدعم extra_barcodes)
+// 🆕 v33: لو فيه أكتر من باركود في نفس الحقل بفاصلة، اقسمهم
+// ده بيدعم data زي: barcode = "074305611162 , 074305001161" تلقائياً
+// بدون أي تعديل في Shopify
+function _posSplitMultiCodes(value){
+  if(!value) return [];
+  const str = String(value).trim();
+  if(!str) return [];
+  // قسّم بـ ، أو , أو / أو | أو ; أو whitespace بين الأرقام
+  // لكن خد بالك من الـ codes اللي فيها dashes طبيعية (زي 074-305-611162)
+  if(/[,،|;\/]/.test(str)){
+    return str.split(/[,،|;\/]/)
+      .map(s => s.trim())
+      .filter(s => s.length >= 3); // أقل barcode منطقي 3 أحرف
+  }
+  return [str];
+}
+
 function _posBuildBarcodeIndex(){
   _posCatalogByBarcode = {};
   for(const p of _posCatalog){
-    // الـ primary barcode + sku
-    if(p.barcode) _posCatalogByBarcode[String(p.barcode).trim()] = p;
-    if(p.sku) _posCatalogByBarcode[String(p.sku).trim()] = p;
-    // 🆕 الـ extra barcodes
+    // 🆕 v33: الـ primary barcode (يدعم multiple مفصولة بفاصلة)
+    if(p.barcode){
+      const codes = _posSplitMultiCodes(p.barcode);
+      for(const code of codes){
+        _posCatalogByBarcode[code] = p;
+      }
+    }
+    // الـ sku (نفس الفكرة)
+    if(p.sku){
+      const codes = _posSplitMultiCodes(p.sku);
+      for(const code of codes){
+        _posCatalogByBarcode[code] = p;
+      }
+    }
+    // الـ extra barcodes (من الـ DB المحلية)
     if(Array.isArray(p.extra_barcodes)){
       for(const eb of p.extra_barcodes){
-        if(eb && eb.barcode) _posCatalogByBarcode[String(eb.barcode).trim()] = p;
+        if(eb && eb.barcode){
+          const codes = _posSplitMultiCodes(eb.barcode);
+          for(const code of codes){
+            _posCatalogByBarcode[code] = p;
+          }
+        }
       }
     }
   }
@@ -2833,11 +3075,14 @@ async function loadPosCatalog(){
 
 function posRenderProducts(filter = ''){
   const grid = $('pos-products-grid');
+  const sectionTitle = $('pos-products-section-title');
   if(!grid) return;
   
   let items = _posCatalog;
+  let isFiltered = false;
   
   if(filter){
+    isFiltered = true;
     const f = filter.toLowerCase();
     items = items.filter(p => 
       (p.product_title||'').toLowerCase().includes(f) ||
@@ -2845,44 +3090,60 @@ function posRenderProducts(filter = ''){
       (p.sku||'').toLowerCase().includes(f) ||
       (p.barcode||'').toLowerCase().includes(f)
     );
+    if(sectionTitle) sectionTitle.textContent = `نتائج البحث (${items.length})`;
+  } else {
+    if(sectionTitle) sectionTitle.textContent = 'كل المنتجات';
   }
   
-  // أول 30
-  items = items.slice(0, 30);
+  // أول 60
+  items = items.slice(0, 60);
   
   if(!items.length){
-    grid.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">مفيش منتجات</div>';
+    grid.innerHTML = `
+      <div class="pos-products-empty">
+        <div class="pos-products-empty-icon">${isFiltered ? '🔍' : '📦'}</div>
+        <div class="pos-products-empty-text">${isFiltered ? 'مفيش نتائج للبحث' : 'مفيش منتجات'}</div>
+      </div>`;
     return;
   }
   
-  grid.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">${items.map(p => {
+  grid.innerHTML = `<div class="pos-products-grid">${items.map(p => {
     const lowStock = (p.qty || 0) <= 0;
-    // 🆕 v29: شوف لو فيه offer
+    // offer detection
     const offer = posGetOfferForProduct(p.product_id, p.variant_id);
     const originalPrice = parseFloat(p.price || 0);
     const finalPrice = offer ? parseFloat(offer.offerPrice) : originalPrice;
     
     const priceHtml = offer
-      ? `<div style="display:flex;flex-direction:column;align-items:center;margin-top:2px">
-           <div style="font-size:13px;font-weight:800;color:#22c55e">${finalPrice.toFixed(0)} ج</div>
-           <div style="font-size:10px;color:var(--muted);text-decoration:line-through;font-family:Roboto,sans-serif">${originalPrice.toFixed(0)} ج</div>
+      ? `<div>
+           <span class="pos-product-tile-price offer">${finalPrice.toFixed(0)} ج</span>
+           <span class="pos-product-tile-price-old">${originalPrice.toFixed(0)} ج</span>
          </div>`
-      : `<div style="font-size:13px;font-weight:800;color:var(--gold);margin-top:2px">${originalPrice.toFixed(0)} ج</div>`;
+      : `<span class="pos-product-tile-price">${originalPrice.toFixed(0)} ج</span>`;
     
     const offerBadge = offer
-      ? `<div style="position:absolute;top:2px;left:2px;background:#22c55e;color:#fff;padding:2px 6px;border-radius:99px;font-size:9px;font-weight:800">🏷️ عرض</div>`
+      ? `<span class="pos-product-tile-offer-badge">🏷️ ${escapeHtml((offer.offerName||'عرض').slice(0,12))}</span>`
       : '';
     
-    return `<div onclick="posAddToCart('${p.variant_id}')" style="position:relative;background:var(--bg);border:1px solid ${offer?'#22c55e':'var(--border)'};border-radius:8px;padding:8px;cursor:pointer;text-align:center;${lowStock?'opacity:.4':''}" 
-                 ontouchstart="this.style.transform='scale(.95)'" ontouchend="this.style.transform=''"
-                 onmousedown="this.style.transform='scale(.95)'" onmouseup="this.style.transform=''">
+    const imgHtml = p.image_url
+      ? `<img src="${escapeHtml(p.image_url)}" class="pos-product-tile-img" loading="lazy" alt="">`
+      : `<div class="pos-product-tile-img-placeholder">📦</div>`;
+    
+    const stockClass = lowStock ? 'zero' : '';
+    const tileClasses = ['pos-product-tile'];
+    if(lowStock) tileClasses.push('low-stock');
+    if(offer) tileClasses.push('has-offer');
+    
+    const fullName = `${escapeHtml(p.product_title || '')}${p.variant_title ? ' - ' + escapeHtml(p.variant_title) : ''}`;
+    
+    return `<div class="${tileClasses.join(' ')}" onclick="posAddToCart('${p.variant_id}')" title="${fullName}">
       ${offerBadge}
-      ${p.image_url 
-        ? `<img src="${escapeHtml(p.image_url)}" style="width:50px;height:50px;border-radius:6px;object-fit:cover;background:var(--elev)">` 
-        : '<div style="width:50px;height:50px;border-radius:6px;background:var(--elev);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto">📦</div>'}
-      <div style="font-size:11px;font-weight:700;margin-top:4px;height:30px;overflow:hidden;line-height:1.2">${escapeHtml(p.product_title || '')}${p.variant_title ? '<br>'+escapeHtml(p.variant_title) : ''}</div>
-      ${priceHtml}
-      <div style="font-size:9px;color:${lowStock?'#ef4444':'var(--muted)'}">المخزون: ${p.qty || 0}</div>
+      ${imgHtml}
+      <div class="pos-product-tile-name">${fullName}</div>
+      <div class="pos-product-tile-price-row">
+        ${priceHtml}
+        <span class="pos-product-tile-stock ${stockClass}">${lowStock ? 'انتهى' : 'متوفر: '+ (p.qty||0)}</span>
+      </div>
     </div>`;
   }).join('')}</div>`;
 }
@@ -2925,11 +3186,12 @@ function setupPosScanInput(){
         inp.value = '';
         posRenderProducts();
       } else {
-        // ابحث في الـ catalog
-        const found = _posCatalog.find(p => 
-          (p.barcode||'').trim() === val ||
-          (p.sku||'').trim() === val
-        );
+        // 🆕 v33: ابحث في الـ catalog مع دعم multi-codes
+        const found = _posCatalog.find(p => {
+          const bcs = _posSplitMultiCodes(p.barcode);
+          const skus = _posSplitMultiCodes(p.sku);
+          return bcs.includes(val) || skus.includes(val);
+        });
         if(found){
           posAddToCart(found.variant_id);
           inp.value = '';
@@ -2959,20 +3221,22 @@ function posAddToCart(variantId){
   } else {
     _posCart.push({
       variantId: product.variant_id,
-      productId: product.product_id, // 🆕 v29
+      productId: product.product_id,
       productTitle: product.product_title,
       variantTitle: product.variant_title,
       sku: product.sku,
       barcode: product.barcode,
       qty: 1,
       unitPrice: finalPrice,
-      // 🆕 v29: offer fields
       originalPrice: offer ? originalPrice : null,
       offerId: offer ? offer.offerId : null,
       offerName: offer ? offer.offerName : null,
       imageUrl: product.image_url
     });
   }
+  
+  // 🆕 v34: علّم الـ variant ده عشان يعمل flash animation
+  _posLastAddedVariantId = variantId;
   
   // beep
   try {
@@ -2990,50 +3254,124 @@ function posAddToCart(variantId){
   } catch(e){}
   
   posRenderCart();
+  // 🆕 v34: scroll للـ item الجديد
+  setTimeout(() => {
+    const items = document.querySelectorAll('#pos-cart-items .pos-cart-item');
+    const flashItem = Array.from(items).find(el => el.classList.contains('flash'));
+    if(flashItem){
+      flashItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 50);
   // أعد تحميل البرومو لو موجود
   if(_posPromo) posRevalidatePromo();
 }
 
 function posRenderCart(){
   const container = $('pos-cart-items');
+  const countEl = $('pos-cart-count');
   if(!container) return;
   
+  // update count
+  if(countEl){
+    countEl.textContent = _posCart.length ? `(${_posCart.length})` : '';
+  }
+  
+  // Mobile FAB update
+  const fab = $('pos-mobile-cart-fab');
+  const fabCount = $('pos-mobile-cart-fab-count');
+  const fabTotal = $('pos-mobile-cart-fab-total');
+  if(fab){
+    if(_posCart.length > 0){
+      fab.style.display = '';
+      if(fabCount) fabCount.textContent = _posCart.length;
+      const subtotal = _posCart.reduce((s,i) => s + i.unitPrice * i.qty, 0);
+      if(fabTotal) fabTotal.textContent = subtotal.toFixed(0) + ' ج';
+    } else {
+      fab.style.display = 'none';
+    }
+  }
+  
   if(!_posCart.length){
-    container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:48px;opacity:.3">🛒</div><div style="font-size:12px;margin-top:6px">ابدأ بمسح/إضافة منتج</div></div>';
+    container.innerHTML = `
+      <div class="pos-cart-empty">
+        <div class="pos-cart-empty-icon">🛒</div>
+        <div class="pos-cart-empty-text">السلة فاضية</div>
+        <div class="pos-cart-empty-hint">امسح باركود أو اضغط على منتج</div>
+      </div>`;
     posUpdateTotals();
     return;
   }
   
   container.innerHTML = _posCart.map((item, idx) => {
-    // 🆕 v29: عرض الـ offer
     const hasOffer = item.originalPrice && item.originalPrice > item.unitPrice;
-    const priceLine = hasOffer
-      ? `<div style="font-size:10px;color:var(--muted)">
-           <span style="color:#22c55e;font-weight:700">${parseFloat(item.unitPrice).toFixed(0)} ج</span>
-           <span style="text-decoration:line-through;margin-right:6px;font-family:Roboto,sans-serif">${parseFloat(item.originalPrice).toFixed(0)} ج</span>
-           × ${item.qty} = <strong style="color:#22c55e">${(item.unitPrice * item.qty).toFixed(0)} ج</strong>
+    const lineTotal = item.unitPrice * item.qty;
+    
+    const priceInfoHtml = hasOffer
+      ? `<div class="pos-cart-item-price-line">
+           <span class="offer-price">${parseFloat(item.unitPrice).toFixed(0)} ج</span>
+           <span class="strike">${parseFloat(item.originalPrice).toFixed(0)} ج</span>
+           <span>× ${item.qty}</span>
          </div>
-         <div style="font-size:9px;color:#22c55e;margin-top:2px">🏷️ ${escapeHtml(item.offerName || 'عرض')}</div>`
-      : `<div style="font-size:10px;color:var(--muted)">${parseFloat(item.unitPrice).toFixed(0)} ج × ${item.qty} = <strong style="color:var(--gold)">${(item.unitPrice * item.qty).toFixed(0)} ج</strong></div>`;
+         <div class="pos-cart-item-offer-name">🏷️ ${escapeHtml(item.offerName || 'عرض')}</div>`
+      : `<div class="pos-cart-item-price-line">${parseFloat(item.unitPrice).toFixed(0)} ج × ${item.qty}</div>`;
+    
+    const itemClasses = ['pos-cart-item'];
+    if(hasOffer) itemClasses.push('has-offer');
+    // 🆕 v34: flash لـ آخر item مضاف
+    if(_posLastAddedVariantId === item.variantId) itemClasses.push('flash');
+    
+    // 🆕 v34: image + barcode
+    const imgHtml = item.imageUrl
+      ? `<img src="${escapeHtml(item.imageUrl)}" class="pos-cart-item-img" loading="lazy" alt="">`
+      : `<div class="pos-cart-item-img-placeholder">📦</div>`;
+    
+    const barcodeHtml = item.barcode
+      ? `<span class="pos-cart-item-barcode">${escapeHtml(String(item.barcode).slice(0, 30))}</span>`
+      : (item.sku ? `<span class="pos-cart-item-barcode">${escapeHtml(String(item.sku).slice(0, 30))}</span>` : '');
     
     return `
-    <div style="background:var(--bg);border:1px solid ${hasOffer?'#22c55e':'var(--border)'};border-radius:8px;padding:8px;margin-bottom:6px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:12px;line-height:1.2">${escapeHtml(item.productTitle)}${item.variantTitle ? ' - '+escapeHtml(item.variantTitle) : ''}</div>
-          ${priceLine}
+    <div class="${itemClasses.join(' ')}" data-idx="${idx}">
+      ${imgHtml}
+      <div class="pos-cart-item-body">
+        <div class="pos-cart-item-row1">
+          <div class="pos-cart-item-name">
+            ${escapeHtml(item.productTitle)}
+            ${item.variantTitle ? `<div class="pos-cart-item-variant">${escapeHtml(item.variantTitle)}</div>` : ''}
+            ${barcodeHtml}
+          </div>
+          <button class="pos-cart-item-remove" onclick="posRemoveFromCart(${idx})" title="إزالة">×</button>
         </div>
-        <button onclick="posRemoveFromCart(${idx})" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">×</button>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">
-        <button onclick="posUpdateQty(${idx}, -1)" style="width:30px;height:30px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700">−</button>
-        <span style="min-width:30px;text-align:center;font-weight:800;font-size:14px">${item.qty}</span>
-        <button onclick="posUpdateQty(${idx}, 1)" style="width:30px;height:30px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700">+</button>
+        <div class="pos-cart-item-row2">
+          <div class="pos-cart-item-price-info">
+            ${priceInfoHtml}
+            <div class="pos-cart-item-line-total ${hasOffer?'offer':''}">${lineTotal.toFixed(0)} ج</div>
+          </div>
+          <div class="pos-cart-item-qty">
+            <button class="pos-cart-qty-btn" onclick="posUpdateQty(${idx}, -1)">−</button>
+            <span class="pos-cart-qty-display">${item.qty}</span>
+            <button class="pos-cart-qty-btn" onclick="posUpdateQty(${idx}, 1)">+</button>
+          </div>
+        </div>
       </div>
     </div>
   `;}).join('');
   
+  // 🆕 v34: امسح الـ flash بعد الـ animation
+  if(_posLastAddedVariantId){
+    setTimeout(() => {
+      _posLastAddedVariantId = null;
+      // مفيش re-render - الـ animation هتنتهي لوحدها
+    }, 700);
+  }
+  
   posUpdateTotals();
+}
+
+// 🆕 v34: Mobile cart toggle
+function posToggleMobileCart(){
+  const sidebar = $('pos-cart-sidebar');
+  if(!sidebar) return;
+  sidebar.classList.toggle('mobile-open');
 }
 
 function posUpdateQty(idx, delta){
@@ -3068,13 +3406,13 @@ function posUpdateTotals(){
   const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
   const total = subtotal - discount;
   
-  $('pos-subtotal').textContent = subtotal.toFixed(0) + ' ج';
-  $('pos-total').textContent = total.toFixed(0) + ' ج';
+  $('pos-subtotal').textContent = subtotal.toFixed(2) + ' ج';
+  $('pos-total').textContent = total.toFixed(2) + ' ج';
   
   const discountRow = $('pos-discount-row');
   if(discount > 0){
     discountRow.style.display = 'flex';
-    $('pos-discount-amt').textContent = '-' + discount.toFixed(0) + ' ج';
+    $('pos-discount-amt').textContent = '-' + discount.toFixed(2) + ' ج';
   } else {
     discountRow.style.display = 'none';
   }
@@ -3084,10 +3422,31 @@ function posUpdateTotals(){
   ['pos-pay-cash','pos-pay-visa','pos-pay-instapay','pos-pay-mixed'].forEach(id => {
     const btn = $(id);
     if(btn){
-      btn.style.opacity = disabled ? '.4' : '1';
-      btn.style.pointerEvents = disabled ? 'none' : 'auto';
+      btn.disabled = disabled;
     }
   });
+  
+  // 🆕 v34: Update quick action tiles state
+  const customerTile = $('pos-qa-customer');
+  if(customerTile){
+    if(_posCustomer && _posCustomer.phone){
+      customerTile.classList.add('has-value');
+      customerTile.querySelector('.pos-qa-label').textContent = (_posCustomer.firstName || _posCustomer.phone || 'عميل').slice(0,12);
+    } else {
+      customerTile.classList.remove('has-value');
+      customerTile.querySelector('.pos-qa-label').textContent = 'عميل';
+    }
+  }
+  const promoTile = $('pos-qa-promo');
+  if(promoTile){
+    if(_posPromo){
+      promoTile.classList.add('has-value');
+      promoTile.querySelector('.pos-qa-label').textContent = _posPromo.code || 'برومو';
+    } else {
+      promoTile.classList.remove('has-value');
+      promoTile.querySelector('.pos-qa-label').textContent = 'برومو كود';
+    }
+  }
 }
 
 // ─── Customer ───
