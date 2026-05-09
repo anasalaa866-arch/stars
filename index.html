@@ -819,6 +819,86 @@ a{color:inherit;text-decoration:none}
     </div>
   </div>
 
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 🆕 v28: PICKUP ORDERS PAGE (للكاشير) -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="page" id="page-pickup-orders">
+    <div class="header" style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:800;font-size:16px;color:var(--gold)">🏪 استلام طلبات Pickup</div>
+        <div style="font-size:11px;color:var(--muted)" id="pickup-stats">—</div>
+      </div>
+      <button onclick="pickupRefresh()" style="padding:6px 12px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">🔄 تحديث</button>
+    </div>
+    
+    <!-- Search bar -->
+    <div style="padding:10px 12px;background:var(--bg)">
+      <input type="text" id="pickup-search-input" placeholder="🔍 ابحث برقم الطلب، التليفون، أو الاسم..." 
+             style="width:100%;padding:12px 14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-size:14px"
+             oninput="pickupOnSearch(this.value)">
+    </div>
+    
+    <!-- Orders list -->
+    <div style="padding:0 12px 80px;overflow-y:auto;max-height:calc(100vh - 220px)">
+      <div id="pickup-orders-list">
+        <div style="text-align:center;padding:40px;color:var(--muted)">⏳ جاري التحميل...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 🆕 v28: PICKUP DELIVER MODAL -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div id="pickup-deliver-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.85);align-items:flex-end;justify-content:center">
+    <div style="background:var(--bg);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:18px;max-height:90vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-weight:800;font-size:18px;color:var(--gold)">✅ تأكيد التسليم</div>
+        <button onclick="pickupCloseDeliverModal()" style="background:transparent;border:none;color:var(--muted);font-size:28px;cursor:pointer">×</button>
+      </div>
+      
+      <!-- Order summary -->
+      <div id="pickup-deliver-summary" style="background:var(--elev);border-radius:12px;padding:14px;margin-bottom:14px"></div>
+      
+      <!-- Payment section (لو COD) -->
+      <div id="pickup-payment-section" style="display:none;margin-bottom:14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--gold)">💰 تسجيل الدفع</div>
+        
+        <!-- Payment method selector -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+          <button id="pickup-pm-cash" onclick="pickupSetMethod('cash')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+            💵 كاش
+          </button>
+          <button id="pickup-pm-visa" onclick="pickupSetMethod('visa')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+            💳 فيزا
+          </button>
+          <button id="pickup-pm-instapay" onclick="pickupSetMethod('instapay')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+            📱 InstaPay
+          </button>
+        </div>
+        
+        <!-- Reference number (لـ visa/instapay) -->
+        <div id="pickup-ref-wrap" style="display:none;margin-bottom:10px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">رقم المرجع</label>
+          <input type="text" id="pickup-ref-input" placeholder="آخر 4 أرقام أو الرقم الكامل" 
+                 style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;font-size:14px">
+        </div>
+      </div>
+      
+      <!-- Notes -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">ملاحظات (اختياري)</label>
+        <textarea id="pickup-notes-input" rows="2" placeholder="..." 
+                  style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;resize:vertical"></textarea>
+      </div>
+      
+      <!-- Action buttons -->
+      <div style="display:flex;gap:8px">
+        <button onclick="pickupCloseDeliverModal()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
+        <button onclick="pickupConfirmDeliver()" id="pickup-confirm-btn" style="flex:2;padding:14px;background:var(--gold);color:#000;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد التسليم</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 🆕 v23: STORE MANAGER PAGE -->
   <div class="page" id="page-store-mgr">
     <div class="header" style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -889,6 +969,12 @@ a{color:inherit;text-decoration:none}
     <div class="nav-item" data-page="pos" style="display:none" id="nav-pos">
       <div class="nav-ico">💰</div>
       <div>نقطة البيع</div>
+    </div>
+    <!-- 🆕 v28: Pickup Orders tab (للكاشير) -->
+    <div class="nav-item" data-page="pickup-orders" style="display:none" id="nav-pickup-orders">
+      <div class="nav-ico">🏪</div>
+      <div>استلام طلبات</div>
+      <span id="pickup-orders-badge" style="display:none;position:absolute;top:4px;right:4px;background:#ef4444;color:#fff;border-radius:99px;font-size:10px;font-weight:700;padding:2px 6px;min-width:18px;text-align:center">0</span>
     </div>
     <!-- 🆕 v23: Store Manager tab -->
     <div class="nav-item" data-page="store-mgr" style="display:none" id="nav-store-mgr">
@@ -1499,6 +1585,13 @@ async function api(path, opts = {}){
   return data;
 }
 
+// 🆕 v27 FIX: apiFetch wrapper (للتوافق مع OrderPro signature)
+// signature: apiFetch(path, method, body)
+// internally: api(path, { method, body })
+async function apiFetch(path, method = 'GET', body = null){
+  return api(path, { method, body });
+}
+
 // ===== ROLE SELECTOR =====
 function selectRole(role){
   ROLE = role;
@@ -1792,13 +1885,22 @@ function showApp(){
   // 🆕 v21: لو cashier - اخفي كل الـ nav التانية وروح للـ POS
   if(ROLE === 'cashier'){
     document.querySelectorAll('.nav-item').forEach(el => {
-      if(el.id !== 'nav-pos') el.style.display = 'none';
+      // 🆕 v28: الكاشير يشوف POS + Pickup orders
+      if(el.id !== 'nav-pos' && el.id !== 'nav-pickup-orders') el.style.display = 'none';
     });
+    // اظهر nav-pickup-orders
+    const pickupNav = $('nav-pickup-orders');
+    if(pickupNav) pickupNav.style.display = '';
+    
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     if(posNav) posNav.classList.add('active');
     $('page-pos').classList.add('active');
     loadPosPage();
+    
+    // 🆕 v28: ابدأ polling لعدد الطلبات
+    setTimeout(pickupCheckCount, 5000);
+    setInterval(pickupCheckCount, 60 * 1000); // كل دقيقة
     return;
   }
   
@@ -2467,6 +2569,9 @@ let _posStore = null;
 let _posCatalog = [];
 let _posCatalogByBarcode = {}; // barcode/sku -> product
 let _posCart = [];
+// 🆕 v29: Active offers map - key = product_id أو product_id:variant_id
+let _posOffers = {};
+let _posOffersFetchedAt = null;
 let _posCustomer = null;
 let _posPromo = null;
 let _posIsOnline = navigator.onLine;
@@ -2523,6 +2628,9 @@ async function loadPosPage(){
     // 4. جيب الـ catalog
     await loadPosCatalog();
     
+    // 🆕 v29: جيب العروض النشطة وطبقها
+    await posLoadOffers();
+    
     // 5. جرب رفع البيعات الـ pending
     if(_posIsOnline) posSyncPendingItems();
     
@@ -2541,6 +2649,10 @@ async function loadPosPage(){
     _posAutoSyncInterval = setInterval(() => {
       if(_posIsOnline){
         posSyncPendingItems().catch(()=>{});
+        // 🆕 v29: حدّث العروض كل 5 دقايق
+        if(!_posOffersFetchedAt || (Date.now() - _posOffersFetchedAt) > 5 * 60 * 1000){
+          posLoadOffers().catch(()=>{});
+        }
       }
     }, 60000); // كل دقيقة
     
@@ -2558,11 +2670,69 @@ function posUpdateOnlineIndicator(){
   }
 }
 
+// 🆕 v29: load active store offers
+async function posLoadOffers(){
+  if(!_posStore || !_posStore.id) return;
+  
+  // جرب من cache أولاً (لو offline)
+  try {
+    const cached = await posDBGet('meta', 'storeOffers');
+    if(cached?.value){
+      _posOffers = cached.value;
+      _posOffersFetchedAt = cached.savedAt;
+      posRenderProducts(); // rerender عشان الأسعار تتحدث
+    }
+  } catch(e){}
+  
+  // لو online، حدّث
+  if(_posIsOnline){
+    try {
+      const r = await apiFetch('/api/pos/active-offers/' + _posStore.id);
+      _posOffers = r?.offers || {};
+      _posOffersFetchedAt = Date.now();
+      
+      // cache
+      await posDBPut('meta', { 
+        key: 'storeOffers', 
+        value: _posOffers, 
+        savedAt: _posOffersFetchedAt 
+      });
+      
+      const count = Object.keys(_posOffers).length;
+      if(count > 0){
+        toast(`🏷️ ${count} منتج عليه عرض`, 'info');
+      }
+      
+      posRenderProducts();
+    } catch(e) {
+      console.warn('offers load failed:', e.message);
+    }
+  }
+}
+
+// 🆕 v29: شوف لو في offer للمنتج
+function posGetOfferForProduct(productId, variantId){
+  if(!_posOffers || !Object.keys(_posOffers).length) return null;
+  
+  // أولاً جرب variant-specific
+  if(variantId){
+    const variantKey = `${productId}:${variantId}`;
+    if(_posOffers[variantKey]) return _posOffers[variantKey];
+  }
+  
+  // بعدين جرب product-wide (variant_id=null في الـ offer)
+  if(_posOffers[productId]) return _posOffers[productId];
+  
+  return null;
+}
+
 // 🆕 v22: لما النت يرجع
 async function posOnReconnect(){
   posUpdateOnlineIndicator();
   toast('🟢 النت رجع - جاري الرفع...', 'info');
   await posSyncPendingItems();
+  // 🆕 v29: حدّث العروض
+  posLoadOffers().catch(()=>{});
 }
 
 // 🆕 v22: عرض عدد البيعات المعلّقة
@@ -2659,14 +2829,31 @@ function posRenderProducts(filter = ''){
   
   grid.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px">${items.map(p => {
     const lowStock = (p.qty || 0) <= 0;
-    return `<div onclick="posAddToCart('${p.variant_id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;text-align:center;${lowStock?'opacity:.4':''}" 
+    // 🆕 v29: شوف لو فيه offer
+    const offer = posGetOfferForProduct(p.product_id, p.variant_id);
+    const originalPrice = parseFloat(p.price || 0);
+    const finalPrice = offer ? parseFloat(offer.offerPrice) : originalPrice;
+    
+    const priceHtml = offer
+      ? `<div style="display:flex;flex-direction:column;align-items:center;margin-top:2px">
+           <div style="font-size:13px;font-weight:800;color:#22c55e">${finalPrice.toFixed(0)} ج</div>
+           <div style="font-size:10px;color:var(--muted);text-decoration:line-through;font-family:Roboto,sans-serif">${originalPrice.toFixed(0)} ج</div>
+         </div>`
+      : `<div style="font-size:13px;font-weight:800;color:var(--gold);margin-top:2px">${originalPrice.toFixed(0)} ج</div>`;
+    
+    const offerBadge = offer
+      ? `<div style="position:absolute;top:2px;left:2px;background:#22c55e;color:#fff;padding:2px 6px;border-radius:99px;font-size:9px;font-weight:800">🏷️ عرض</div>`
+      : '';
+    
+    return `<div onclick="posAddToCart('${p.variant_id}')" style="position:relative;background:var(--bg);border:1px solid ${offer?'#22c55e':'var(--border)'};border-radius:8px;padding:8px;cursor:pointer;text-align:center;${lowStock?'opacity:.4':''}" 
                  ontouchstart="this.style.transform='scale(.95)'" ontouchend="this.style.transform=''"
                  onmousedown="this.style.transform='scale(.95)'" onmouseup="this.style.transform=''">
+      ${offerBadge}
       ${p.image_url 
         ? `<img src="${escapeHtml(p.image_url)}" style="width:50px;height:50px;border-radius:6px;object-fit:cover;background:var(--elev)">` 
         : '<div style="width:50px;height:50px;border-radius:6px;background:var(--elev);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto">📦</div>'}
       <div style="font-size:11px;font-weight:700;margin-top:4px;height:30px;overflow:hidden;line-height:1.2">${escapeHtml(p.product_title || '')}${p.variant_title ? '<br>'+escapeHtml(p.variant_title) : ''}</div>
-      <div style="font-size:13px;font-weight:800;color:var(--gold);margin-top:2px">${parseFloat(p.price || 0).toFixed(0)} ج</div>
+      ${priceHtml}
       <div style="font-size:9px;color:${lowStock?'#ef4444':'var(--muted)'}">المخزون: ${p.qty || 0}</div>
     </div>`;
   }).join('')}</div>`;
@@ -2732,6 +2919,11 @@ function posAddToCart(variantId){
   const product = _posCatalog.find(p => p.variant_id === variantId);
   if(!product) return;
   
+  // 🆕 v29: شوف لو في offer للمنتج
+  const offer = posGetOfferForProduct(product.product_id, product.variant_id);
+  const originalPrice = parseFloat(product.price) || 0;
+  const finalPrice = offer ? parseFloat(offer.offerPrice) : originalPrice;
+  
   // شوف لو موجود بالفعل في السلة
   const existing = _posCart.find(c => c.variantId === variantId);
   if(existing){
@@ -2739,12 +2931,17 @@ function posAddToCart(variantId){
   } else {
     _posCart.push({
       variantId: product.variant_id,
+      productId: product.product_id, // 🆕 v29
       productTitle: product.product_title,
       variantTitle: product.variant_title,
       sku: product.sku,
       barcode: product.barcode,
       qty: 1,
-      unitPrice: parseFloat(product.price) || 0,
+      unitPrice: finalPrice,
+      // 🆕 v29: offer fields
+      originalPrice: offer ? originalPrice : null,
+      offerId: offer ? offer.offerId : null,
+      offerName: offer ? offer.offerName : null,
       imageUrl: product.image_url
     });
   }
@@ -2779,12 +2976,24 @@ function posRenderCart(){
     return;
   }
   
-  container.innerHTML = _posCart.map((item, idx) => `
-    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px">
+  container.innerHTML = _posCart.map((item, idx) => {
+    // 🆕 v29: عرض الـ offer
+    const hasOffer = item.originalPrice && item.originalPrice > item.unitPrice;
+    const priceLine = hasOffer
+      ? `<div style="font-size:10px;color:var(--muted)">
+           <span style="color:#22c55e;font-weight:700">${parseFloat(item.unitPrice).toFixed(0)} ج</span>
+           <span style="text-decoration:line-through;margin-right:6px;font-family:Roboto,sans-serif">${parseFloat(item.originalPrice).toFixed(0)} ج</span>
+           × ${item.qty} = <strong style="color:#22c55e">${(item.unitPrice * item.qty).toFixed(0)} ج</strong>
+         </div>
+         <div style="font-size:9px;color:#22c55e;margin-top:2px">🏷️ ${escapeHtml(item.offerName || 'عرض')}</div>`
+      : `<div style="font-size:10px;color:var(--muted)">${parseFloat(item.unitPrice).toFixed(0)} ج × ${item.qty} = <strong style="color:var(--gold)">${(item.unitPrice * item.qty).toFixed(0)} ج</strong></div>`;
+    
+    return `
+    <div style="background:var(--bg);border:1px solid ${hasOffer?'#22c55e':'var(--border)'};border-radius:8px;padding:8px;margin-bottom:6px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:12px;line-height:1.2">${escapeHtml(item.productTitle)}${item.variantTitle ? ' - '+escapeHtml(item.variantTitle) : ''}</div>
-          <div style="font-size:10px;color:var(--muted)">${parseFloat(item.unitPrice).toFixed(0)} ج × ${item.qty} = <strong style="color:var(--gold)">${(item.unitPrice * item.qty).toFixed(0)} ج</strong></div>
+          ${priceLine}
         </div>
         <button onclick="posRemoveFromCart(${idx})" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px">×</button>
       </div>
@@ -2794,7 +3003,7 @@ function posRenderCart(){
         <button onclick="posUpdateQty(${idx}, 1)" style="width:30px;height:30px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:700">+</button>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
   
   posUpdateTotals();
 }
@@ -3296,12 +3505,17 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     storeId: _posStore.id,
     items: _posCart.map(c => ({
       variantId: c.variantId,
+      productId: c.productId || null, // 🆕 v29
       productTitle: c.productTitle,
       variantTitle: c.variantTitle,
       sku: c.sku,
       barcode: c.barcode,
       qty: c.qty,
-      unitPrice: c.unitPrice
+      unitPrice: c.unitPrice,
+      // 🆕 v29: offer fields
+      originalPrice: c.originalPrice || null,
+      offerId: c.offerId || null,
+      offerName: c.offerName || null
     })),
     customer: _posCustomer,
     payments,
@@ -4422,6 +4636,251 @@ async function posPrintReceiptBluetooth(data){
 
 
 // ============================================================
+// 🆕 v28: PICKUP ORDERS (للكاشير)
+// ============================================================
+let _pickupOrdersCache = [];
+let _pickupSelectedOrder = null;
+let _pickupSelectedMethod = null;
+let _pickupSearchDebounce = null;
+
+async function pickupCheckCount(){
+  try {
+    const r = await apiFetch('/api/cashier/pickup-orders');
+    const count = r?.count || 0;
+    const badge = $('pickup-orders-badge');
+    if(badge){
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+  } catch(e){}
+}
+
+async function loadPickupOrders(){
+  await pickupRefresh();
+}
+
+async function pickupRefresh(){
+  const list = $('pickup-orders-list');
+  list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">⏳ جاري التحميل...</div>';
+  
+  try {
+    const search = $('pickup-search-input').value.trim();
+    const url = search 
+      ? '/api/cashier/pickup-orders?search=' + encodeURIComponent(search)
+      : '/api/cashier/pickup-orders';
+    
+    const r = await apiFetch(url);
+    _pickupOrdersCache = r?.orders || [];
+    
+    $('pickup-stats').textContent = `${_pickupOrdersCache.length} طلب جاهز`;
+    pickupRender();
+    
+    // update badge
+    pickupCheckCount();
+  } catch(e){
+    list.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">❌ ${escapeHtml(e.message || 'خطأ')}</div>`;
+  }
+}
+
+function pickupOnSearch(value){
+  // debounce
+  clearTimeout(_pickupSearchDebounce);
+  _pickupSearchDebounce = setTimeout(() => {
+    pickupRefresh();
+  }, 350);
+}
+
+function pickupRender(){
+  const list = $('pickup-orders-list');
+  if(!_pickupOrdersCache.length){
+    list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">📭</div>
+      <div style="font-size:14px;font-weight:700">مفيش طلبات pickup جاهزة</div>
+      <div style="font-size:12px;margin-top:6px">لما يجي عميل يستلم، الطلب هيظهر هنا</div>
+    </div>`;
+    return;
+  }
+  
+  list.innerHTML = _pickupOrdersCache.map(o => {
+    const isPaid = o.paid === true;
+    const paidBadge = isPaid 
+      ? '<span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">✅ مدفوع</span>'
+      : '<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">💰 COD</span>';
+    
+    const orderNum = o.shopify_id ? '#' + o.id : '#' + o.id;
+    const date = o.created_at ? new Date(o.created_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    
+    // Items count
+    let itemsCount = 0;
+    try {
+      if(Array.isArray(o.line_items)) itemsCount = o.line_items.length;
+      else if(typeof o.items === 'string'){
+        const m = o.items.match(/\((\d+)/);
+        if(m) itemsCount = parseInt(m[1]);
+      }
+    } catch(e){}
+    
+    return `<div onclick="pickupOpenDeliverModal(${JSON.stringify(o.id).replace(/"/g, '&quot;')})" 
+                 style="background:var(--elev);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;transition:transform .1s">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+        <div style="font-weight:800;font-size:15px;color:var(--gold);font-family:Roboto,sans-serif">${escapeHtml(orderNum)}</div>
+        ${paidBadge}
+      </div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">${escapeHtml(o.name || '—')}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-family:Roboto,sans-serif">📱 ${escapeHtml(o.phone || '—')}</div>
+      ${o.area ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">📍 ${escapeHtml(o.area)}</div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);margin-top:8px">
+        <div style="font-size:11px;color:var(--muted)">${date}${itemsCount ? ' · ' + itemsCount + ' منتج' : ''}</div>
+        <div style="font-weight:800;font-size:16px;color:var(--gold);font-family:Roboto,sans-serif">${(parseFloat(o.total) || 0).toLocaleString()} ج</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function pickupOpenDeliverModal(orderId){
+  const order = _pickupOrdersCache.find(o => String(o.id) === String(orderId));
+  if(!order){ toast('❌ الطلب مش موجود'); return; }
+  
+  _pickupSelectedOrder = order;
+  _pickupSelectedMethod = null;
+  
+  // Build summary
+  const isPaid = order.paid === true;
+  const paidLabel = isPaid 
+    ? '<span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-right:6px">✅ مدفوع أونلاين</span>'
+    : '<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-right:6px">💰 الدفع عند الاستلام</span>';
+  
+  // Items list
+  let itemsHtml = '';
+  try {
+    let items = order.line_items;
+    if(typeof items === 'string') items = JSON.parse(items);
+    if(Array.isArray(items) && items.length){
+      itemsHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);max-height:160px;overflow-y:auto">' +
+        items.slice(0, 20).map(it => {
+          const title = it.title || it.name || '—';
+          const qty = it.quantity || it.qty || 1;
+          const variant = it.variant_title || '';
+          return `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+            <div>${escapeHtml(title)}${variant ? ' · ' + escapeHtml(variant) : ''}</div>
+            <div style="color:var(--gold);font-family:Roboto,sans-serif">×${qty}</div>
+          </div>`;
+        }).join('') +
+        '</div>';
+    }
+  } catch(e){}
+  
+  $('pickup-deliver-summary').innerHTML = `
+    <div style="font-weight:800;font-size:16px;color:var(--gold);margin-bottom:6px;font-family:Roboto,sans-serif">#${escapeHtml(String(order.id))}</div>
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">${escapeHtml(order.name || '—')}</div>
+    <div style="font-size:12px;color:var(--muted);font-family:Roboto,sans-serif">📱 ${escapeHtml(order.phone || '—')}</div>
+    <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+      <div>${paidLabel}</div>
+      <div style="font-weight:800;font-size:18px;color:var(--gold);font-family:Roboto,sans-serif">${(parseFloat(order.total) || 0).toLocaleString()} ج</div>
+    </div>
+    ${itemsHtml}
+  `;
+  
+  // Show payment section لو COD
+  $('pickup-payment-section').style.display = isPaid ? 'none' : 'block';
+  $('pickup-ref-wrap').style.display = 'none';
+  $('pickup-ref-input').value = '';
+  $('pickup-notes-input').value = '';
+  
+  // Reset payment buttons
+  document.querySelectorAll('.pickup-pm-btn').forEach(b => {
+    b.style.background = 'var(--elev)';
+    b.style.borderColor = 'var(--border)';
+    b.style.color = 'var(--text)';
+  });
+  
+  // Show modal
+  const modal = $('pickup-deliver-modal');
+  modal.style.display = 'flex';
+}
+
+function pickupSetMethod(method){
+  _pickupSelectedMethod = method;
+  
+  document.querySelectorAll('.pickup-pm-btn').forEach(b => {
+    b.style.background = 'var(--elev)';
+    b.style.borderColor = 'var(--border)';
+    b.style.color = 'var(--text)';
+  });
+  
+  const btn = $('pickup-pm-' + method);
+  if(btn){
+    btn.style.background = 'var(--gold)';
+    btn.style.borderColor = 'var(--gold)';
+    btn.style.color = '#000';
+  }
+  
+  // اظهر ref input لو visa/instapay
+  $('pickup-ref-wrap').style.display = (method === 'visa' || method === 'instapay') ? 'block' : 'none';
+}
+
+function pickupCloseDeliverModal(){
+  $('pickup-deliver-modal').style.display = 'none';
+  _pickupSelectedOrder = null;
+  _pickupSelectedMethod = null;
+}
+
+async function pickupConfirmDeliver(){
+  if(!_pickupSelectedOrder){ toast('❌ مفيش طلب مختار'); return; }
+  
+  const order = _pickupSelectedOrder;
+  const isPaid = order.paid === true;
+  const notes = $('pickup-notes-input').value.trim();
+  
+  const body = { notes: notes || null };
+  
+  if(!isPaid){
+    if(!_pickupSelectedMethod){
+      toast('❗ اختار طريقة الدفع', 'warning');
+      return;
+    }
+    
+    const refNumber = $('pickup-ref-input').value.trim();
+    if((_pickupSelectedMethod === 'visa' || _pickupSelectedMethod === 'instapay') && !refNumber){
+      if(!confirm('مدخلتش رقم مرجع - متأكد؟')) return;
+    }
+    
+    body.payments = [{
+      method: _pickupSelectedMethod,
+      amount: parseFloat(order.total) || 0,
+      ref_number: refNumber || null
+    }];
+  }
+  
+  // Disable button
+  const btn = $('pickup-confirm-btn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري التسليم...';
+  
+  try {
+    const r = await apiFetch(`/api/cashier/pickup-orders/${order.id}/deliver`, 'POST', body);
+    
+    if(r.success){
+      toast(r.message || '✅ تم التسليم', 'success');
+      pickupCloseDeliverModal();
+      pickupRefresh();
+    } else {
+      toast('❌ ' + (r.error || 'فشل التسليم'), 'error');
+    }
+  } catch(e){
+    toast('❌ ' + (e.message || 'خطأ'), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+// ============================================================
+// END: PICKUP ORDERS
+// ============================================================
+
+// ============================================================
 // 🆕 v23: STORE MANAGER
 // ============================================================
 let _smgrCurrentTab = 'overview';
@@ -5181,6 +5640,8 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if(page === 'shop') loadShopOrders();
     if(page === 'stocktake') loadStkSessions();
     if(page === 'pos') loadPosPage();
+    if(page === 'pickup-orders') loadPickupOrders();
+    if(page === 'store-mgr') loadStoreMgrPage && loadStoreMgrPage();
   });
 });
 
