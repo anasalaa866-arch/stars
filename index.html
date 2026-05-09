@@ -287,10 +287,16 @@ a{color:inherit;text-decoration:none}
     <input type="text" class="login-input" id="login-username" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" spellcheck="false">
     <input type="password" class="login-input" id="login-password" placeholder="كلمة المرور" autocomplete="current-password">
     <button class="login-btn" id="login-btn">تسجيل الدخول</button>
-    <div style="margin-top:20px;font-size:11px;color:#444;display:none">حدد رابط الخادم:</div>
-    <input type="text" class="login-input" id="login-api-url" placeholder="https://orderpro-backend-production.up.railway.app" style="font-size:12px;direction:ltr;text-align:left;display:none">
-    <button id="test-conn-btn" onclick="testConnection()" style="display:none;width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:10px;font-size:12px;margin-top:6px;cursor:pointer">🔍 اختبار الاتصال بالسيرفر</button>
-    <div id="diag-info" style="margin-top:14px;font-size:10px;color:#333;line-height:1.6;text-align:left;direction:ltr;display:none"></div>
+    <!-- 🆕 v30: ظهرنا الـ debug fields بشكل دائم عشان لو فيه مشكلة connection -->
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-size:11px;color:#666;text-align:center">⚙️ خيارات متقدمة (لو فيه مشكلة دخول)</summary>
+      <div style="margin-top:10px">
+        <div style="font-size:11px;color:#666;margin-bottom:4px">رابط السيرفر:</div>
+        <input type="text" class="login-input" id="login-api-url" placeholder="https://orderpro-backend-production.up.railway.app" style="font-size:12px;direction:ltr;text-align:left">
+        <button id="test-conn-btn" onclick="testConnection()" style="width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:10px;font-size:12px;margin-top:6px;cursor:pointer">🔍 اختبار الاتصال بالسيرفر</button>
+        <div id="diag-info" style="margin-top:14px;font-size:10px;color:#333;line-height:1.6;text-align:left;direction:ltr"></div>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -1594,6 +1600,16 @@ async function apiFetch(path, method = 'GET', body = null){
 
 // ===== ROLE SELECTOR =====
 function selectRole(role){
+  // 🆕 v30: لو الـ role اتغير، امسح الـ token القديم عشان مش يحصل تعارض
+  const oldRole = localStorage.getItem('stars_role');
+  if(oldRole && oldRole !== role){
+    localStorage.removeItem('stars_token');
+    localStorage.removeItem('stars_user');
+    TOKEN = '';
+    USER = null;
+    console.log(`Role changed: ${oldRole} → ${role}, cleared old session`);
+  }
+  
   ROLE = role;
   localStorage.setItem('stars_role', role);
   // تحديث الـ UI
@@ -1666,7 +1682,15 @@ async function doLogin(){
     }
 
     if(!r || !r.success){
-      showLoginError((r && r.error) || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      // 🆕 v29: debug message أوضح
+      let errMsg = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+      if(r && r.error){
+        errMsg = r.error;
+      } else if(!r){
+        errMsg = 'لم يصل رد من السيرفر - الـ API URL: ' + apiUrl;
+      }
+      console.error('Login failed:', { r, endpoint, apiUrl, username });
+      showLoginError(errMsg + ' (شوف Console للتفاصيل)');
       return;
     }
     TOKEN = r.token;
@@ -7465,10 +7489,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // اعرض معلومات تشخيص
   showDiagnostics();
 
-  // لو عنده token محفوظ، حاول يدخل مباشرة
+  // 🆕 v30: تأكد إن الـ token + role متطابقين قبل ما تستخدمهم
+  // (لو المستخدم سجل قبل كده بـ role تاني، الـ session هتفشل)
   if(TOKEN && USER){
     const checkEndpoint = ROLE === 'shop' ? '/api/shop/me' : '/api/courier/me';
-    api(checkEndpoint).then(() => showApp()).catch(() => logout());
+    api(checkEndpoint).then(() => showApp()).catch((err) => {
+      console.warn('Session check failed - clearing all auth data:', err?.message);
+      // مسح كامل للـ session لو فشل
+      localStorage.removeItem('stars_token');
+      localStorage.removeItem('stars_user');
+      localStorage.removeItem('stars_role');
+      TOKEN = '';
+      USER = null;
+      ROLE = 'courier';
+      // refresh الـ UI للـ login screen
+      if(typeof selectRole === 'function') selectRole('courier');
+    });
   }
 
   // auto refresh للـ orders كل دقيقة (courier mode) - visibility-aware
