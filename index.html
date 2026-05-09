@@ -29,18 +29,19 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%230a0a0a'/%3E%3Cpath d='M50 20L58 40L80 42L62 56L68 78L50 66L32 78L38 56L20 42L42 40Z' fill='%23d4af37'/%3E%3C/svg%3E">
 <style>
 :root{
-  --bg:#0a0a0a;
-  --card:#1a1a1a;
-  --elev:#242424;
-  --border:#2a2a2a;
-  --gold:#d4af37;
-  --gold-dim:#b8901f;
-  --text:#f5f5f5;
-  --muted:#888;
-  --success:#10b981;
-  --danger:#ef4444;
-  --warn:#f59e0b;
-  --info:#3b82f6;
+  /* 🆕 v33: Light theme - أبيض ناعم مع accents ذهبية */
+  --bg:#f5f5f0;          /* خلفية رئيسية - cream فاتح */
+  --card:#ffffff;        /* الكروت والحاويات */
+  --elev:#fafaf5;        /* ارتفاع/تركيز - أبيض مصفر خفيف */
+  --border:#e5e1d6;      /* حدود - رمادي بيج */
+  --gold:#b8901f;        /* ذهبي أغمق للـ contrast على أبيض */
+  --gold-dim:#9a7517;    /* ذهبي داكن */
+  --text:#1a1a1a;        /* نص رئيسي - أسود تقريباً */
+  --muted:#6b6b6b;       /* نص ثانوي - رمادي */
+  --success:#059669;
+  --danger:#dc2626;
+  --warn:#d97706;
+  --info:#2563eb;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow-x:hidden}
@@ -50,25 +51,25 @@ input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
 a{color:inherit;text-decoration:none}
 
 /* ===== LOGIN SCREEN ===== */
-#login-screen{position:fixed;inset:0;background:linear-gradient(180deg,#000 0%,#0a0a0a 50%,#1a1a1a 100%);display:flex;align-items:center;justify-content:center;padding:24px;z-index:1000}
+#login-screen{position:fixed;inset:0;background:linear-gradient(180deg,#fafaf5 0%,#f5f0e6 50%,#ede4cf 100%);display:flex;align-items:center;justify-content:center;padding:24px;z-index:1000}
 .login-box{width:100%;max-width:360px;text-align:center}
 .logo-wrap{margin-bottom:40px}
 .logo-star{font-size:60px;color:var(--gold);margin-bottom:14px;filter:drop-shadow(0 0 20px rgba(212,175,55,.4))}
-.logo-name{font-size:28px;font-weight:900;letter-spacing:2px;background:linear-gradient(135deg,var(--gold) 0%,#fef3c7 50%,var(--gold) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.logo-name{font-size:28px;font-weight:900;letter-spacing:2px;background:linear-gradient(135deg,var(--gold-dim) 0%,var(--gold) 50%,var(--gold-dim) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
 .logo-sub{font-size:12px;color:var(--muted);letter-spacing:4px;text-transform:uppercase}
 .login-input{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;font-size:15px;margin-bottom:12px;color:var(--text);transition:border-color .2s}
 .login-input:focus{outline:none;border-color:var(--gold)}
 .login-input::placeholder{color:var(--muted)}
-.login-btn{width:100%;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-dim) 100%);color:#000;padding:16px;border-radius:14px;font-size:16px;font-weight:800;margin-top:8px;letter-spacing:.5px;box-shadow:0 4px 20px rgba(212,175,55,.3);transition:all .2s}
+.login-btn{width:100%;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-dim) 100%);color:#fff;padding:16px;border-radius:14px;font-size:16px;font-weight:800;margin-top:8px;letter-spacing:.5px;box-shadow:0 4px 20px rgba(184,144,31,.35);transition:all .2s}
 .login-btn:active{transform:scale(.98)}
 .login-btn:disabled{opacity:.6}
-.login-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
+.login-error{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);color:#dc2626;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px;font-weight:600}
 
 /* ===== APP LAYOUT ===== */
 #app{display:none;min-height:100vh;padding-bottom:80px}
 #app.active{display:block}
 
-.topbar{position:sticky;top:0;background:rgba(10,10,10,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;z-index:100}
+.topbar{position:sticky;top:0;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .topbar-title{display:flex;align-items:center;gap:8px}
 .topbar-title .star{color:var(--gold);font-size:18px}
 .topbar-title h1{font-size:16px;font-weight:800;letter-spacing:1px}
@@ -205,7 +206,7 @@ a{color:inherit;text-decoration:none}
 .fab:active{transform:scale(.94)}
 
 /* ===== MODAL ===== */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .2s}
 .modal-overlay.open{opacity:1;pointer-events:auto}
 .modal-sheet{background:var(--card);width:100%;max-width:500px;border-radius:20px 20px 0 0;padding:20px;max-height:90vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s;border-top:1px solid var(--border)}
 .modal-overlay.open .modal-sheet{transform:translateY(0)}
@@ -507,7 +508,7 @@ a{color:inherit;text-decoration:none}
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <div id="pos-online-indicator" style="font-size:11px;padding:4px 8px;border-radius:99px;background:#22c55e;color:#fff">🟢 Online</div>
         <button onclick="posOpenSalesHistory()" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">📋 السجل</button>
-        <button onclick="posOpenStats()" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">📊 اليوم</button>
+        <!-- 🆕 v33: شيلنا زرار "📊 اليوم" - الكاشير مش لازم يشوف الإحصائيات -->
         <button onclick="posForceRefresh()" style="padding:6px 10px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
         <button onclick="posOpenPrinterSettings()" id="pos-printer-btn" style="padding:6px 10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer" title="إعداد الطابعة">🖨️</button>
       </div>
@@ -850,52 +851,56 @@ a{color:inherit;text-decoration:none}
   <!-- ═══════════════════════════════════════════════ -->
   <!-- 🆕 v28: PICKUP DELIVER MODAL -->
   <!-- ═══════════════════════════════════════════════ -->
-  <div id="pickup-deliver-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.85);align-items:flex-end;justify-content:center">
-    <div style="background:var(--bg);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:18px;max-height:90vh;overflow-y:auto">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+  <div id="pickup-deliver-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.6);align-items:flex-end;justify-content:center">
+    <div style="background:var(--bg);width:100%;max-width:520px;border-radius:20px 20px 0 0;max-height:90vh;display:flex;flex-direction:column">
+      <!-- Header (sticky) -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 18px 0 18px;flex-shrink:0">
         <div style="font-weight:800;font-size:18px;color:var(--gold)">✅ تأكيد التسليم</div>
         <button onclick="pickupCloseDeliverModal()" style="background:transparent;border:none;color:var(--muted);font-size:28px;cursor:pointer">×</button>
       </div>
       
-      <!-- Order summary -->
-      <div id="pickup-deliver-summary" style="background:var(--elev);border-radius:12px;padding:14px;margin-bottom:14px"></div>
-      
-      <!-- Payment section (لو COD) -->
-      <div id="pickup-payment-section" style="display:none;margin-bottom:14px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--gold)">💰 تسجيل الدفع</div>
+      <!-- Scrollable body -->
+      <div style="flex:1;overflow-y:auto;padding:14px 18px">
+        <!-- Order summary -->
+        <div id="pickup-deliver-summary" style="background:var(--elev);border-radius:12px;padding:14px;margin-bottom:14px"></div>
         
-        <!-- Payment method selector -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
-          <button id="pickup-pm-cash" onclick="pickupSetMethod('cash')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-            💵 كاش
-          </button>
-          <button id="pickup-pm-visa" onclick="pickupSetMethod('visa')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-            💳 فيزا
-          </button>
-          <button id="pickup-pm-instapay" onclick="pickupSetMethod('instapay')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-            📱 InstaPay
-          </button>
+        <!-- Payment section (لو COD) -->
+        <div id="pickup-payment-section" style="display:none;margin-bottom:14px">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--gold)">💰 تسجيل الدفع</div>
+          
+          <!-- Payment method selector -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
+            <button id="pickup-pm-cash" onclick="pickupSetMethod('cash')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+              💵 كاش
+            </button>
+            <button id="pickup-pm-visa" onclick="pickupSetMethod('visa')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+              💳 فيزا
+            </button>
+            <button id="pickup-pm-instapay" onclick="pickupSetMethod('instapay')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+              📱 InstaPay
+            </button>
+          </div>
+          
+          <!-- Reference number (لـ visa/instapay) -->
+          <div id="pickup-ref-wrap" style="display:none;margin-bottom:10px">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">رقم المرجع</label>
+            <input type="text" id="pickup-ref-input" placeholder="آخر 4 أرقام أو الرقم الكامل" 
+                   style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;font-size:14px">
+          </div>
         </div>
         
-        <!-- Reference number (لـ visa/instapay) -->
-        <div id="pickup-ref-wrap" style="display:none;margin-bottom:10px">
-          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">رقم المرجع</label>
-          <input type="text" id="pickup-ref-input" placeholder="آخر 4 أرقام أو الرقم الكامل" 
-                 style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;font-size:14px">
+        <!-- Notes -->
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">ملاحظات (اختياري)</label>
+          <textarea id="pickup-notes-input" rows="2" placeholder="..." 
+                    style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;resize:vertical"></textarea>
         </div>
       </div>
       
-      <!-- Notes -->
-      <div style="margin-bottom:14px">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">ملاحظات (اختياري)</label>
-        <textarea id="pickup-notes-input" rows="2" placeholder="..." 
-                  style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;resize:vertical"></textarea>
-      </div>
-      
-      <!-- Action buttons -->
-      <div style="display:flex;gap:8px">
+      <!-- Action buttons (sticky bottom) -->
+      <div style="display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0">
         <button onclick="pickupCloseDeliverModal()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
-        <button onclick="pickupConfirmDeliver()" id="pickup-confirm-btn" style="flex:2;padding:14px;background:var(--gold);color:#000;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد التسليم</button>
+        <button onclick="pickupConfirmDeliver()" id="pickup-confirm-btn" style="flex:2;padding:14px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد التسليم</button>
       </div>
     </div>
   </div>
@@ -1857,6 +1862,33 @@ function showApp(){
     }
   }
   
+  // 🆕 v31: Pickup Orders tab - للـ cashier بس
+  const pickupNav = document.getElementById('nav-pickup-orders');
+  if(pickupNav){
+    if(ROLE === 'cashier'){
+      pickupNav.style.display = '';
+    } else {
+      pickupNav.style.display = 'none';
+    }
+  }
+  
+  // 🆕 v31: لو shop - اخفي كل الـ tabs التانية واظهر shop bs
+  if(ROLE === 'shop'){
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if(el.dataset.page !== 'shop') el.style.display = 'none';
+    });
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const shopNav = document.querySelector('.nav-item[data-page="shop"]');
+    if(shopNav){
+      shopNav.style.display = '';
+      shopNav.classList.add('active');
+    }
+    $('page-shop').classList.add('active');
+    loadShopOrders();
+    return;
+  }
+  
   // 🆕 v19: لو stocktaker - اخفي كل الـ nav التانية وروح للجرد على طول
   if(ROLE === 'stocktaker'){
     document.querySelectorAll('.nav-item').forEach(el => {
@@ -2734,6 +2766,22 @@ async function posUpdatePendingBadge(){
   } catch(e){}
 }
 
+// 🆕 v33: helper لبناء barcode index (يدعم extra_barcodes)
+function _posBuildBarcodeIndex(){
+  _posCatalogByBarcode = {};
+  for(const p of _posCatalog){
+    // الـ primary barcode + sku
+    if(p.barcode) _posCatalogByBarcode[String(p.barcode).trim()] = p;
+    if(p.sku) _posCatalogByBarcode[String(p.sku).trim()] = p;
+    // 🆕 الـ extra barcodes
+    if(Array.isArray(p.extra_barcodes)){
+      for(const eb of p.extra_barcodes){
+        if(eb && eb.barcode) _posCatalogByBarcode[String(eb.barcode).trim()] = p;
+      }
+    }
+  }
+}
+
 async function loadPosCatalog(){
   if(!_posStore) return;
   
@@ -2742,11 +2790,7 @@ async function loadPosCatalog(){
     const cached = await posDBGetAll('catalog');
     if(cached.length){
       _posCatalog = cached;
-      _posCatalogByBarcode = {};
-      _posCatalog.forEach(p => {
-        if(p.barcode) _posCatalogByBarcode[p.barcode.trim()] = p;
-        if(p.sku) _posCatalogByBarcode[p.sku.trim()] = p;
-      });
+      _posBuildBarcodeIndex();
       posRenderProducts();
       
       // عرض إنه من cache
@@ -2771,11 +2815,7 @@ async function loadPosCatalog(){
         
         // index
         _posCatalog = products;
-        _posCatalogByBarcode = {};
-        _posCatalog.forEach(p => {
-          if(p.barcode) _posCatalogByBarcode[p.barcode.trim()] = p;
-          if(p.sku) _posCatalogByBarcode[p.sku.trim()] = p;
-        });
+        _posBuildBarcodeIndex();
         
         await posDBPut('meta', { key: 'catalogLastSync', value: Date.now() });
         
@@ -4997,31 +5037,66 @@ async function smgrLoadCashiers(){
   c.innerHTML = _smgrCashiers.map(cash => {
     const lastSale = cash.last_sale_at ? new Date(cash.last_sale_at).toLocaleString('ar-EG', {dateStyle: 'short', timeStyle: 'short'}) : '—';
     
+    // 🆕 v33: rating stars
+    const rating = parseFloat(cash.rating || 0);
+    const fullStars = Math.floor(rating);
+    const halfStar = (rating - fullStars) >= 0.5 ? 1 : 0;
+    const emptyStars = 5 - fullStars - halfStar;
+    const starsHtml = '★'.repeat(fullStars) + (halfStar ? '⯨' : '') + '☆'.repeat(emptyStars);
+    
+    const ratingColor = rating >= 4.5 ? '#22c55e' :
+                        rating >= 3.5 ? '#3b82f6' :
+                        rating >= 2.5 ? '#f59e0b' :
+                        rating >= 1.5 ? '#f97316' : '#ef4444';
+    
     return `
-      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px">
-          <div style="flex:1">
-            <div style="font-weight:800;font-size:14px;color:var(--gold)">👤 ${escapeHtml(cash.name)}</div>
-            <div style="font-size:11px;color:var(--muted)">📱 ${escapeHtml(cash.phone || '')}</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:3px">آخر بيعة: ${lastSale}</div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+        <!-- Header مع rating -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:800;font-size:15px;color:var(--gold)">👤 ${escapeHtml(cash.name)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">📱 ${escapeHtml(cash.phone || '—')}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">آخر بيعة: ${lastSale}</div>
           </div>
-          <span style="font-size:10px;padding:3px 8px;border-radius:99px;background:${cash.status === 'نشط' || !cash.status ? '#22c55e20' : '#ef444420'};color:${cash.status === 'نشط' || !cash.status ? '#22c55e' : '#ef4444'}">${cash.status || 'نشط'}</span>
+          <div style="text-align:left;flex-shrink:0">
+            <div style="font-size:18px;color:${ratingColor};letter-spacing:1px;line-height:1">${starsHtml}</div>
+            <div style="font-size:10px;color:${ratingColor};font-weight:800;margin-top:3px">${rating.toFixed(1)} / 5.0</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px">${cash.rating_label || ''}</div>
+          </div>
         </div>
         
-        <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-            <span style="color:var(--muted)">بيعات اليوم:</span>
-            <span style="font-weight:800">${cash.today_sales || 0}</span>
+        <!-- KPIs grid -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+          <div style="background:var(--elev);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:10px;color:var(--muted)">اليوم</div>
+            <div style="font-weight:800;font-size:13px;color:var(--gold);font-family:Roboto,sans-serif">${parseFloat(cash.today_total||0).toFixed(0)} ج</div>
+            <div style="font-size:9px;color:var(--muted)">${cash.today_sales||0} بيعة</div>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:14px">
-            <span style="color:var(--muted)">إجمالي اليوم:</span>
-            <span style="font-weight:800;color:var(--gold)">${parseFloat(cash.today_total || 0).toFixed(0)} ج</span>
+          <div style="background:var(--elev);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:10px;color:var(--muted)">الأسبوع</div>
+            <div style="font-weight:800;font-size:13px;color:var(--gold);font-family:Roboto,sans-serif">${parseFloat(cash.week_total||0).toFixed(0)} ج</div>
+            <div style="font-size:9px;color:var(--muted)">${cash.week_sales||0} بيعة</div>
           </div>
+          <div style="background:var(--elev);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:10px;color:var(--muted)">الشهر</div>
+            <div style="font-weight:800;font-size:13px;color:var(--gold);font-family:Roboto,sans-serif">${parseFloat(cash.month_total||0).toFixed(0)} ج</div>
+            <div style="font-size:9px;color:var(--muted)">${cash.month_sales||0} بيعة</div>
+          </div>
+        </div>
+        
+        <!-- متوسط + status -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:10px;font-size:12px">
+          <div>
+            <span style="color:var(--muted)">متوسط البيعة:</span>
+            <span style="font-weight:700;color:var(--text);margin-right:6px;font-family:Roboto,sans-serif">${parseFloat(cash.avg_sale_30d||0).toFixed(0)} ج</span>
+          </div>
+          ${cash.cancelled_30d > 0 ? `<span style="color:#ef4444;font-size:11px">⚠️ ${cash.cancelled_30d} ملغية</span>` : ''}
+          <span style="font-size:10px;padding:3px 8px;border-radius:99px;background:${cash.status === 'نشط' || !cash.status ? '#22c55e20' : '#ef444420'};color:${cash.status === 'نشط' || !cash.status ? '#22c55e' : '#ef4444'}">${cash.status || 'نشط'}</span>
         </div>
         
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
           <button onclick="smgrViewCashierSales(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📋 بيعاته</button>
-          <button onclick="smgrOpenSettlement(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px;background:var(--gold);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">💰 تصفية</button>
+          <button onclick="smgrOpenSettlement(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">💰 تصفية</button>
         </div>
       </div>
     `;
