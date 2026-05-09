@@ -276,20 +276,15 @@ a{color:inherit;text-decoration:none}
     <div class="logo-wrap">
       <div class="logo-star">⭐</div>
       <div class="logo-name">CAFELAX STARS</div>
-      <div class="logo-sub" id="login-sub">COURIER</div>
+      <div class="logo-sub" id="login-sub">تسجيل الدخول</div>
     </div>
-    <!-- Role selector -->
-    <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--card);padding:4px;border-radius:12px;border:1px solid var(--border)">
-      <button id="role-courier" class="role-btn active" onclick="selectRole('courier')" style="flex:1;padding:10px;border-radius:10px;font-size:13px;font-weight:700;background:var(--gold);color:#000;border:none;font-family:Cairo,sans-serif;cursor:pointer">🚴 مندوب</button>
-      <button id="role-shop" class="role-btn" onclick="selectRole('shop')" style="flex:1;padding:10px;border-radius:10px;font-size:13px;font-weight:700;background:transparent;color:var(--muted);border:none;font-family:Cairo,sans-serif;cursor:pointer">🏪 موظف محل</button>
-    </div>
+    <!-- 🆕 v31: شاشة دخول موحّدة - بدون role selector -->
     <div id="login-error" class="login-error" style="display:none"></div>
     <input type="text" class="login-input" id="login-username" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" spellcheck="false">
     <input type="password" class="login-input" id="login-password" placeholder="كلمة المرور" autocomplete="current-password">
     <button class="login-btn" id="login-btn">تسجيل الدخول</button>
-    <!-- 🆕 v30: ظهرنا الـ debug fields بشكل دائم عشان لو فيه مشكلة connection -->
     <details style="margin-top:14px">
-      <summary style="cursor:pointer;font-size:11px;color:#666;text-align:center">⚙️ خيارات متقدمة (لو فيه مشكلة دخول)</summary>
+      <summary style="cursor:pointer;font-size:11px;color:#666;text-align:center">⚙️ خيارات متقدمة</summary>
       <div style="margin-top:10px">
         <div style="font-size:11px;color:#666;margin-bottom:4px">رابط السيرفر:</div>
         <input type="text" class="login-input" id="login-api-url" placeholder="https://orderpro-backend-production.up.railway.app" style="font-size:12px;direction:ltr;text-align:left">
@@ -1599,40 +1594,11 @@ async function apiFetch(path, method = 'GET', body = null){
 }
 
 // ===== ROLE SELECTOR =====
+// 🆕 v31: selectRole بقت no-op (الـ role بيتحدد من السيرفر بعد الـ login)
+// خلّيناها للـ backwards compatibility مع كود قديم
 function selectRole(role){
-  // 🆕 v30: لو الـ role اتغير، امسح الـ token القديم عشان مش يحصل تعارض
-  const oldRole = localStorage.getItem('stars_role');
-  if(oldRole && oldRole !== role){
-    localStorage.removeItem('stars_token');
-    localStorage.removeItem('stars_user');
-    TOKEN = '';
-    USER = null;
-    console.log(`Role changed: ${oldRole} → ${role}, cleared old session`);
-  }
-  
   ROLE = role;
   localStorage.setItem('stars_role', role);
-  // تحديث الـ UI
-  const btnCourier = $('role-courier');
-  const btnShop = $('role-shop');
-  const sub = $('login-sub');
-  if(role === 'courier'){
-    btnCourier.classList.add('active');
-    btnCourier.style.background = 'var(--gold)';
-    btnCourier.style.color = '#000';
-    btnShop.classList.remove('active');
-    btnShop.style.background = 'transparent';
-    btnShop.style.color = 'var(--muted)';
-    if(sub) sub.textContent = 'COURIER';
-  } else {
-    btnShop.classList.add('active');
-    btnShop.style.background = 'var(--gold)';
-    btnShop.style.color = '#000';
-    btnCourier.classList.remove('active');
-    btnCourier.style.background = 'transparent';
-    btnCourier.style.color = 'var(--muted)';
-    if(sub) sub.textContent = 'SHOP STAFF';
-  }
 }
 
 // ===== LOGIN =====
@@ -1664,13 +1630,11 @@ async function doLogin(){
       throw new Error('فشل تشفير كلمة المرور — حدّث المتصفح');
     }
 
-    // اختار endpoint حسب الـ role
-    const endpoint = ROLE === 'shop' ? '/api/shop/login' : '/api/courier/login';
-
+    // 🆕 v31: استخدم endpoint موحد - السيرفر هيختار التابل المناسب
     let r;
     try{
       r = await Promise.race([
-        api(endpoint, { method: 'POST', body: { username, passHash } }),
+        api('/api/auth/login', { method: 'POST', body: { username, passHash } }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('انتهت مهلة الاتصال')), 15000))
       ]);
     }catch(netErr){
@@ -1682,22 +1646,22 @@ async function doLogin(){
     }
 
     if(!r || !r.success){
-      // 🆕 v29: debug message أوضح
-      let errMsg = 'اسم المستخدم أو كلمة المرور غير صحيحة';
-      if(r && r.error){
-        errMsg = r.error;
-      } else if(!r){
-        errMsg = 'لم يصل رد من السيرفر - الـ API URL: ' + apiUrl;
-      }
-      console.error('Login failed:', { r, endpoint, apiUrl, username });
-      showLoginError(errMsg + ' (شوف Console للتفاصيل)');
+      console.error('Login failed:', { r, apiUrl, username });
+      showLoginError((r && r.error) || 'اسم المستخدم أو كلمة المرور غير صحيحة');
       return;
     }
+    
+    // 🆕 v31: السيرفر بيرجع user object كامل مع role + permissions
     TOKEN = r.token;
-    USER = ROLE === 'shop' ? r.user : r.courier;
+    USER = r.user;
+    ROLE = USER.role || 'courier';  // الـ role جاي من السيرفر
+    
     localStorage.setItem('stars_token', TOKEN);
     localStorage.setItem('stars_user', JSON.stringify(USER));
     localStorage.setItem('stars_role', ROLE);
+    
+    console.log(`✅ Login OK: ${USER.username} (${ROLE}), source: ${r.source}`);
+    
     showApp();
   }catch(e){
     showLoginError('❌ ' + e.message);
@@ -7489,21 +7453,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // اعرض معلومات تشخيص
   showDiagnostics();
 
-  // 🆕 v30: تأكد إن الـ token + role متطابقين قبل ما تستخدمهم
-  // (لو المستخدم سجل قبل كده بـ role تاني، الـ session هتفشل)
-  if(TOKEN && USER){
-    const checkEndpoint = ROLE === 'shop' ? '/api/shop/me' : '/api/courier/me';
-    api(checkEndpoint).then(() => showApp()).catch((err) => {
-      console.warn('Session check failed - clearing all auth data:', err?.message);
-      // مسح كامل للـ session لو فشل
+  // 🆕 v31: استخدم /api/auth/me - يدعم tokens من الاتنين
+  if(TOKEN){
+    api('/api/auth/me').then(r => {
+      // حدّث user و role من السيرفر (لو حصل تغيير)
+      if(r && r.user){
+        USER = r.user;
+        ROLE = r.user.role || ROLE || 'courier';
+        localStorage.setItem('stars_user', JSON.stringify(USER));
+        localStorage.setItem('stars_role', ROLE);
+      }
+      showApp();
+    }).catch((err) => {
+      console.warn('Session check failed - clearing auth data:', err?.message);
       localStorage.removeItem('stars_token');
       localStorage.removeItem('stars_user');
       localStorage.removeItem('stars_role');
       TOKEN = '';
       USER = null;
       ROLE = 'courier';
-      // refresh الـ UI للـ login screen
-      if(typeof selectRole === 'function') selectRole('courier');
     });
   }
 
