@@ -982,35 +982,111 @@ a{color:inherit;text-decoration:none}
     </div>
   </div>
   
-  <!-- 🆕 v26: Printer Settings Modal -->
+  <!-- 🆕 v35: Universal Printer Modal (USB / Network / Bluetooth / Browser) -->
   <div id="pos-printer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
-    <div style="background:var(--bg);max-width:500px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
+    <div style="background:var(--bg);max-width:560px;margin:0 auto;border-radius:14px;padding:18px;border:1px solid var(--gold)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <h3 style="margin:0;color:var(--gold)">🖨️ إعداد الطابعة</h3>
         <button onclick="posClosePrinterSettings()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
       </div>
-      
-      <div id="pos-printer-status" style="background:var(--elev);border-radius:8px;padding:14px;margin-bottom:14px;text-align:center">
-        <div style="font-size:32px;margin-bottom:8px">🔌</div>
-        <div style="font-weight:700;font-size:14px" id="pos-printer-status-text">جاري التحميل...</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px" id="pos-printer-status-detail"></div>
+
+      <!-- Status banner -->
+      <div id="pos-printer-status" style="background:var(--elev);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center">
+        <div style="font-size:28px;margin-bottom:6px" id="pos-printer-status-icon">🔌</div>
+        <div style="font-weight:800;font-size:13px" id="pos-printer-status-text">مفيش طابعة</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px" id="pos-printer-status-detail"></div>
       </div>
-      
-      <div style="background:rgba(59,130,246,.1);border:1px solid #3b82f6;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;line-height:1.7;color:#1e3a8a">
-        <strong>💡 ملاحظات مهمة:</strong><br>
-        • الطابعة لازم تكون ESC/POS متوافقة (Bluetooth)<br>
-        • الـ paper width = 80mm<br>
-        • شغّل البلوتوث في التابلت قبل الربط<br>
-        • متصفح Chrome/Edge بس (مش Safari/Firefox)
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);overflow-x:auto">
+        <button class="upr-tab upr-tab-on" data-tab="usb" onclick="uprSelectTab('usb')" style="flex:1;min-width:80px;padding:10px 6px;background:transparent;color:var(--text);border:none;border-bottom:2px solid var(--gold);font-family:Cairo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">🔌 USB</button>
+        <button class="upr-tab" data-tab="network" onclick="uprSelectTab('network')" style="flex:1;min-width:80px;padding:10px 6px;background:transparent;color:var(--muted);border:none;border-bottom:2px solid transparent;font-family:Cairo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">🌐 شبكة</button>
+        <button class="upr-tab" data-tab="bluetooth" onclick="uprSelectTab('bluetooth')" style="flex:1;min-width:80px;padding:10px 6px;background:transparent;color:var(--muted);border:none;border-bottom:2px solid transparent;font-family:Cairo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">📶 BT</button>
+        <button class="upr-tab" data-tab="browser" onclick="uprSelectTab('browser')" style="flex:1;min-width:80px;padding:10px 6px;background:transparent;color:var(--muted);border:none;border-bottom:2px solid transparent;font-family:Cairo,sans-serif;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">🖥️ متصفح</button>
       </div>
-      
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button onclick="posConnectPrinter()" id="pos-printer-connect" style="padding:14px;background:#3b82f6;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🔗 ربط طابعة Bluetooth</button>
-        <button onclick="posDisconnectPrinter()" id="pos-printer-disconnect" style="display:none;padding:14px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🔌 فصل الطابعة</button>
-        <button onclick="posTestPrint()" id="pos-printer-test" style="display:none;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">🧪 طباعة اختبار</button>
+
+      <!-- USB tab -->
+      <div class="upr-tab-pane" id="upr-pane-usb">
+        <div style="background:rgba(59,130,246,.1);border:1px solid #3b82f6;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.7;color:#bfdbfe">
+          <strong>🔌 طابعة USB:</strong> EPSON, Star, Bixolon, Citizen, إلخ. وصل الـ USB، اضغط ربط، واختار من القائمة.<br>
+          <strong>المتصفح:</strong> Chrome / Edge على Android/Windows/Mac (Linux برضه).
+        </div>
+        <div id="upr-usb-info" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button onclick="uprConnectUSB()" id="upr-usb-connect-btn" style="padding:13px;background:#3b82f6;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔗 ربط طابعة USB</button>
+          <button onclick="uprDisconnect()" id="upr-usb-disc-btn" style="display:none;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔌 فصل</button>
+        </div>
+      </div>
+
+      <!-- Network tab -->
+      <div class="upr-tab-pane" id="upr-pane-network" style="display:none">
+        <div style="background:rgba(34,197,94,.1);border:1px solid #22c55e;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.7;color:#bbf7d0">
+          <strong>🌐 طابعة شبكة (TCP raw 9100):</strong> أي طابعة على نفس الـ WiFi/LAN. ادخل IP والـ port.<br>
+          <strong>ملاحظة:</strong> المتصفح ما يقدرش يبعت TCP مباشرة - بنبعت عبر Backend bridge.
+        </div>
+        <div style="display:grid;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--muted)">IP الطابعة</label>
+            <input type="text" id="upr-net-ip" placeholder="192.168.1.50" style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Courier New',monospace;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted)">Port</label>
+            <input type="number" id="upr-net-port" value="9100" style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Courier New',monospace;font-size:13px">
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+          <button onclick="uprConnectNetwork()" id="upr-net-connect-btn" style="padding:13px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">💾 احفظ وتحقق</button>
+          <button onclick="uprDisconnect()" id="upr-net-disc-btn" style="display:none;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔌 فصل</button>
+        </div>
+      </div>
+
+      <!-- Bluetooth tab -->
+      <div class="upr-tab-pane" id="upr-pane-bluetooth" style="display:none">
+        <div style="background:rgba(139,92,246,.1);border:1px solid #8b5cf6;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.7;color:#ddd6fe">
+          <strong>📶 طابعة Bluetooth:</strong> أي طابعة BT thermal (BLE).<br>
+          شغّل البلوتوث في التابلت، اضغط ربط، واختار طابعتك.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button onclick="uprConnectBluetooth()" id="upr-bt-connect-btn" style="padding:13px;background:#8b5cf6;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔗 ربط طابعة Bluetooth</button>
+          <button onclick="uprDisconnect()" id="upr-bt-disc-btn" style="display:none;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔌 فصل</button>
+        </div>
+      </div>
+
+      <!-- Browser tab -->
+      <div class="upr-tab-pane" id="upr-pane-browser" style="display:none">
+        <div style="background:rgba(107,114,128,.1);border:1px solid #6b7280;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.7;color:#d1d5db">
+          <strong>🖥️ طباعة عبر المتصفح:</strong> Fallback لما الطابعة الجديدة مش متاحة.<br>
+          هيفتح dialog طباعة المتصفح. تختار الطابعة من نظام التشغيل.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button onclick="uprActivateBrowser()" id="upr-br-connect-btn" style="padding:13px;background:#6b7280;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">✅ استخدم المتصفح للطباعة</button>
+          <button onclick="uprDisconnect()" id="upr-br-disc-btn" style="display:none;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🔌 إلغاء</button>
+        </div>
+      </div>
+
+      <!-- Common settings -->
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">عرض الورق</label>
+            <select id="upr-paper-width" onchange="uprSaveCommonSettings()" style="width:100%;padding:9px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px">
+              <option value="80">80mm (32 char)</option>
+              <option value="58">58mm (24 char)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">طباعة تلقائية</label>
+            <select id="upr-autoprint" onchange="uprSaveCommonSettings()" style="width:100%;padding:9px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px">
+              <option value="0">لا</option>
+              <option value="1">نعم - بعد كل بيعة</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="uprTestPrint()" id="upr-test-btn" style="width:100%;padding:12px;background:#f59e0b;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🧪 طباعة اختبار</button>
       </div>
     </div>
   </div>
+
   
   <div id="pos-receipt-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
     <div style="background:#fff;color:#000;max-width:380px;margin:0 auto;border-radius:14px;padding:20px;font-family:'Courier New',monospace" id="pos-receipt-content">
@@ -4335,53 +4411,65 @@ function posShowReceipt(data){
   if(waBtn){
     waBtn.style.display = data.customer?.phone ? '' : 'none';
   }
+
+  // 🆕 v35: Auto-print لو الإعداد مفعّل
+  if(typeof _uprAutoPrint !== 'undefined' && _uprAutoPrint){
+    setTimeout(() => {
+      try { posPrintReceipt(); } catch(e){ console.warn('auto-print failed:', e); }
+    }, 600); // delay صغير عشان الـ DOM يتحدث وعشان الـ user يشوف الـ receipt
+  }
 }
 
 async function posPrintReceipt(){
   const sale = window._posLastSale;
-  
-  // 🆕 v26: لو الطابعة متصلة، استخدمها
-  if(_posPrinterCharacteristic && sale){
-    toast('🖨️ جاري الطباعة...', 'info');
-    const ok = await posPrintReceiptBluetooth(sale);
-    if(ok){
-      toast('✅ تمت الطباعة', 'success');
-      // افتح WhatsApp بعد 2 ثانية
-      if(sale.customer?.phone && _posIsOnline){
-        setTimeout(() => posSendWhatsApp(), 2000);
-      }
-      return;
-    }
-    toast('⚠️ فشلت طباعة Bluetooth - هنستخدم المتصفح', 'warning');
-  }
-  
-  // Fallback: طباعة عبر المتصفح (الـ popup)
+  if(!sale){ toast('❌ مفيش بيعة', 'error'); return; }
+
+  // 🆕 v35: Universal Printer - يجرب الـ active driver، fallback لمتصفح
+  toast('🖨️ جاري الطباعة...', 'info');
+
+  // جهز HTML للـ browser fallback
   const content = $('pos-receipt-content').innerHTML;
+
+  try {
+    if(typeof uprPrintReceipt === 'function'){
+      const ok = await uprPrintReceipt(sale, content);
+      if(ok){
+        toast('✅ تمت الطباعة', 'success');
+        if(sale.customer?.phone && _posIsOnline){
+          setTimeout(() => posSendWhatsApp(), 2000);
+        }
+        return;
+      }
+    }
+  } catch(e){
+    console.error('UPR print failed:', e);
+  }
+
+  // Last-resort browser fallback (if uprPrintReceipt itself failed)
   const w = window.open('', '_blank', 'width=400,height=700');
   if(!w){ toast('❌ السماح للنافذة المنبثقة', 'error'); return; }
+  const widthMm = (typeof _uprPaperWidth !== 'undefined' && _uprPaperWidth === 58) ? '58mm' : '80mm';
   w.document.write(`
     <!DOCTYPE html>
     <html dir="rtl">
     <head>
+      <meta charset="utf-8">
       <title>إيصال</title>
       <style>
-        @page { size: 80mm auto; margin: 0; }
-        body { font-family: 'Courier New', monospace; padding: 8px; max-width: 80mm; margin: 0 auto; }
+        @page { size: ${widthMm} auto; margin: 0; }
+        body { font-family: 'Cairo','Tahoma',sans-serif; padding: 6px; max-width: ${widthMm}; margin: 0 auto; }
       </style>
     </head>
     <body>
       ${content}
-      <script>window.print();setTimeout(()=>window.close(),500);<\/script>
+      <script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script>
     </body>
     </html>
   `);
   w.document.close();
-  
-  // 🆕 v25: لو فيه عميل برقم موبايل، افتح WhatsApp بعد ثانيتين
+
   if(sale?.customer?.phone && _posIsOnline){
-    setTimeout(() => {
-      posSendWhatsApp();
-    }, 2000);
+    setTimeout(() => { posSendWhatsApp(); }, 2000);
   }
 }
 
@@ -4713,313 +4801,780 @@ async function posDeleteHeld(id){
 }
 
 // ============================================================
-// 🆕 v26: BLUETOOTH PRINTING (ESC/POS)
+// 🆕 v35: UNIVERSAL PRINTER (UPR)
+// ============================================================
+// Drivers: WebUSB, Network (TCP raw 9100 via backend), Web Bluetooth, Browser
+// Features: ESC/POS receipt builder (AR+EN), 4-tab UI, save config, auto-print,
+//           fallback chain, 80mm/58mm, test print
 // ============================================================
 
-let _posPrinterDevice = null;
-let _posPrinterCharacteristic = null;
+// ─── State ─────────────────────────────────────────────────
+let _uprActiveDriver = null;   // 'usb' | 'network' | 'bluetooth' | 'browser' | null
+let _uprUSBDevice = null;
+let _uprUSBEndpoint = null;
+let _uprBTDevice = null;
+let _uprBTChar = null;
+let _uprNetConfig = null;      // { ip, port }
+let _uprPaperWidth = 80;       // 80 or 58
+let _uprAutoPrint = false;
 
-// ESC/POS commands
-const ESC = '\x1b';
-const GS = '\x1d';
-const ESC_INIT = ESC + '@';
-const ESC_BOLD_ON = ESC + 'E\x01';
-const ESC_BOLD_OFF = ESC + 'E\x00';
-const ESC_DOUBLE_HEIGHT = GS + '!\x01';
-const ESC_DOUBLE_WIDTH = GS + '!\x10';
-const ESC_DOUBLE_BOTH = GS + '!\x11';
-const ESC_NORMAL = GS + '!\x00';
-const ESC_ALIGN_CENTER = ESC + 'a\x01';
-const ESC_ALIGN_LEFT = ESC + 'a\x00';
-const ESC_ALIGN_RIGHT = ESC + 'a\x02';
-const ESC_FEED_3 = '\n\n\n';
-const ESC_CUT = GS + 'V\x42\x00';
+// ─── ESC/POS constants ─────────────────────────────────────
+const _UESC = '\x1b';
+const _UGS = '\x1d';
+const UPR_CMD = {
+  INIT:           _UESC + '@',
+  BOLD_ON:        _UESC + 'E\x01',
+  BOLD_OFF:       _UESC + 'E\x00',
+  DBL_HEIGHT:     _UGS + '!\x01',
+  DBL_WIDTH:      _UGS + '!\x10',
+  DBL_BOTH:       _UGS + '!\x11',
+  NORMAL:         _UGS + '!\x00',
+  ALIGN_CENTER:   _UESC + 'a\x01',
+  ALIGN_LEFT:     _UESC + 'a\x00',
+  ALIGN_RIGHT:    _UESC + 'a\x02',
+  CUT:            _UGS + 'V\x42\x00',
+  FEED_3:         '\n\n\n',
+  // CP1256 = Arabic. Some printers map differently; we encode as bytes via UTF-8 fallback.
+  // For Arabic on EPSON TM-m30II → use codepage 22 (CP864) or graphic mode.
+  // We default to plain ASCII; Arabic mode is opt-in via uprPrintArabic flag.
+  CODEPAGE_PC864: _UESC + 't\x16',  // Arabic
+  CODEPAGE_PC437: _UESC + 't\x00',  // English default
+};
 
-// Generic Bluetooth printer service UUIDs (الأكثر شيوعاً)
-const PRINTER_SERVICES = [
-  '000018f0-0000-1000-8000-00805f9b34fb', // generic printer
-  '0000ff00-0000-1000-8000-00805f9b34fb', // common alternate
-  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // BLE printers
+// ─── Persisted config helpers ──────────────────────────────
+const UPR_CONFIG_KEY = 'upr_printer_config_v1';
+
+function uprLoadConfig(){
+  try {
+    const raw = localStorage.getItem(UPR_CONFIG_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  } catch(e){ return null; }
+}
+
+function uprSaveConfig(cfg){
+  try {
+    localStorage.setItem(UPR_CONFIG_KEY, JSON.stringify(cfg));
+  } catch(e){}
+}
+
+function uprGetConfig(){
+  return {
+    activeDriver: _uprActiveDriver,
+    paperWidth: _uprPaperWidth,
+    autoPrint: _uprAutoPrint,
+    network: _uprNetConfig,
+    usbVendorId: _uprUSBDevice?.vendorId || null,
+    usbProductId: _uprUSBDevice?.productId || null,
+    btDeviceName: _uprBTDevice?.name || null,
+  };
+}
+
+function uprPersist(){
+  uprSaveConfig(uprGetConfig());
+}
+
+// ─── Tab UI ────────────────────────────────────────────────
+function uprSelectTab(tabName){
+  document.querySelectorAll('.upr-tab').forEach(b => {
+    const isOn = b.dataset.tab === tabName;
+    b.classList.toggle('upr-tab-on', isOn);
+    b.style.color = isOn ? 'var(--text)' : 'var(--muted)';
+    b.style.borderBottom = isOn ? '2px solid var(--gold)' : '2px solid transparent';
+  });
+  document.querySelectorAll('.upr-tab-pane').forEach(p => {
+    p.style.display = p.id === ('upr-pane-' + tabName) ? '' : 'none';
+  });
+}
+
+// ─── Status banner update ──────────────────────────────────
+function uprUpdateStatus(){
+  const iconEl = document.getElementById('pos-printer-status-icon');
+  const textEl = document.getElementById('pos-printer-status-text');
+  const detailEl = document.getElementById('pos-printer-status-detail');
+  const headerBtn = document.getElementById('pos-printer-btn');
+  if(!iconEl) return;
+
+  const driver = _uprActiveDriver;
+  const connected = uprIsConnected();
+
+  // Toggle disconnect buttons + connect buttons per tab
+  ['usb','net','bt','br'].forEach(k=>{
+    const cb = document.getElementById('upr-'+k+'-connect-btn');
+    const db = document.getElementById('upr-'+k+'-disc-btn');
+    if(!cb || !db) return;
+    const myDriver = ({usb:'usb', net:'network', bt:'bluetooth', br:'browser'})[k];
+    if(connected && driver === myDriver){
+      cb.style.display = 'none';
+      db.style.display = '';
+    } else {
+      cb.style.display = '';
+      db.style.display = 'none';
+    }
+  });
+
+  if(connected){
+    let label = '';
+    let detail = '';
+    if(driver === 'usb'){
+      label = 'متصلة عبر USB';
+      detail = (_uprUSBDevice?.productName || _uprUSBDevice?.manufacturerName || 'USB Printer')
+             + ` (vid:${_uprUSBDevice?.vendorId?.toString(16)}, pid:${_uprUSBDevice?.productId?.toString(16)})`;
+      iconEl.textContent = '🔌';
+    } else if(driver === 'network'){
+      label = 'متصلة عبر الشبكة';
+      detail = (_uprNetConfig?.ip || '') + ':' + (_uprNetConfig?.port || 9100);
+      iconEl.textContent = '🌐';
+    } else if(driver === 'bluetooth'){
+      label = 'متصلة عبر Bluetooth';
+      detail = _uprBTDevice?.name || 'BT Printer';
+      iconEl.textContent = '📶';
+    } else if(driver === 'browser'){
+      label = 'وضع طباعة المتصفح';
+      detail = 'بيستخدم نافذة الطباعة في النظام';
+      iconEl.textContent = '🖥️';
+    }
+    textEl.textContent = label;
+    textEl.style.color = '#22c55e';
+    detailEl.textContent = detail;
+    if(headerBtn){ headerBtn.style.color = '#22c55e'; headerBtn.style.borderColor = '#22c55e'; }
+  } else {
+    iconEl.textContent = '🔌';
+    textEl.textContent = 'مفيش طابعة';
+    textEl.style.color = '';
+    detailEl.textContent = 'اختار driver وضغط ربط';
+    if(headerBtn){ headerBtn.style.color = 'var(--text)'; headerBtn.style.borderColor = 'var(--border)'; }
+  }
+}
+
+function uprIsConnected(){
+  if(_uprActiveDriver === 'usb')        return !!(_uprUSBDevice && _uprUSBDevice.opened);
+  if(_uprActiveDriver === 'network')    return !!(_uprNetConfig && _uprNetConfig.ip);
+  if(_uprActiveDriver === 'bluetooth')  return !!(_uprBTDevice && _uprBTDevice.gatt?.connected && _uprBTChar);
+  if(_uprActiveDriver === 'browser')    return true;
+  return false;
+}
+
+// ─── Open / close modal ────────────────────────────────────
+async function posOpenPrinterSettings(){
+  document.getElementById('pos-printer-modal').style.display = 'block';
+  // Restore form values
+  const cfg = uprLoadConfig() || {};
+  if(cfg.network && document.getElementById('upr-net-ip')){
+    document.getElementById('upr-net-ip').value = cfg.network.ip || '';
+    document.getElementById('upr-net-port').value = cfg.network.port || 9100;
+  }
+  if(document.getElementById('upr-paper-width')){
+    document.getElementById('upr-paper-width').value = String(_uprPaperWidth);
+    document.getElementById('upr-autoprint').value = _uprAutoPrint ? '1' : '0';
+  }
+  // Show info about current USB devices already paired
+  uprRefreshUSBInfo();
+  uprUpdateStatus();
+  // Default to active tab if any
+  if(_uprActiveDriver) uprSelectTab(_uprActiveDriver);
+}
+
+function posClosePrinterSettings(){
+  document.getElementById('pos-printer-modal').style.display = 'none';
+}
+
+function uprSaveCommonSettings(){
+  const w = +document.getElementById('upr-paper-width').value || 80;
+  const ap = document.getElementById('upr-autoprint').value === '1';
+  _uprPaperWidth = w === 58 ? 58 : 80;
+  _uprAutoPrint = ap;
+  uprPersist();
+  toast('💾 الإعدادات اتحفظت', 'success');
+}
+
+// ────────────────────────────────────────────────────────────
+// DRIVER 1: WebUSB
+// ────────────────────────────────────────────────────────────
+
+async function uprRefreshUSBInfo(){
+  const el = document.getElementById('upr-usb-info');
+  if(!el) return;
+  if(!navigator.usb){
+    el.innerHTML = '<span style="color:#f87171">⚠️ المتصفح لا يدعم WebUSB. استخدم Chrome/Edge.</span>';
+    return;
+  }
+  try {
+    const devices = await navigator.usb.getDevices();
+    if(devices.length){
+      el.innerHTML = `🔍 ${devices.length} طابعة USB مربوطة قبل كده`;
+    } else {
+      el.innerHTML = '🔍 مفيش طابعة USB مربوطة - اضغط ربط لإضافة';
+    }
+  } catch(e){ el.textContent = ''; }
+}
+
+async function uprConnectUSB(){
+  if(!navigator.usb){
+    toast('❌ المتصفح لا يدعم WebUSB', 'error');
+    return;
+  }
+  try {
+    toast('🔍 ابحث عن طابعة USB...', 'info');
+    // Filter for printer interface class (0x07) - covers most thermal printers
+    // Plus common vendor IDs for popular brands
+    const filters = [
+      { classCode: 0x07 },                     // Printer class
+      { vendorId: 0x04b8 },                    // EPSON
+      { vendorId: 0x0519 },                    // Star Micronics
+      { vendorId: 0x0525 },                    // Citizen
+      { vendorId: 0x1504 },                    // Bixolon
+      { vendorId: 0x0fe6 },                    // SNBC / Generic
+      { vendorId: 0x28e9 },                    // Generic POS
+      { vendorId: 0x154f },                    // SNBC
+      { vendorId: 0x067b },                    // Prolific (USB-Serial bridge)
+    ];
+    const device = await navigator.usb.requestDevice({ filters });
+    await device.open();
+    if(device.configuration === null) await device.selectConfiguration(1);
+
+    // Find printer interface (class 0x07) or first interface with bulk OUT endpoint
+    let chosenIfaceNum = null;
+    let chosenEpNum = null;
+    for(const cfg of device.configurations){
+      for(const iface of cfg.interfaces){
+        for(const alt of iface.alternates){
+          if(alt.interfaceClass === 0x07){
+            for(const ep of alt.endpoints){
+              if(ep.direction === 'out' && ep.type === 'bulk'){
+                chosenIfaceNum = iface.interfaceNumber;
+                chosenEpNum = ep.endpointNumber;
+                break;
+              }
+            }
+          }
+          if(chosenEpNum !== null) break;
+        }
+        if(chosenEpNum !== null) break;
+      }
+      if(chosenEpNum !== null) break;
+    }
+    // Fallback: first OUT bulk endpoint of any interface
+    if(chosenEpNum === null){
+      const cfg = device.configuration;
+      for(const iface of cfg.interfaces){
+        const alt = iface.alternates[0];
+        for(const ep of alt.endpoints){
+          if(ep.direction === 'out' && ep.type === 'bulk'){
+            chosenIfaceNum = iface.interfaceNumber;
+            chosenEpNum = ep.endpointNumber;
+            break;
+          }
+        }
+        if(chosenEpNum !== null) break;
+      }
+    }
+
+    if(chosenEpNum === null){
+      throw new Error('مفيش OUT endpoint - الطابعة غير متوافقة');
+    }
+
+    await device.claimInterface(chosenIfaceNum);
+    _uprUSBDevice = device;
+    _uprUSBEndpoint = chosenEpNum;
+    _uprActiveDriver = 'usb';
+
+    uprPersist();
+    uprUpdateStatus();
+    toast('✅ ربط الطابعة - ' + (device.productName || 'USB'), 'success');
+  } catch(e){
+    console.error('USB connect failed:', e);
+    if(e.name === 'NotFoundError') {
+      toast('❌ ما اخترتش طابعة', 'warning');
+    } else {
+      toast('❌ ' + e.message, 'error');
+    }
+  }
+}
+
+async function uprWriteUSB(bytes){
+  if(!_uprUSBDevice || !_uprUSBDevice.opened) throw new Error('USB غير متصلة');
+  // Send in chunks of 4KB
+  const CHUNK = 4096;
+  for(let i=0; i<bytes.length; i+=CHUNK){
+    const slice = bytes.slice(i, i+CHUNK);
+    await _uprUSBDevice.transferOut(_uprUSBEndpoint, slice);
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// DRIVER 2: Network (via Backend bridge)
+// ────────────────────────────────────────────────────────────
+
+async function uprConnectNetwork(){
+  const ip = document.getElementById('upr-net-ip').value.trim();
+  const port = +document.getElementById('upr-net-port').value || 9100;
+  if(!ip){ toast('❗ ادخل IP الطابعة', 'warning'); return; }
+  if(!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip) && !/^[a-z0-9.-]+$/i.test(ip)){
+    toast('❗ IP غير صحيح', 'warning'); return;
+  }
+  // Backend availability is required
+  if(!API_URL){ toast('❌ الـ backend مش متصل - مش هينفع network printing بدونه', 'error'); return; }
+
+  _uprNetConfig = { ip, port };
+  _uprActiveDriver = 'network';
+  uprPersist();
+  uprUpdateStatus();
+  toast('💾 اتحفظت - جرب طباعة اختبار', 'success');
+}
+
+async function uprWriteNetwork(bytesUint8){
+  if(!_uprNetConfig?.ip) throw new Error('Network printer غير مضبوطة');
+  if(!API_URL) throw new Error('Backend غير متصل');
+  // Convert Uint8Array to base64 for transport
+  let bin = '';
+  for(let i=0; i<bytesUint8.length; i++) bin += String.fromCharCode(bytesUint8[i]);
+  const b64 = btoa(bin);
+  const r = await fetch(API_URL.replace(/\/$/,'')+'/api/printer/network-print', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      ...(window._adminToken ? {'Authorization':'Bearer '+window._adminToken} : {})
+    },
+    body: JSON.stringify({ ip:_uprNetConfig.ip, port:_uprNetConfig.port, dataBase64: b64 })
+  });
+  if(!r.ok){
+    const txt = await r.text().catch(()=>'');
+    throw new Error('Network print failed: ' + r.status + ' ' + txt.slice(0,150));
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// DRIVER 3: Web Bluetooth
+// ────────────────────────────────────────────────────────────
+
+const UPR_BT_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  '0000ff00-0000-1000-8000-00805f9b34fb',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',
 ];
-const PRINTER_CHARS = [
+const UPR_BT_CHARS = [
   '00002af1-0000-1000-8000-00805f9b34fb',
   '0000ff02-0000-1000-8000-00805f9b34fb',
   '49535343-8841-43f4-a8d4-ecbe34729bb3',
 ];
 
-async function posOpenPrinterSettings(){
-  $('pos-printer-modal').style.display = 'block';
-  await posUpdatePrinterStatus();
-}
-
-function posClosePrinterSettings(){
-  $('pos-printer-modal').style.display = 'none';
-}
-
-async function posUpdatePrinterStatus(){
-  const statusEl = $('pos-printer-status');
-  const textEl = $('pos-printer-status-text');
-  const detailEl = $('pos-printer-status-detail');
-  const connectBtn = $('pos-printer-connect');
-  const disconnectBtn = $('pos-printer-disconnect');
-  const testBtn = $('pos-printer-test');
-  const headerBtn = $('pos-printer-btn');
-  
-  // Check if Bluetooth is supported
-  if(!navigator.bluetooth){
-    statusEl.innerHTML = '<div style="font-size:32px;margin-bottom:8px">❌</div><div style="font-weight:700;color:#ef4444">Bluetooth غير مدعوم</div><div style="font-size:11px;color:var(--muted);margin-top:4px">استخدم متصفح Chrome أو Edge</div>';
-    if(connectBtn) connectBtn.style.display = 'none';
-    return;
-  }
-  
-  if(_posPrinterDevice && _posPrinterDevice.gatt?.connected){
-    statusEl.innerHTML = `<div style="font-size:32px;margin-bottom:8px">✅</div><div style="font-weight:700;color:#22c55e" id="pos-printer-status-text">الطابعة متصلة</div><div style="font-size:11px;color:var(--muted);margin-top:4px" id="pos-printer-status-detail">${escapeHtml(_posPrinterDevice.name || 'Unknown')}</div>`;
-    if(connectBtn) connectBtn.style.display = 'none';
-    if(disconnectBtn) disconnectBtn.style.display = '';
-    if(testBtn) testBtn.style.display = '';
-    if(headerBtn){ headerBtn.style.color = '#22c55e'; headerBtn.style.borderColor = '#22c55e'; }
-  } else {
-    statusEl.innerHTML = `<div style="font-size:32px;margin-bottom:8px">🔌</div><div style="font-weight:700" id="pos-printer-status-text">مفيش طابعة متصلة</div><div style="font-size:11px;color:var(--muted);margin-top:4px" id="pos-printer-status-detail">اضغط زرار "ربط" تحت لاختيار طابعة</div>`;
-    if(connectBtn) connectBtn.style.display = '';
-    if(disconnectBtn) disconnectBtn.style.display = 'none';
-    if(testBtn) testBtn.style.display = 'none';
-    if(headerBtn){ headerBtn.style.color = 'var(--text)'; headerBtn.style.borderColor = 'var(--border)'; }
-  }
-}
-
-async function posConnectPrinter(){
-  if(!navigator.bluetooth){
-    toast('❌ Bluetooth غير مدعوم', 'error');
-    return;
-  }
-  
+async function uprConnectBluetooth(){
+  if(!navigator.bluetooth){ toast('❌ Bluetooth غير مدعوم', 'error'); return; }
   try {
-    toast('🔍 ابحث عن طابعات...', 'info');
-    
-    // ابحث عن أي device مع acceptAllDevices للسهولة
+    toast('🔍 ابحث عن طابعات BT...', 'info');
     const device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: PRINTER_SERVICES
+      optionalServices: UPR_BT_SERVICES
     });
-    
-    toast('🔗 جاري الاتصال بـ ' + (device.name || 'الطابعة') + '...', 'info');
-    
+    toast('🔗 جاري الاتصال بـ ' + (device.name || 'BT'), 'info');
     const server = await device.gatt.connect();
-    
-    // جرب كل service
+
     let characteristic = null;
-    for(const serviceUuid of PRINTER_SERVICES){
+    for(const su of UPR_BT_SERVICES){
       try {
-        const service = await server.getPrimaryService(serviceUuid);
-        // جرب كل characteristic
-        for(const charUuid of PRINTER_CHARS){
-          try {
-            characteristic = await service.getCharacteristic(charUuid);
-            if(characteristic) break;
-          } catch(e){}
+        const service = await server.getPrimaryService(su);
+        for(const cu of UPR_BT_CHARS){
+          try { characteristic = await service.getCharacteristic(cu); if(characteristic) break; } catch(e){}
         }
         if(characteristic) break;
       } catch(e){}
     }
-    
-    // لو مفيش، جرب أي writable characteristic
     if(!characteristic){
+      // Try any writable char
       const services = await server.getPrimaryServices();
-      for(const service of services){
+      for(const svc of services){
         try {
-          const chars = await service.getCharacteristics();
-          for(const ch of chars){
-            if(ch.properties.write || ch.properties.writeWithoutResponse){
-              characteristic = ch;
-              break;
+          const chars = await svc.getCharacteristics();
+          for(const c of chars){
+            if(c.properties.write || c.properties.writeWithoutResponse){
+              characteristic = c; break;
             }
           }
-          if(characteristic) break;
         } catch(e){}
+        if(characteristic) break;
       }
     }
-    
-    if(!characteristic){
-      throw new Error('مش لاقي characteristic للكتابة - تأكد إن الطابعة ESC/POS');
-    }
-    
-    _posPrinterDevice = device;
-    _posPrinterCharacteristic = characteristic;
-    
-    // listener للفصل
+    if(!characteristic) throw new Error('مفيش writable characteristic');
+
+    _uprBTDevice = device;
+    _uprBTChar = characteristic;
+    _uprActiveDriver = 'bluetooth';
     device.addEventListener('gattserverdisconnected', () => {
-      _posPrinterDevice = null;
-      _posPrinterCharacteristic = null;
-      toast('🔌 الطابعة اتفصلت', 'warning');
-      posUpdatePrinterStatus();
+      _uprBTChar = null;
+      uprUpdateStatus();
+      toast('⚠️ اتفصل البلوتوث', 'warning');
     });
-    
-    // احفظ في localStorage عشان نحاول نتصل عند الـ reload
-    try {
-      localStorage.setItem('pos_printer_name', device.name || '');
-    } catch(e){}
-    
-    toast('✅ الطابعة متصلة!', 'success');
-    posUpdatePrinterStatus();
-    
-  } catch(e) {
-    if(e.name === 'NotFoundError'){
-      toast('⚠️ ما اختارتش طابعة', 'warning');
+    uprPersist();
+    uprUpdateStatus();
+    toast('✅ ربط BT - ' + (device.name || ''), 'success');
+  } catch(e){
+    console.error('BT connect failed:', e);
+    if(e.name === 'NotFoundError') toast('❌ ما اخترتش طابعة', 'warning');
+    else toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function uprWriteBluetooth(bytes){
+  if(!_uprBTChar) throw new Error('BT غير متصلة');
+  const CHUNK = 100;
+  for(let i=0; i<bytes.length; i+=CHUNK){
+    const slice = bytes.slice(i, i+CHUNK);
+    if(_uprBTChar.properties.writeWithoutResponse){
+      await _uprBTChar.writeValueWithoutResponse(slice);
     } else {
-      toast('❌ فشل: ' + e.message, 'error');
+      await _uprBTChar.writeValue(slice);
     }
+    await new Promise(r=>setTimeout(r,30));
   }
 }
 
-async function posDisconnectPrinter(){
-  if(_posPrinterDevice && _posPrinterDevice.gatt?.connected){
-    _posPrinterDevice.gatt.disconnect();
-  }
-  _posPrinterDevice = null;
-  _posPrinterCharacteristic = null;
-  try { localStorage.removeItem('pos_printer_name'); } catch(e){}
-  toast('🔌 تم الفصل', 'info');
-  posUpdatePrinterStatus();
+// ────────────────────────────────────────────────────────────
+// DRIVER 4: Browser print fallback
+// ────────────────────────────────────────────────────────────
+
+function uprActivateBrowser(){
+  _uprActiveDriver = 'browser';
+  uprPersist();
+  uprUpdateStatus();
+  toast('✅ المتصفح مُفعّل للطباعة', 'success');
 }
 
-// كتابة data للـ characteristic بـ chunks (الـ MTU عادة 20-512 بايت)
-async function _posWriteToPrinter(data){
-  if(!_posPrinterCharacteristic){ throw new Error('مفيش طابعة متصلة'); }
-  
-  const encoder = new TextEncoder();
-  const buffer = (typeof data === 'string') ? encoder.encode(data) : new Uint8Array(data);
-  
-  const CHUNK = 100; // safe size
-  for(let i = 0; i < buffer.length; i += CHUNK){
-    const chunk = buffer.slice(i, i + CHUNK);
-    if(_posPrinterCharacteristic.properties.writeWithoutResponse){
-      await _posPrinterCharacteristic.writeValueWithoutResponse(chunk);
-    } else {
-      await _posPrinterCharacteristic.writeValue(chunk);
-    }
-    // delay بسيط
-    await new Promise(r => setTimeout(r, 30));
-  }
+function uprPrintBrowser(saleHTML, options){
+  // saleHTML: the rendered HTML (Arabic, RTL, full receipt)
+  const w = window.open('', '_blank', 'width=400,height=700');
+  if(!w){ toast('❌ السماح للنافذة المنبثقة', 'error'); return false; }
+  const widthMm = (_uprPaperWidth === 58) ? '58mm' : '80mm';
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>إيصال</title>
+    <style>
+      @page { size: ${widthMm} auto; margin: 0; }
+      body { font-family: 'Cairo','Tahoma',sans-serif; padding: 6px; max-width: ${widthMm}; margin: 0 auto; color:#000; background:#fff }
+      * { box-sizing:border-box }
+    </style></head><body>${saleHTML}<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script></body></html>`);
+  w.document.close();
+  return true;
 }
 
-async function posTestPrint(){
+// ────────────────────────────────────────────────────────────
+// DISCONNECT
+// ────────────────────────────────────────────────────────────
+
+async function uprDisconnect(){
   try {
-    let cmd = ESC_INIT;
-    cmd += ESC_ALIGN_CENTER;
-    cmd += ESC_DOUBLE_BOTH;
-    cmd += 'CAFELAX\n';
-    cmd += ESC_NORMAL;
-    cmd += ESC_BOLD_ON + 'Test Print\n' + ESC_BOLD_OFF;
-    cmd += '================================\n';
-    cmd += ESC_ALIGN_LEFT;
-    cmd += 'Date: ' + new Date().toLocaleString('en-GB') + '\n';
-    cmd += 'Printer: ' + (_posPrinterDevice?.name || 'Unknown') + '\n';
-    cmd += '================================\n';
-    cmd += ESC_ALIGN_CENTER;
-    cmd += '\n';
-    cmd += 'Test Successful! ✓\n';
-    cmd += ESC_FEED_3;
-    cmd += ESC_CUT;
-    
-    await _posWriteToPrinter(cmd);
+    if(_uprActiveDriver === 'usb' && _uprUSBDevice){
+      try { await _uprUSBDevice.close(); } catch(e){}
+    }
+    if(_uprActiveDriver === 'bluetooth' && _uprBTDevice?.gatt?.connected){
+      try { _uprBTDevice.gatt.disconnect(); } catch(e){}
+    }
+  } catch(e){}
+  _uprUSBDevice = null;
+  _uprUSBEndpoint = null;
+  _uprBTDevice = null;
+  _uprBTChar = null;
+  _uprNetConfig = null;
+  _uprActiveDriver = null;
+  uprPersist();
+  uprUpdateStatus();
+  toast('🔌 اتفصلت الطابعة', 'info');
+}
+
+// ────────────────────────────────────────────────────────────
+// ESC/POS RECEIPT BUILDER (Arabic+English friendly)
+// ────────────────────────────────────────────────────────────
+
+// Convert a JS string with mixed Arabic/English to bytes for ESC/POS.
+// Strategy: switch to PC864 for Arabic chars, PC437 for ASCII.
+// Many cheap printers ignore PC864; we send UTF-8 as fallback if bytes look weird.
+// For EPSON TM-m30II: codepage 22 (PC864) works for Arabic with some shaping issues.
+// We default to a "graphic-friendly" approach: encode as UTF-8 bytes (printers that
+// support UTF-8 will print correctly, others will show ASCII fine but Arabic as ?)
+// User can add a custom encoder later if they have a specific printer.
+function _uprStrToBytes(s){
+  // Use TextEncoder for UTF-8. Printers with native UTF-8 (most modern thermal)
+  // will render Arabic. Older printers need explicit code page; that's a future v2.
+  return new TextEncoder().encode(s);
+}
+
+function _uprConcatBytes(arrays){
+  let total = 0;
+  for(const a of arrays) total += a.length;
+  const out = new Uint8Array(total);
+  let off = 0;
+  for(const a of arrays){ out.set(a, off); off += a.length; }
+  return out;
+}
+
+function _uprCharsPerLine(){
+  return _uprPaperWidth === 58 ? 24 : 32;
+}
+
+function _uprDivider(char){
+  return (char || '-').repeat(_uprCharsPerLine()) + '\n';
+}
+
+function _uprCol(left, right){
+  const w = _uprCharsPerLine();
+  const lm = left.toString();
+  const rm = right.toString();
+  const space = Math.max(1, w - lm.length - rm.length);
+  return lm + ' '.repeat(space) + rm + '\n';
+}
+
+// Build receipt as raw ESC/POS commands (string) → returns Uint8Array
+function uprBuildReceiptBytes(data){
+  const parts = [];
+  const push = (s) => parts.push(_uprStrToBytes(s));
+
+  const dt = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo' });
+  const methodNames = { cash: 'كاش / Cash', visa: 'فيزا / Visa', instapay: 'انستاباي / InstaPay' };
+  const w = _uprCharsPerLine();
+
+  // Init
+  push(UPR_CMD.INIT);
+
+  // Header
+  push(UPR_CMD.ALIGN_CENTER);
+  push(UPR_CMD.DBL_BOTH);
+  push('CAFELAX\n');
+  push(UPR_CMD.NORMAL);
+  push(UPR_CMD.BOLD_ON);
+  push((typeof _posStore !== 'undefined' && _posStore?.name) ? (_posStore.name + '\n') : '');
+  push(UPR_CMD.BOLD_OFF);
+  push(dt + '\n');
+  if(data.isOffline){
+    push(UPR_CMD.BOLD_ON);
+    push('*** OFFLINE - PENDING ***\n');
+    push(UPR_CMD.BOLD_OFF);
+  }
+  push(_uprDivider('='));
+
+  // Sale info
+  push(UPR_CMD.ALIGN_LEFT);
+  push('فاتورة / Sale: ' + (data.saleNumber || '') + '\n');
+  push('الكاشير / Cashier: ' + (window.cachedCourierName || '') + '\n');
+  if(data.customer){
+    push('العميل / Customer: ' + (data.customer.name || '') + '\n');
+    if(data.customer.phone) push('الموبايل / Phone: ' + data.customer.phone + '\n');
+  }
+  push(_uprDivider('-'));
+
+  // Items
+  (data.items || []).forEach(it => {
+    const title = (it.productTitle || '') + (it.variantTitle ? ' ' + it.variantTitle : '');
+    push(UPR_CMD.BOLD_ON);
+    push(title.slice(0, w) + '\n');
+    push(UPR_CMD.BOLD_OFF);
+    const lineTotal = (it.qty * it.unitPrice).toFixed(0);
+    const left = `  ${it.qty} x ${parseFloat(it.unitPrice).toFixed(0)}`;
+    const right = lineTotal + ' EGP';
+    push(_uprCol(left, right));
+  });
+  push(_uprDivider('-'));
+
+  // Totals
+  push(_uprCol('الإجمالي / Subtotal:', (data.subtotal||0).toFixed(0) + ' EGP'));
+  if(data.discount > 0){
+    const lbl = `خصم${data.promo ? ' ('+data.promo.code+')' : ''} / Discount`;
+    push(_uprCol(lbl + ':', '-' + data.discount.toFixed(0) + ' EGP'));
+  }
+  push(_uprDivider('='));
+  push(UPR_CMD.DBL_HEIGHT);
+  push(UPR_CMD.BOLD_ON);
+  push(_uprCol('TOTAL:', (data.total||0).toFixed(0) + ' EGP'));
+  push(UPR_CMD.NORMAL);
+  push(UPR_CMD.BOLD_OFF);
+  push(_uprDivider('='));
+
+  // Payments
+  const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
+  if(pays.length === 1){
+    push('الدفع / Payment: ' + (methodNames[pays[0].method] || pays[0].method) + '\n');
+  } else if(pays.length > 1){
+    push('الدفع / Payments:\n');
+    pays.forEach(p => {
+      const left = '  ' + (methodNames[p.method] || p.method) + ':';
+      const right = parseFloat(p.amount).toFixed(0) + ' EGP';
+      push(_uprCol(left, right));
+    });
+  }
+
+  push('\n');
+  push(UPR_CMD.ALIGN_CENTER);
+  push('شكراً لزيارتكم 💚\n');
+  push('Thank you for visiting!\n');
+  push('See you again ;)\n');
+  push(UPR_CMD.FEED_3);
+  push(UPR_CMD.CUT);
+
+  return _uprConcatBytes(parts);
+}
+
+// ────────────────────────────────────────────────────────────
+// HIGH-LEVEL: print
+// ────────────────────────────────────────────────────────────
+
+async function uprWrite(bytes){
+  if(_uprActiveDriver === 'usb')        return uprWriteUSB(bytes);
+  if(_uprActiveDriver === 'network')    return uprWriteNetwork(bytes);
+  if(_uprActiveDriver === 'bluetooth')  return uprWriteBluetooth(bytes);
+  throw new Error('مفيش driver نشط');
+}
+
+// Print a receipt - uses fallback chain: active driver → browser
+async function uprPrintReceipt(data, optsHTML){
+  // Browser driver: render HTML directly
+  if(_uprActiveDriver === 'browser'){
+    return uprPrintBrowser(optsHTML || '');
+  }
+  if(!uprIsConnected()){
+    // Fallback to browser
+    return uprPrintBrowser(optsHTML || '');
+  }
+  try {
+    const bytes = uprBuildReceiptBytes(data);
+    await uprWrite(bytes);
+    return true;
+  } catch(e){
+    console.error('upr print failed:', e);
+    toast('⚠️ ' + e.message + ' - استخدمنا متصفح', 'warning');
+    return uprPrintBrowser(optsHTML || '');
+  }
+}
+
+// Test print
+async function uprTestPrint(){
+  if(_uprActiveDriver === 'browser'){
+    uprPrintBrowser('<div style="text-align:center;font-family:Cairo,sans-serif"><h2>CAFELAX</h2><p>طباعة اختبار</p><p>Test Print</p><p>'+new Date().toLocaleString('ar-EG')+'</p><p>نظام الطباعة شغّال ✅</p></div>');
+    return;
+  }
+  if(!uprIsConnected()){ toast('❌ مفيش طابعة متصلة', 'error'); return; }
+  try {
+    const parts = [];
+    parts.push(_uprStrToBytes(UPR_CMD.INIT));
+    parts.push(_uprStrToBytes(UPR_CMD.ALIGN_CENTER));
+    parts.push(_uprStrToBytes(UPR_CMD.DBL_BOTH));
+    parts.push(_uprStrToBytes('CAFELAX\n'));
+    parts.push(_uprStrToBytes(UPR_CMD.NORMAL));
+    parts.push(_uprStrToBytes(UPR_CMD.BOLD_ON));
+    parts.push(_uprStrToBytes('Test Print / طباعة اختبار\n'));
+    parts.push(_uprStrToBytes(UPR_CMD.BOLD_OFF));
+    parts.push(_uprStrToBytes(_uprDivider('=')));
+    parts.push(_uprStrToBytes(UPR_CMD.ALIGN_LEFT));
+    parts.push(_uprStrToBytes('Date: ' + new Date().toLocaleString('en-GB') + '\n'));
+    parts.push(_uprStrToBytes('Driver: ' + _uprActiveDriver + '\n'));
+    parts.push(_uprStrToBytes('Width: ' + _uprPaperWidth + 'mm (' + _uprCharsPerLine() + ' chars)\n'));
+    parts.push(_uprStrToBytes(_uprDivider('=')));
+    parts.push(_uprStrToBytes(UPR_CMD.ALIGN_CENTER));
+    parts.push(_uprStrToBytes('\nTest Successful! ✓\n'));
+    parts.push(_uprStrToBytes('نظام الطباعة شغّال ✅\n'));
+    parts.push(_uprStrToBytes(UPR_CMD.FEED_3));
+    parts.push(_uprStrToBytes(UPR_CMD.CUT));
+    const bytes = _uprConcatBytes(parts);
+    await uprWrite(bytes);
     toast('✅ تم إرسال التجربة', 'success');
-  } catch(e) {
+  } catch(e){
     toast('❌ ' + e.message, 'error');
   }
 }
 
-// ─── طباعة الإيصال على Bluetooth ───
-async function posPrintReceiptBluetooth(data){
-  if(!_posPrinterCharacteristic){ return false; }
-  
-  try {
-    const dt = new Date().toLocaleString('en-GB');
-    const methodNames = { cash: 'Cash', visa: 'Visa', instapay: 'InstaPay' };
-    
-    let cmd = ESC_INIT;
-    
-    // Header
-    cmd += ESC_ALIGN_CENTER;
-    cmd += ESC_DOUBLE_BOTH;
-    cmd += 'CAFELAX\n';
-    cmd += ESC_NORMAL;
-    cmd += (_posStore?.name || '') + '\n';
-    cmd += dt + '\n';
-    if(data.isOffline) cmd += '*** OFFLINE - PENDING ***\n';
-    cmd += '================================\n';
-    
-    // Sale info
-    cmd += ESC_ALIGN_LEFT;
-    cmd += 'Sale: ' + (data.saleNumber || '') + '\n';
-    cmd += 'Cashier: ' + (window.cachedCourierName || '') + '\n';
-    if(data.customer){
-      cmd += 'Customer: ' + (data.customer.name || '') + '\n';
-      if(data.customer.phone) cmd += 'Phone: ' + data.customer.phone + '\n';
-    }
-    cmd += '--------------------------------\n';
-    
-    // Items
-    (data.items || []).forEach(it => {
-      const title = (it.productTitle || '') + (it.variantTitle ? ' ' + it.variantTitle : '');
-      cmd += ESC_BOLD_ON + title.slice(0, 32) + '\n' + ESC_BOLD_OFF;
-      const lineTotal = (it.qty * it.unitPrice).toFixed(0);
-      const left = `  ${it.qty} x ${parseFloat(it.unitPrice).toFixed(0)}`;
-      const right = lineTotal + ' EGP';
-      const padding = Math.max(1, 32 - left.length - right.length);
-      cmd += left + ' '.repeat(padding) + right + '\n';
-    });
-    
-    cmd += '--------------------------------\n';
-    
-    // Totals
-    const subtotalLine = `Subtotal:`.padEnd(20) + (data.subtotal.toFixed(0) + ' EGP').padStart(12);
-    cmd += subtotalLine + '\n';
-    
-    if(data.discount > 0){
-      const discLabel = `Discount${data.promo ? ' ('+data.promo.code+')' : ''}:`;
-      const discLine = discLabel.padEnd(20) + ('-' + data.discount.toFixed(0) + ' EGP').padStart(12);
-      cmd += discLine + '\n';
-    }
-    
-    cmd += '================================\n';
-    cmd += ESC_DOUBLE_HEIGHT + ESC_BOLD_ON;
-    const totalLine = 'TOTAL:'.padEnd(16) + (data.total.toFixed(0) + ' EGP').padStart(16);
-    cmd += totalLine + '\n';
-    cmd += ESC_NORMAL + ESC_BOLD_OFF;
-    cmd += '================================\n';
-    
-    // Payments
-    const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
-    if(pays.length === 1){
-      cmd += 'Payment: ' + (methodNames[pays[0].method] || pays[0].method) + '\n';
-    } else {
-      cmd += 'Payments:\n';
-      pays.forEach(p => {
-        const left = '  ' + (methodNames[p.method] || p.method) + ':';
-        const right = parseFloat(p.amount).toFixed(0) + ' EGP';
-        const pad = Math.max(1, 32 - left.length - right.length);
-        cmd += left + ' '.repeat(pad) + right + '\n';
-      });
-    }
-    
-    cmd += '\n';
-    cmd += ESC_ALIGN_CENTER;
-    cmd += 'Thank you for visiting!\n';
-    cmd += 'See you again ;)\n';
-    cmd += ESC_FEED_3;
-    cmd += ESC_CUT;
-    
-    await _posWriteToPrinter(cmd);
-    return true;
-  } catch(e) {
-    console.error('bluetooth print failed:', e);
-    return false;
+// ────────────────────────────────────────────────────────────
+// INIT - load saved config on startup
+// ────────────────────────────────────────────────────────────
+
+async function uprInitFromSavedConfig(){
+  const cfg = uprLoadConfig();
+  if(!cfg) return;
+  _uprPaperWidth = cfg.paperWidth || 80;
+  _uprAutoPrint = !!cfg.autoPrint;
+
+  // Try to reconnect USB silently
+  if(cfg.activeDriver === 'usb' && navigator.usb){
+    try {
+      const devices = await navigator.usb.getDevices();
+      const match = devices.find(d => d.vendorId === cfg.usbVendorId && d.productId === cfg.usbProductId);
+      if(match){
+        await match.open();
+        if(match.configuration === null) await match.selectConfiguration(1);
+        // Find OUT endpoint
+        let chosenIfaceNum = null, chosenEpNum = null;
+        for(const iface of match.configuration.interfaces){
+          const alt = iface.alternates[0];
+          for(const ep of alt.endpoints){
+            if(ep.direction === 'out' && ep.type === 'bulk'){
+              chosenIfaceNum = iface.interfaceNumber;
+              chosenEpNum = ep.endpointNumber;
+              break;
+            }
+          }
+          if(chosenEpNum !== null) break;
+        }
+        if(chosenEpNum !== null){
+          await match.claimInterface(chosenIfaceNum);
+          _uprUSBDevice = match;
+          _uprUSBEndpoint = chosenEpNum;
+          _uprActiveDriver = 'usb';
+          console.log('✅ UPR: USB printer auto-reconnected');
+        }
+      }
+    } catch(e){ console.warn('USB auto-reconnect failed:', e.message); }
   }
+
+  // Network: just restore config (no live connection needed; backend handles each print)
+  if(cfg.activeDriver === 'network' && cfg.network?.ip){
+    _uprNetConfig = cfg.network;
+    _uprActiveDriver = 'network';
+  }
+
+  // Browser: trivial
+  if(cfg.activeDriver === 'browser'){
+    _uprActiveDriver = 'browser';
+  }
+
+  // Bluetooth: cannot auto-reconnect (needs user gesture). User must re-pair.
+  // We just keep the previous state visible in the UI.
+
+  // Update UI if modal is open
+  uprUpdateStatus();
 }
 
+// Init at script load
+if(typeof window !== 'undefined'){
+  window.addEventListener('load', () => { uprInitFromSavedConfig().catch(()=>{}); });
+}
+
+// ────────────────────────────────────────────────────────────
+// BACKWARD COMPATIBILITY (old function names from v26-v34)
+// ────────────────────────────────────────────────────────────
+// Kept so existing code calling posConnectPrinter / posTestPrint / etc still works
+async function posConnectPrinter(){ return uprConnectBluetooth(); }
+async function posDisconnectPrinter(){ return uprDisconnect(); }
+async function posTestPrint(){ return uprTestPrint(); }
+async function posPrintReceiptBluetooth(data){
+  // Used by posPrintReceipt() fallback path; route to universal printer
+  if(uprIsConnected()){
+    try {
+      const bytes = uprBuildReceiptBytes(data);
+      await uprWrite(bytes);
+      return true;
+    } catch(e){ console.error('upr write failed:', e); return false; }
+  }
+  return false;
+}
+// Legacy state mirror (for any code reading these directly)
+Object.defineProperty(window, '_posPrinterDevice', {
+  get(){ return _uprBTDevice || _uprUSBDevice; },
+  configurable: true
+});
+Object.defineProperty(window, '_posPrinterCharacteristic', {
+  get(){ return uprIsConnected() ? (_uprBTChar || true) : null; },
+  configurable: true
+});
+
 // ============================================================
-// END: BLUETOOTH PRINTING
+// END: UNIVERSAL PRINTER
 // ============================================================
+
 
 
 // ============================================================
