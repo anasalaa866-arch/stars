@@ -42,6 +42,43 @@
   --danger:#dc2626;
   --warn:#d97706;
   --info:#2563eb;
+  /* 🆕 v36: extra tokens for theme-able areas (POS section) */
+  --topbar-bg:rgba(255,255,255,.95);  /* topbar with blur */
+  --pos-bg:#ffffff;                   /* POS card backgrounds */
+  --pos-border:#e5e7eb;
+  --pos-input-bg:#ffffff;
+  --pos-input-text:#111827;
+  --pos-tile-bg:#ffffff;
+  --pos-tile-text:#374151;
+  --on-gold:#000000;     /* النص اللي بيقعد فوق ذهبي */
+  --shadow-card:0 2px 6px rgba(0,0,0,.06);
+  --shadow-modal:0 8px 32px rgba(0,0,0,.18);
+}
+
+/* 🆕 v36: Dark theme */
+:root.dark{
+  --bg:#0f0f0f;          /* خلفية - أسود لين */
+  --card:#1c1c1c;        /* كروت */
+  --elev:#252525;        /* ارتفاع */
+  --border:#333333;      /* حدود */
+  --gold:#d4a23a;        /* ذهبي ساطع للـ dark */
+  --gold-dim:#b8901f;
+  --text:#f0f0f0;        /* نص */
+  --muted:#9a9a9a;
+  --success:#10b981;
+  --danger:#ef4444;
+  --warn:#f59e0b;
+  --info:#3b82f6;
+  --topbar-bg:rgba(28,28,28,.95);
+  --pos-bg:#1c1c1c;
+  --pos-border:#333333;
+  --pos-input-bg:#252525;
+  --pos-input-text:#f0f0f0;
+  --pos-tile-bg:#1c1c1c;
+  --pos-tile-text:#d0d0d0;
+  --on-gold:#000000;
+  --shadow-card:0 2px 6px rgba(0,0,0,.4);
+  --shadow-modal:0 8px 32px rgba(0,0,0,.7);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow-x:hidden}
@@ -69,7 +106,7 @@ a{color:inherit;text-decoration:none}
 #app{display:none;min-height:100vh;padding-bottom:80px}
 #app.active{display:block}
 
-.topbar{position:sticky;top:0;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.topbar{position:sticky;top:0;background:var(--topbar-bg);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .topbar-title{display:flex;align-items:center;gap:8px}
 .topbar-title .star{color:var(--gold);font-size:18px}
 .topbar-title h1{font-size:16px;font-weight:800;letter-spacing:1px}
@@ -100,6 +137,7 @@ a{color:inherit;text-decoration:none}
 .order-id{font-size:12px;color:var(--muted);font-family:monospace;font-weight:600}
 .order-name{font-size:15px;font-weight:700;margin-top:2px}
 .order-area{font-size:12px;color:var(--gold);margin-top:2px}
+.order-addr-preview{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;word-break:break-word}
 .order-badges{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0}
 .badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;white-space:nowrap}
 .badge-cod{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
@@ -134,21 +172,28 @@ a{color:inherit;text-decoration:none}
   display:flex;
   align-items:center;
   gap:12px;
-  cursor:move;
-  transition:all 0.2s;
+  /* 🔧 v36: cursor default على العنصر، grab فقط على الـ handle */
+  transition:transform 0.18s ease, opacity 0.18s ease;
+  /* hint للـ browser عشان يعمل compositing layer */
+  will-change:transform;
 }
-.sort-item:active{
+.sort-handle{
+  user-select:none;
+  -webkit-user-select:none;
+}
+.sort-handle:active{
   cursor:grabbing;
 }
 .sort-ghost{
-  opacity:0.4;
+  opacity:0.35;
+  background:var(--elev);
 }
 .sort-chosen{
-  background:rgba(59,130,246,.1);
-  border-color:var(--accent);
+  box-shadow:0 0 0 2px var(--gold);
 }
 .sort-drag{
-  box-shadow:0 4px 12px rgba(0,0,0,.15);
+  box-shadow:0 6px 18px rgba(0,0,0,.25);
+  opacity:0.95;
 }
 
 .order-card{position:relative}
@@ -305,6 +350,7 @@ a{color:inherit;text-decoration:none}
     </div>
     <div class="topbar-user">
       <span id="user-name">—</span>
+      <button class="topbar-logout" onclick="toggleDarkMode()" id="theme-toggle-btn" title="تبديل الوضع الليلي" style="padding:4px 10px;font-size:14px">🌙</button>
       <button class="topbar-logout" onclick="logout()">خروج</button>
     </div>
   </div>
@@ -504,13 +550,13 @@ a{color:inherit;text-decoration:none}
     <style>
       /* POS-specific styles - مستقلة عن باقي الـ Stars */
       #page-pos.active{display:block;background:#f3f3f3;height:100vh;overflow:hidden;padding:0}
-      .pos-topbar{background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;height:58px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+      .pos-topbar{background:var(--pos-bg);border-bottom:1px solid var(--pos-border);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;height:58px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
       .pos-topbar-left{display:flex;align-items:center;gap:14px;min-width:0}
       .pos-store-info{min-width:0}
       .pos-store-name{font-weight:800;font-size:15px;color:#111;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pos-cashier-name{font-size:11px;color:#6b7280;margin-top:2px}
       .pos-topbar-actions{display:flex;gap:6px;align-items:center}
-      .pos-tb-btn{padding:7px 12px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s}
+      .pos-tb-btn{padding:7px 12px;background:var(--pos-tile-bg);color:var(--pos-tile-text);border:1px solid var(--pos-border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s}
       .pos-tb-btn:hover{background:#f9fafb;border-color:#9ca3af}
       .pos-tb-btn.icon-only{padding:7px 9px}
       .pos-online-pill{font-size:11px;padding:4px 10px;border-radius:99px;font-weight:700;display:inline-flex;align-items:center;gap:5px}
@@ -522,16 +568,16 @@ a{color:inherit;text-decoration:none}
       
       /* LEFT panel */
       .pos-left{display:flex;flex-direction:column;overflow:hidden;background:#f3f3f3}
-      .pos-search-area{padding:14px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+      .pos-search-area{padding:14px 16px;background:var(--pos-bg);border-bottom:1px solid var(--pos-border)}
       .pos-search-wrap{position:relative}
-      .pos-search-input{width:100%;padding:13px 44px 13px 16px;background:#fff;color:#111;border:1.5px solid #d1d5db;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;transition:border-color .15s;text-align:right}
+      .pos-search-input{width:100%;padding:13px 44px 13px 16px;background:var(--pos-input-bg);color:var(--pos-input-text);border:1.5px solid var(--pos-border);border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;transition:border-color .15s;text-align:right}
       .pos-search-input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
       .pos-search-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#9ca3af;font-size:18px;pointer-events:none}
       
       /* Quick actions row */
-      .pos-quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+      .pos-quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 16px;background:var(--pos-bg);border-bottom:1px solid var(--pos-border)}
       .pos-qa-tile{background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;padding:14px 8px;text-align:center;cursor:pointer;transition:all .15s;position:relative;font-family:inherit}
-      .pos-qa-tile:hover{background:#fff;border-color:#9ca3af;transform:translateY(-1px)}
+      .pos-qa-tile:hover{background:var(--pos-tile-bg);border-color:var(--muted);transform:translateY(-1px)}
       .pos-qa-tile:active{transform:scale(.97)}
       .pos-qa-icon{font-size:24px;margin-bottom:6px;display:block}
       .pos-qa-label{font-size:12px;font-weight:700;color:#374151}
@@ -542,7 +588,7 @@ a{color:inherit;text-decoration:none}
       .pos-products-area{flex:1;overflow-y:auto;padding:14px 16px}
       .pos-products-section-title{font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding:0 4px}
       .pos-products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}
-      .pos-product-tile{background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:10px;cursor:pointer;transition:all .15s;text-align:right;position:relative;display:flex;flex-direction:column}
+      .pos-product-tile{background:var(--pos-tile-bg);border:1.5px solid var(--pos-border);border-radius:12px;padding:10px;cursor:pointer;transition:all .15s;text-align:right;position:relative;display:flex;flex-direction:column}
       .pos-product-tile:hover{border-color:#2563eb;box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
       .pos-product-tile:active{transform:scale(.97)}
       .pos-product-tile.low-stock{opacity:.5}
@@ -562,8 +608,8 @@ a{color:inherit;text-decoration:none}
       .pos-products-empty-text{font-size:14px;font-weight:600}
       
       /* RIGHT cart sidebar */
-      .pos-cart{background:#fff;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-      .pos-cart-header{padding:14px 16px;border-bottom:1px solid #e5e7eb;background:#fff;flex-shrink:0}
+      .pos-cart{background:var(--pos-bg);border-right:1px solid var(--pos-border);display:flex;flex-direction:column;overflow:hidden;min-width:0}
+      .pos-cart-header{padding:14px 16px;border-bottom:1px solid var(--pos-border);background:var(--pos-bg);flex-shrink:0}
       .pos-cart-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
       .pos-cart-title{font-size:16px;font-weight:800;color:#111}
       .pos-cart-actions{display:flex;gap:4px}
@@ -578,12 +624,12 @@ a{color:inherit;text-decoration:none}
       .pos-cart-customer-label{font-size:10px;color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
       .pos-cart-customer-name{font-weight:700;font-size:13px;color:#1e3a8a;margin-top:2px}
       .pos-cart-customer-phone{font-size:11px;color:#1e40af;font-family:Roboto,sans-serif}
-      .pos-cart-add-customer{padding:9px 12px;background:#fff;border:1.5px dashed #d1d5db;border-radius:8px;color:#6b7280;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+      .pos-cart-add-customer{padding:9px 12px;background:var(--pos-tile-bg);border:1.5px dashed var(--pos-border);border-radius:8px;color:var(--muted);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
       .pos-cart-add-customer:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
       
       /* Cart items list - larger, clearer */
       .pos-cart-items{flex:1;overflow-y:auto;padding:10px 14px}
-      .pos-cart-item{padding:14px;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;margin-bottom:10px;transition:all .1s;display:flex;gap:14px;align-items:stretch}
+      .pos-cart-item{padding:14px;background:var(--pos-tile-bg);border:1.5px solid var(--pos-border);border-radius:12px;margin-bottom:10px;transition:all .1s;display:flex;gap:14px;align-items:stretch}
       .pos-cart-item.has-offer{border-color:#86efac;background:#f0fdf4}
       .pos-cart-item-img{width:110px;height:110px;border-radius:12px;object-fit:cover;background:#f3f4f6;flex-shrink:0;border:1px solid #e5e7eb}
       .pos-cart-item-img-placeholder{width:110px;height:110px;border-radius:12px;background:linear-gradient(135deg,#f3f4f6 0%,#e5e7eb 100%);display:flex;align-items:center;justify-content:center;font-size:50px;color:#9ca3af;flex-shrink:0}
@@ -603,7 +649,7 @@ a{color:inherit;text-decoration:none}
       .pos-cart-item-line-total.offer{color:#15803d}
       .pos-cart-item-offer-name{font-size:12px;color:#15803d;margin-top:4px;font-weight:700}
       .pos-cart-item-qty{display:flex;gap:4px;align-items:center;background:#f3f4f6;border-radius:10px;padding:4px;flex-shrink:0}
-      .pos-cart-qty-btn{width:38px;height:38px;background:#fff;color:#111;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;font-weight:700;font-family:inherit;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+      .pos-cart-qty-btn{width:38px;height:38px;background:var(--pos-tile-bg);color:var(--pos-input-text);border:1px solid var(--pos-border);border-radius:8px;cursor:pointer;font-weight:700;font-family:inherit;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
       .pos-cart-qty-btn:hover{background:#2563eb;color:#fff;border-color:#2563eb}
       .pos-cart-qty-display{min-width:40px;text-align:center;font-weight:800;font-size:18px;font-family:Roboto,sans-serif}
       
@@ -627,17 +673,17 @@ a{color:inherit;text-decoration:none}
       .pos-cart-promo-code{font-weight:800;color:#15803d}
       .pos-cart-promo-discount{font-size:11px;color:#16a34a;font-family:Roboto,sans-serif;margin-top:1px}
       .pos-cart-promo-remove{background:transparent;border:none;color:#dc2626;cursor:pointer;font-size:16px;font-family:inherit;padding:0 4px}
-      .pos-cart-promo-add{width:100%;padding:9px;background:#fff;border:1.5px dashed #d1d5db;border-radius:8px;color:#6b7280;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+      .pos-cart-promo-add{width:100%;padding:9px;background:var(--pos-tile-bg);border:1.5px dashed var(--pos-border);border-radius:8px;color:var(--muted);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
       .pos-cart-promo-add:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
       
-      .pos-cart-totals{padding:14px 16px;background:#fff;border-top:2px solid #e5e7eb;flex-shrink:0}
+      .pos-cart-totals{padding:14px 16px;background:var(--pos-bg);border-top:2px solid var(--pos-border);flex-shrink:0}
       .pos-cart-total-row{display:flex;justify-content:space-between;font-size:13px;color:#374151;margin-bottom:6px;font-family:Roboto,sans-serif}
       .pos-cart-total-row .label{font-family:Cairo,sans-serif;font-weight:600}
       .pos-cart-total-row.discount{color:#15803d;font-weight:700}
       .pos-cart-total-row.grand{font-size:20px;font-weight:800;color:#111;border-top:1px dashed #d1d5db;padding-top:8px;margin-top:6px;margin-bottom:0}
       
       /* Checkout buttons */
-      .pos-cart-checkout{padding:12px 16px;background:#fff;border-top:1px solid #e5e7eb;flex-shrink:0;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+      .pos-cart-checkout{padding:12px 16px;background:var(--pos-bg);border-top:1px solid var(--pos-border);flex-shrink:0;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
       .pos-pay-btn{padding:14px 8px;color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;letter-spacing:.3px}
       .pos-pay-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
       .pos-pay-btn:active{transform:scale(.97)}
@@ -654,7 +700,7 @@ a{color:inherit;text-decoration:none}
       /* Mobile responsive */
       @media (max-width: 900px){
         .pos-main{grid-template-columns:1fr}
-        .pos-cart{display:none;position:fixed;inset:58px 0 0 0;z-index:50;background:#fff}
+        .pos-cart{display:none;position:fixed;inset:58px 0 0 0;z-index:50;background:var(--pos-bg)}
         .pos-cart.mobile-open{display:flex}
         .pos-quick-actions{grid-template-columns:repeat(4,1fr)}
         .pos-products-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
@@ -1570,6 +1616,41 @@ a{color:inherit;text-decoration:none}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <script>
+// ===== 🆕 v36: DARK MODE =====
+// Initialize ASAP عشان ما يحصلش flash للـ light theme لو الاختيار dark
+(function initThemeEarly(){
+  try {
+    const saved = localStorage.getItem('stars_theme');
+    // افتراضياً: لو ما اخترش، استخدم الـ system preference
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = saved ? saved === 'dark' : prefersDark;
+    if(isDark) document.documentElement.classList.add('dark');
+  } catch(e){}
+})();
+
+function isDarkMode(){
+  return document.documentElement.classList.contains('dark');
+}
+
+function toggleDarkMode(){
+  const willBeDark = !isDarkMode();
+  document.documentElement.classList.toggle('dark', willBeDark);
+  try { localStorage.setItem('stars_theme', willBeDark ? 'dark' : 'light'); } catch(e){}
+  updateThemeToggleIcon();
+}
+
+function updateThemeToggleIcon(){
+  const btn = document.getElementById('theme-toggle-btn');
+  if(btn) btn.textContent = isDarkMode() ? '☀️' : '🌙';
+}
+
+// عشان الـ icon يحدث بعد ما الـ DOM يكون جاهز
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', updateThemeToggleIcon);
+} else {
+  setTimeout(updateThemeToggleIcon, 0);
+}
+
 // ===== Stars v27 — ANTI-THEFT SYSTEM =====
 // 2026-05-05: حماية ضد السرقة
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -6902,6 +6983,7 @@ function renderOrderCard(o, tabId){
         <div class="order-id">${o.id}</div>
         <div class="order-name">${escapeHtml(o.name)}</div>
         <div class="order-area">📍 ${escapeHtml(displayZone)}</div>
+        ${addr ? `<div class="order-addr-preview" title="${escapeAttr(addr)}">${escapeHtml(addr)}</div>` : ''}
       </div>
       <div class="order-badges">${badges.join('')}</div>
     </div>
@@ -8532,6 +8614,7 @@ async function testConnection(){
 }
 // ===== SEQUENCE MANAGEMENT (ترتيب الطلبات) =====
 let _sortableOrders = [];
+let _sortableInstance = null; // 🆕 v36: keep ref so we can destroy properly
 
 function openSortModal(){
   console.log('🔵 openSortModal called');
@@ -8622,13 +8705,18 @@ function filterSortableByArea(){
 }
 
 function closeSortModal(){
+  // 🆕 v36: cleanup الـ instance قبل ما نقفل
+  if(_sortableInstance){
+    try { _sortableInstance.destroy(); } catch(e){}
+    _sortableInstance = null;
+  }
   $('sort-modal').style.display = 'none';
 }
 
 function renderSortableList(ordersToShow){
   // لو مفيش orders محددة، استخدم كل الـ _sortableOrders
   const orders = ordersToShow || _sortableOrders;
-  
+
   // Update subtitle
   const subtitle = $('sort-modal-subtitle');
   if(subtitle){
@@ -8645,51 +8733,92 @@ function renderSortableList(ordersToShow){
       subtitle.textContent = `📍 ${zoneName} (${orders.length} طلب)`;
     }
   }
-  
+
   const html = orders.map((o, idx) => `
     <div class="sort-item" data-order-id="${o.id}">
-      <div style="font-size:20px;color:var(--muted);cursor:grab;padding:8px;margin-left:4px">≡</div>
+      <div class="sort-handle" style="font-size:20px;color:var(--muted);cursor:grab;padding:8px;margin-left:4px;touch-action:none">≡</div>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:14px">#${idx + 1} — ${o.id}</div>
+        <div style="font-weight:700;font-size:14px"><span class="sort-num">#${idx + 1}</span> — ${o.id}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(o.area || o.assignedZone || '')} — ${o.total.toLocaleString()} ج</div>
       </div>
       <div style="font-size:12px;color:var(--muted)">${escapeHtml(o.name)}</div>
     </div>
   `).join('');
-  
+
   $('sortable-list').innerHTML = html;
-  
-  // Initialize Sortable.js
+
+  // 🔧 v36: destroy old instance قبل ما نعمل instance جديد
+  // (ده كان السبب في الثقل - كل render بيعمل instance بدون ما يدمر القديم)
+  if(_sortableInstance){
+    try { _sortableInstance.destroy(); } catch(e){}
+    _sortableInstance = null;
+  }
+
   if(typeof Sortable !== 'undefined'){
     const el = $('sortable-list');
     if(el){
-      Sortable.create(el, {
+      _sortableInstance = Sortable.create(el, {
         animation: 150,
-        handle: '.sort-item', // كل العنصر قابل للسحب
+        handle: '.sort-handle',     // 🔧 v36: handle محدد بدل كل العنصر
         ghostClass: 'sort-ghost',
         chosenClass: 'sort-chosen',
         dragClass: 'sort-drag',
         direction: 'vertical',
-        forceFallback: true, // Force HTML5 drag for better mobile support
-        fallbackTolerance: 3, // مسافة صغيرة قبل ما يبدأ الـ drag
-        delay: 100, // ضغط مطول شوية قبل الـ drag
-        delayOnTouchOnly: true, // الـ delay على الموبايل بس
+        // 🔧 v36: forceFallback=false عشان الـ native drag أسرع على الـ tablet
+        // الـ touch-action:none في الـ handle بيخلي touch يشتغل صح
+        forceFallback: false,
+        fallbackTolerance: 4,
+        delay: 0,                   // مفيش delay - الـ handle المحدد بيمنع الـ accidental drags
+        delayOnTouchOnly: false,
+        touchStartThreshold: 5,     // 5px قبل ما يبدأ الـ drag
         onEnd: function(evt){
-          // Update الـ array بعد السحب
-          const item = _sortableOrders[evt.oldIndex];
-          _sortableOrders.splice(evt.oldIndex, 1);
-          _sortableOrders.splice(evt.newIndex, 0, item);
-          
-          // Re-render عشان الأرقام تتحدث
-          renderSortableList();
+          const oldIdx = evt.oldIndex;
+          const newIdx = evt.newIndex;
+          if(oldIdx === newIdx) return;
+
+          // 🔧 v36: لو في filter نشط، نقل في الـ filtered list،
+          // وبعدين عكس النقل على الـ master _sortableOrders بـ id matching.
+          if(orders === _sortableOrders){
+            // Master list - نقل مباشر
+            const item = _sortableOrders[oldIdx];
+            _sortableOrders.splice(oldIdx, 1);
+            _sortableOrders.splice(newIdx, 0, item);
+          } else {
+            // Filtered list - نشتغل بالـ id
+            const movedId = orders[oldIdx].id;
+            // shift in filtered first
+            const moved = orders.splice(oldIdx, 1)[0];
+            orders.splice(newIdx, 0, moved);
+            // map filtered indices → master indices
+            // get master index of each filtered item (in order)
+            const masterIdx = orders.map(fo => _sortableOrders.findIndex(mo => mo.id === fo.id));
+            // remove these items from master
+            const masterItems = masterIdx.map(i => _sortableOrders[i]);
+            const sortedMasterIdx = [...masterIdx].sort((a,b)=>b-a);
+            sortedMasterIdx.forEach(i => _sortableOrders.splice(i, 1));
+            // re-insert in new order at the position of the lowest original index
+            const insertAt = Math.min(...masterIdx);
+            _sortableOrders.splice(insertAt, 0, ...orders);
+          }
+
+          // 🔧 v36: بدل ما نعيد render كامل، حدّث بس الأرقام (#1, #2, ...) في الـ DOM الموجود
+          // ده يخلي الـ animation سلس ويمنع flicker
+          updateSortNumbers();
         }
       });
     }
   } else {
     console.error('Sortable.js not loaded');
   }
-  
-  console.log('✅ Sortable initialized with', orders.length, 'items');
+}
+
+// 🆕 v36: helper - update الأرقام فقط بدون إعادة render أو إعادة create للـ Sortable
+function updateSortNumbers(){
+  const items = document.querySelectorAll('#sortable-list .sort-item');
+  items.forEach((item, idx) => {
+    const numEl = item.querySelector('.sort-num');
+    if(numEl) numEl.textContent = '#' + (idx + 1);
+  });
 }
 
 async function saveSort(){
