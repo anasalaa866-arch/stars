@@ -2982,7 +2982,6 @@ async function flushAuditQueue(){
     try {
       const stored = JSON.parse(localStorage.getItem('audit_queue') || '[]');
       stored.push(..._auditQueue);
-      // حد أقصى 500 event عشان نمنع تضخم
       if (stored.length > 500) stored.splice(0, stored.length - 500);
       localStorage.setItem('audit_queue', JSON.stringify(stored));
     } catch(e){}
@@ -2992,32 +2991,28 @@ async function flushAuditQueue(){
   const batch = _auditQueue.slice();
   _auditQueue = [];
   try {
-    const baseUrl = (typeof API_URL === 'string' ? API_URL : '').replace(/\/$/, '');
-    const token = window._cashierToken || localStorage.getItem('cashier_token') || '';
-    const r = await fetch(baseUrl + '/api/cart-audit/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ events: batch })
-    });
-    if (!r.ok) {
-      // فشل - رجع للـ queue
+    // 🔧 v38.1: استخدم apiFetch (بياخد التوكين تلقائياً) بدل fetch مباشر
+    const r = await apiFetch('/api/cart-audit/batch', 'POST', { events: batch });
+    if (!r || r.error) {
+      // فشل - رجع للـ queue + خزن في localStorage
       _auditQueue.unshift(...batch);
       try {
         localStorage.setItem('audit_queue', JSON.stringify(_auditQueue.slice(-500)));
       } catch(e){}
+      console.warn('audit batch failed:', r?.error);
     } else {
-      // نجح - شوف لو فيه stored events نـ flush برضه
+      console.log(`✅ audit: sent ${batch.length} events`);
+      // نجح - شوف لو فيه stored events نرفعها برضه
       try {
         const stored = JSON.parse(localStorage.getItem('audit_queue') || '[]');
         if (stored.length) {
           localStorage.removeItem('audit_queue');
-          await fetch(baseUrl + '/api/cart-audit/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ events: stored })
-          }).catch(()=>{
+          const r2 = await apiFetch('/api/cart-audit/batch', 'POST', { events: stored });
+          if (!r2 || r2.error) {
             localStorage.setItem('audit_queue', JSON.stringify(stored));
-          });
+          } else {
+            console.log(`✅ audit: flushed ${stored.length} stored events`);
+          }
         }
       } catch(e){}
     }
@@ -3026,7 +3021,8 @@ async function flushAuditQueue(){
     _auditQueue.unshift(...batch);
     try {
       localStorage.setItem('audit_queue', JSON.stringify(_auditQueue.slice(-500)));
-    } catch(e){}
+    } catch(e2){}
+    console.warn('audit network error:', e.message);
   }
 }
 
