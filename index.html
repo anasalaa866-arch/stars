@@ -2948,6 +2948,103 @@ let _posStore = null;
 let _posCatalog = [];
 let _posCatalogByBarcode = {}; // barcode/sku -> product
 let _posCart = [];
+
+// 🆕 v38: Cart Audit Log - يبعت كل حركة في الكاشير للسيرفر لمنع السرقة
+let _auditQueue = [];
+let _auditFlushTimer = null;
+
+function _auditCalcCartTotal(){
+  return _posCart.reduce((s, item) => s + (item.qty * item.unitPrice), 0);
+}
+
+function logCartAction(action_type, extras = {}){
+  try {
+    const ev = {
+      action_type,
+      store_id: (typeof _posStore !== 'undefined' && _posStore?.id) ? _posStore.id : null,
+      store_name: (typeof _posStore !== 'undefined' && _posStore?.name) ? _posStore.name : '',
+      cashier_id: (typeof window.cachedCourierId !== 'undefined') ? window.cachedCourierId : null,
+      cashier_name: window.cachedCourierName || '',
+      device_id: (typeof navigator !== 'undefined' && navigator.userAgent) ? (navigator.userAgent.match(/Mobile|Tablet/) ? 'Tablet' : 'Desktop') : '',
+      created_at: new Date().toISOString(),
+      ...extras
+    };
+    _auditQueue.push(ev);
+    clearTimeout(_auditFlushTimer);
+    _auditFlushTimer = setTimeout(flushAuditQueue, 1500);
+  } catch(e) { console.warn('audit log:', e); }
+}
+
+async function flushAuditQueue(){
+  if (!_auditQueue.length) return;
+  if (typeof API_URL === 'undefined' || !API_URL) {
+    // اخزن في localStorage لحد ما النت يرجع
+    try {
+      const stored = JSON.parse(localStorage.getItem('audit_queue') || '[]');
+      stored.push(..._auditQueue);
+      // حد أقصى 500 event عشان نمنع تضخم
+      if (stored.length > 500) stored.splice(0, stored.length - 500);
+      localStorage.setItem('audit_queue', JSON.stringify(stored));
+    } catch(e){}
+    _auditQueue = [];
+    return;
+  }
+  const batch = _auditQueue.slice();
+  _auditQueue = [];
+  try {
+    const baseUrl = (typeof API_URL === 'string' ? API_URL : '').replace(/\/$/, '');
+    const token = window._cashierToken || localStorage.getItem('cashier_token') || '';
+    const r = await fetch(baseUrl + '/api/cart-audit/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ events: batch })
+    });
+    if (!r.ok) {
+      // فشل - رجع للـ queue
+      _auditQueue.unshift(...batch);
+      try {
+        localStorage.setItem('audit_queue', JSON.stringify(_auditQueue.slice(-500)));
+      } catch(e){}
+    } else {
+      // نجح - شوف لو فيه stored events نـ flush برضه
+      try {
+        const stored = JSON.parse(localStorage.getItem('audit_queue') || '[]');
+        if (stored.length) {
+          localStorage.removeItem('audit_queue');
+          await fetch(baseUrl + '/api/cart-audit/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ events: stored })
+          }).catch(()=>{
+            localStorage.setItem('audit_queue', JSON.stringify(stored));
+          });
+        }
+      } catch(e){}
+    }
+  } catch(e) {
+    // الـ network فشل - حفظ في localStorage
+    _auditQueue.unshift(...batch);
+    try {
+      localStorage.setItem('audit_queue', JSON.stringify(_auditQueue.slice(-500)));
+    } catch(e){}
+  }
+}
+
+// لما الـ page تتقفل، اعمل flush للـ queue
+window.addEventListener('beforeunload', () => {
+  if (_auditQueue.length) flushAuditQueue();
+});
+// كل دقيقة، حاول ترفع اللي متراكم في localStorage
+setInterval(() => {
+  try {
+    const stored = JSON.parse(localStorage.getItem('audit_queue') || '[]');
+    if (stored.length) {
+      _auditQueue.push(...stored);
+      localStorage.removeItem('audit_queue');
+      flushAuditQueue();
+    }
+  } catch(e){}
+}, 60000);
 // 🆕 v29: Active offers map - key = product_id أو product_id:variant_id
 let _posOffers = {};
 let _posOffersFetchedAt = null;
@@ -3371,11 +3468,18 @@ function posAddToCart(variantId){
   const originalPrice = parseFloat(product.price) || 0;
   const finalPrice = offer ? parseFloat(offer.offerPrice) : originalPrice;
   
+  // 🆕 v38: audit - track cart total قبل التعديل
+  const cartTotalBefore = _auditCalcCartTotal();
+  
   // شوف لو موجود بالفعل في السلة
   const existing = _posCart.find(c => c.variantId === variantId);
+  let isNew = false;
+  let oldQty = 0;
   if(existing){
+    oldQty = existing.qty;
     existing.qty++;
   } else {
+    isNew = true;
     _posCart.push({
       variantId: product.variant_id,
       productId: product.product_id,
@@ -3391,6 +3495,19 @@ function posAddToCart(variantId){
       imageUrl: product.image_url
     });
   }
+
+  // 🆕 v38: audit log
+  logCartAction(isNew ? 'add_item' : 'qty_increased', {
+    variant_id: variantId,
+    product_title: product.product_title,
+    variant_title: product.variant_title,
+    sku: product.sku,
+    old_qty: oldQty,
+    new_qty: isNew ? 1 : existing.qty,
+    new_price: finalPrice,
+    cart_total_before: cartTotalBefore,
+    cart_total_after: _auditCalcCartTotal()
+  });
   
   // 🆕 v34: علّم الـ variant ده عشان يعمل flash animation
   _posLastAddedVariantId = variantId;
@@ -3534,12 +3651,42 @@ function posToggleMobileCart(){
 function posUpdateQty(idx, delta){
   const item = _posCart[idx];
   if(!item) return;
+  // 🆕 v38: audit
+  const cartTotalBefore = _auditCalcCartTotal();
+  const oldQty = item.qty;
   item.qty = Math.max(1, item.qty + delta);
+  const isIncrease = item.qty > oldQty;
+  logCartAction(isIncrease ? 'qty_increased' : 'qty_decreased', {
+    variant_id: item.variantId,
+    product_title: item.productTitle,
+    variant_title: item.variantTitle,
+    sku: item.sku,
+    old_qty: oldQty,
+    new_qty: item.qty,
+    new_price: item.unitPrice,
+    cart_total_before: cartTotalBefore,
+    cart_total_after: _auditCalcCartTotal()
+  });
   posRenderCart();
   if(_posPromo) posRevalidatePromo();
 }
 
 function posRemoveFromCart(idx){
+  const item = _posCart[idx];
+  if (!item) return;
+  // 🆕 v38: audit - حركة مهمة جداً للمراقبة
+  const cartTotalBefore = _auditCalcCartTotal();
+  logCartAction('remove_item', {
+    variant_id: item.variantId,
+    product_title: item.productTitle,
+    variant_title: item.variantTitle,
+    sku: item.sku,
+    old_qty: item.qty,
+    new_qty: 0,
+    old_price: item.unitPrice,
+    cart_total_before: cartTotalBefore,
+    cart_total_after: cartTotalBefore - (item.qty * item.unitPrice)
+  });
   _posCart.splice(idx, 1);
   posRenderCart();
   if(_posPromo) posRevalidatePromo();
@@ -3548,6 +3695,17 @@ function posRemoveFromCart(idx){
 function posClearCart(){
   if(!_posCart.length) return;
   if(!confirm('مسح السلة كاملة؟')) return;
+  // 🆕 v38: audit - أهم حركة
+  const cartTotalBefore = _auditCalcCartTotal();
+  const itemsSnapshot = _posCart.map(it => ({
+    variantId: it.variantId, productTitle: it.productTitle,
+    qty: it.qty, unitPrice: it.unitPrice
+  }));
+  logCartAction('clear_cart', {
+    cart_total_before: cartTotalBefore,
+    cart_total_after: 0,
+    details: { items: itemsSnapshot, item_count: _posCart.length }
+  });
   _posCart = [];
   _posPromo = null;
   posClearPromo();
@@ -3794,6 +3952,12 @@ async function posApplyPromo(){
       $('pos-promo-btn').style.display = 'none';
       $('pos-promo-code-display').textContent = '🎟️ ' + r.promo.code;
       $('pos-promo-discount-display').textContent = `خصم: ${parseFloat(r.promo.discount).toFixed(0)} ج`;
+      // 🆕 v38: audit
+      logCartAction('discount_applied', {
+        cart_total_before: subtotal,
+        cart_total_after: subtotal - parseFloat(r.promo.discount),
+        details: { code: r.promo.code, discount_amount: r.promo.discount }
+      });
       posUpdateTotals();
       posClosePromo();
       toast(`✅ خصم ${r.promo.discount.toFixed(0)} ج`, 'success');
@@ -4090,6 +4254,20 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     isOffline: !_posIsOnline
   });
   
+  // 🆕 v38: audit log - بيع تم
+  logCartAction('sale_completed', {
+    sale_id: clientUuid,
+    cart_total_before: subtotal,
+    cart_total_after: 0,
+    details: {
+      subtotal, discount, total,
+      items_count: _posCart.length,
+      total_qty: _posCart.reduce((s, c) => s + c.qty, 0),
+      payment_method: payments.map(p => p.method).join('+'),
+      customer: _posCustomer ? { name: _posCustomer.name, phone: _posCustomer.phone } : null
+    }
+  });
+
   // مسح السلة
   _posCart = [];
   _posCustomer = null;
@@ -5431,12 +5609,13 @@ function uprBuildReceiptBytes(data){
   push(_uprDivider('='));
 
   // Sale info
+  // 🔧 v37: شيلت العربي - الـ printer مش بيدعم UTF-8 وبيطلع رموز غريبة
   push(UPR_CMD.ALIGN_LEFT);
-  push('فاتورة / Sale: ' + (data.saleNumber || '') + '\n');
-  push('الكاشير / Cashier: ' + (window.cachedCourierName || '') + '\n');
+  push('Sale: ' + (data.saleNumber || '') + '\n');
+  push('Cashier: ' + (window.cachedCourierName || '') + '\n');
   if(data.customer){
-    push('العميل / Customer: ' + (data.customer.name || '') + '\n');
-    if(data.customer.phone) push('الموبايل / Phone: ' + data.customer.phone + '\n');
+    push('Customer: ' + (data.customer.name || '') + '\n');
+    if(data.customer.phone) push('Phone: ' + data.customer.phone + '\n');
   }
   push(_uprDivider('-'));
 
@@ -5454,9 +5633,9 @@ function uprBuildReceiptBytes(data){
   push(_uprDivider('-'));
 
   // Totals
-  push(_uprCol('الإجمالي / Subtotal:', (data.subtotal||0).toFixed(0) + ' EGP'));
+  push(_uprCol('Subtotal:', (data.subtotal||0).toFixed(0) + ' EGP'));
   if(data.discount > 0){
-    const lbl = `خصم${data.promo ? ' ('+data.promo.code+')' : ''} / Discount`;
+    const lbl = `Discount${data.promo ? ' ('+data.promo.code+')' : ''}`;
     push(_uprCol(lbl + ':', '-' + data.discount.toFixed(0) + ' EGP'));
   }
   push(_uprDivider('='));
@@ -5469,12 +5648,19 @@ function uprBuildReceiptBytes(data){
 
   // Payments
   const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
+  // 🔧 v37: methodNames إنجليزي فقط للـ printer
+  const methodNamesEn = {
+    cash: 'Cash', card: 'Card', visa: 'Card',
+    instapay: 'InstaPay', wallet: 'Wallet',
+    transfer: 'Transfer', bank_transfer: 'Bank Transfer'
+  };
   if(pays.length === 1){
-    push('الدفع / Payment: ' + (methodNames[pays[0].method] || pays[0].method) + '\n');
+    const m = pays[0].method;
+    push('Payment: ' + (methodNamesEn[m] || m) + '\n');
   } else if(pays.length > 1){
-    push('الدفع / Payments:\n');
+    push('Payments:\n');
     pays.forEach(p => {
-      const left = '  ' + (methodNames[p.method] || p.method) + ':';
+      const left = '  ' + (methodNamesEn[p.method] || p.method) + ':';
       const right = parseFloat(p.amount).toFixed(0) + ' EGP';
       push(_uprCol(left, right));
     });
@@ -5482,7 +5668,6 @@ function uprBuildReceiptBytes(data){
 
   push('\n');
   push(UPR_CMD.ALIGN_CENTER);
-  push('شكراً لزيارتكم 💚\n');
   push('Thank you for visiting!\n');
   push('See you again ;)\n');
   push(UPR_CMD.FEED_3);
