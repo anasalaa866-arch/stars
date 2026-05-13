@@ -2957,7 +2957,20 @@ function _auditCalcCartTotal(){
   return _posCart.reduce((s, item) => s + (item.qty * item.unitPrice), 0);
 }
 
+// 🔧 v39: الحركات المشبوهة فقط - ما نخزنش الحركات العادية في الـ DB
+const _SUSPICIOUS_ACTIONS = new Set([
+  'remove_item',
+  'clear_cart',
+  'qty_decreased',
+  'discount_applied',
+  'price_change',
+  'cancel_sale'
+]);
+
 function logCartAction(action_type, extras = {}){
+  // ⏭️ تجاهل الحركات العادية (add_item, qty_increased, sale_completed)
+  if (!_SUSPICIOUS_ACTIONS.has(action_type)) return;
+
   try {
     const ev = {
       action_type,
