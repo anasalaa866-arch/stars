@@ -660,6 +660,12 @@ a{color:inherit;text-decoration:none}
         100% { transform: scale(1); }
       }
       .pos-cart-item.flash{animation: posCartItemFlash 0.6s ease-out}
+
+      /* 🆕 v41: slide-down animation للـ Shopify order toast */
+      @keyframes slideDown {
+        from { opacity: 0; transform: translateX(-50%) translateY(-30px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+      }
       
       .pos-cart-empty{text-align:center;padding:60px 20px;color:#9ca3af}
       .pos-cart-empty-icon{font-size:64px;margin-bottom:12px;opacity:.4}
@@ -4295,6 +4301,10 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     posSendSale(sale).then(result => {
       if(result?.success){
         toast(`✅ ${result.saleNumber}`, 'success');
+        // 🆕 v41: poll عشان نجيب الـ Shopify order number
+        if(result.saleId){
+          pollShopifyOrderNumber(result.saleId, result.saleNumber);
+        }
       }
     }).catch(e => {
       toast('⚠️ هيتم إعادة المحاولة...', 'warning');
@@ -4304,6 +4314,51 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
   }
   
   posUpdatePendingBadge();
+}
+
+// 🆕 v41: poll لـ Shopify order number بعد ما البيعة تتـ sync
+async function pollShopifyOrderNumber(saleId, saleNumber){
+  const maxAttempts = 12; // 12 محاولة × 2.5s = 30 ثانية
+  const intervalMs = 2500;
+
+  for(let attempt = 1; attempt <= maxAttempts; attempt++){
+    await new Promise(r => setTimeout(r, intervalMs));
+    try {
+      const r = await apiFetch('/api/pos/sales/' + saleId + '/shopify-status');
+      if(!r) continue;
+      if(r.synced && r.shopifyOrderName){
+        // 🎉 نجح - اعرض الـ Shopify name
+        showShopifyOrderToast(r.shopifyOrderName, saleNumber);
+        return;
+      }
+      if(r.syncError){
+        // فشل - اعرض warning مع آخر محاولة فقط
+        if(attempt === maxAttempts){
+          toast('⚠️ ' + saleNumber + ' لم تتزامن مع Shopify', 'warning');
+        }
+      }
+    } catch(e){
+      console.warn('pollShopifyOrderNumber:', e.message);
+    }
+  }
+}
+
+function showShopifyOrderToast(shopifyName, saleNumber){
+  // toast كبير في الـ center بالـ Shopify name
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:99999;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;padding:14px 22px;border-radius:14px;box-shadow:0 10px 40px rgba(22,163,74,.5);font-family:Cairo,sans-serif;text-align:center;animation:slideDown .35s ease-out;min-width:240px';
+  t.innerHTML = `
+    <div style="font-size:11px;opacity:.9;margin-bottom:2px">رقم Shopify</div>
+    <div style="font-size:24px;font-weight:900;letter-spacing:0.5px">🛍️ ${shopifyName}</div>
+    <div style="font-size:10px;opacity:.85;margin-top:4px">${saleNumber}</div>
+  `;
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'all .3s';
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(-50%) translateY(-20px)';
+    setTimeout(() => t.remove(), 350);
+  }, 6500);
 }
 
 // 🆕 v22: ابعت بيعة واحدة للسيرفر
@@ -6339,6 +6394,7 @@ async function smgrLoadSales(){
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
           <div>
             <div style="font-weight:800;font-size:13px;font-family:monospace">${escapeHtml(s.sale_number)}</div>
+            ${s.shopify_order_name ? `<div style="font-size:10px;color:#16a34a;font-weight:700;margin-top:2px">🛍️ ${escapeHtml(s.shopify_order_name)}</div>` : ''}
             <div style="font-size:10px;color:var(--muted)">${time}</div>
           </div>
           <div style="text-align:left">
@@ -6400,6 +6456,12 @@ async function smgrViewSale(saleId){
     $('smgr-sale-title').textContent = '📋 ' + (s.sale_number || '#' + s.id);
     
     const html = `
+      ${s.shopify_order_name ? `
+        <div style="background:linear-gradient(135deg,#dcfce7,#fff);border:1px solid #16a34a;border-radius:10px;padding:10px 12px;margin-bottom:14px">
+          <div style="font-size:10px;color:#16a34a;font-weight:700">رقم Shopify</div>
+          <div style="font-weight:900;font-size:18px;color:#15803d">🛍️ ${escapeHtml(s.shopify_order_name)}</div>
+        </div>
+      ` : ''}
       <div style="margin-bottom:14px">
         <div style="font-size:11px;color:var(--muted)">التاريخ:</div>
         <div style="font-weight:700">${new Date(s.created_at).toLocaleString('ar-EG')}</div>
