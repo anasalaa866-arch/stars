@@ -729,6 +729,7 @@ a{color:inherit;text-decoration:none}
       <div class="pos-topbar-actions">
         <span class="pos-online-pill online" id="pos-online-indicator">🟢 Online</span>
         <button class="pos-tb-btn" onclick="posOpenSalesHistory()" title="سجل البيعات">📋 السجل</button>
+        <button class="pos-tb-btn" onclick="posOpenReturnsSearch()" title="إنشاء مرتجع" style="background:#fed7aa;color:#9a3412;border-color:#fdba74">↩️ مرتجع</button>
         <button class="pos-tb-btn icon-only" onclick="posForceRefresh()" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
         <button class="pos-tb-btn icon-only" onclick="posOpenPrinterSettings()" id="pos-printer-btn" title="إعداد الطابعة">🖨️</button>
         <button class="pos-tb-btn icon-only" onclick="logout()" title="خروج" style="color:#dc2626;border-color:#fecaca">⏻</button>
@@ -865,6 +866,53 @@ a{color:inherit;text-decoration:none}
   
   <!-- 🆕 v24: Mixed Payment Modal -->
 
+  <!-- 🆕 v50: Cash Tendered Modal - حساب الباقي -->
+  <div id="pos-cash-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1001;padding:14px;overflow-y:auto">
+    <div style="background:var(--bg);max-width:480px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid #22c55e">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:#22c55e">💵 دفع كاش</h3>
+        <button onclick="posCloseCashModal()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
+      </div>
+
+      <!-- المبلغ المطلوب -->
+      <div style="background:rgba(34,197,94,.1);border:1px solid #22c55e;border-radius:8px;padding:12px;margin-bottom:14px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">المبلغ المطلوب</div>
+        <div style="font-size:28px;font-weight:800;color:#22c55e" id="cash-total">0 ج</div>
+      </div>
+
+      <!-- خد كام -->
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;display:block">خد كام من العميل؟</label>
+        <input type="number" id="cash-tendered" min="0" step="1" inputmode="decimal"
+               style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:22px;text-align:center;font-weight:800"
+               oninput="posUpdateCashChange()" placeholder="0">
+      </div>
+
+      <!-- اختصارات سريعة -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px">
+        <button onclick="posSetCashQuick('exact')" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:11px;cursor:pointer">المطلوب</button>
+        <button onclick="posSetCashQuick(50)" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">50</button>
+        <button onclick="posSetCashQuick(100)" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">100</button>
+        <button onclick="posSetCashQuick(200)" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">200</button>
+        <button onclick="posSetCashQuick(500)" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">500</button>
+        <button onclick="posSetCashQuick(1000)" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">1000</button>
+        <button onclick="posCashRoundUp10()" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:11px;cursor:pointer">⏶ 10</button>
+        <button onclick="posCashRoundUp50()" style="padding:10px 4px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;font-size:11px;cursor:pointer">⏶ 50</button>
+      </div>
+
+      <!-- الباقي -->
+      <div id="cash-change-display" style="background:#f3f4f6;border-radius:10px;padding:14px;margin-bottom:14px;text-align:center;border:2px solid var(--border)">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">الباقي للعميل</div>
+        <div style="font-size:36px;font-weight:900;color:var(--text)" id="cash-change">0 ج</div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="posCloseCashModal()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
+        <button onclick="posConfirmCash()" id="cash-confirm-btn" style="flex:2;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer;font-size:15px">✅ تأكيد البيع</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 🛡️ v27: Visa/Instapay Reference Modal -->
   <div id="pos-ref-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1001;padding:14px;overflow-y:auto">
     <div style="background:var(--bg);max-width:450px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
@@ -881,7 +929,7 @@ a{color:inherit;text-decoration:none}
       <div style="background:rgba(59,130,246,.1);border:1px solid #3b82f6;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;line-height:1.7;color:#1e3a8a">
         <strong>⚠️ مهم:</strong><br>
         1. اعمل الـ transaction على الماكينة الأول<br>
-        2. ادخل المبلغ الفعلي اللي اتحصّل + رقم العملية<br>
+        2. ادخل المبلغ الفعلي اللي اتحصّل (رقم العملية اختياري)<br>
         3. لو فيه أي فرق - لازم موافقة المدير
       </div>
       
@@ -894,8 +942,8 @@ a{color:inherit;text-decoration:none}
       </div>
       
       <div style="margin-bottom:14px">
-        <label style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;display:block">رقم العملية (Reference Number) *</label>
-        <input type="text" id="ref-number" placeholder="من إيصال الماكينة" 
+        <label style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;display:block">رقم العملية (Reference Number) <span style="color:var(--muted);font-weight:400">- اختياري</span></label>
+        <input type="text" id="ref-number" placeholder="من إيصال الماكينة (اختياري)" 
                style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:14px">
       </div>
       
@@ -1275,6 +1323,43 @@ a{color:inherit;text-decoration:none}
         <button onclick="smgrCloseSale()" style="background:transparent;border:none;color:var(--text);font-size:24px;cursor:pointer">×</button>
       </div>
       <div id="smgr-sale-content"></div>
+    </div>
+  </div>
+
+  <!-- 🆕 v44: Return Modal -->
+  <div id="return-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1200;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif">
+    <div style="background:var(--bg);max-width:560px;margin:0 auto;border-radius:14px;padding:18px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:#f97316;font-size:16px">↩️ إنشاء مرتجع</h3>
+        <button onclick="closeReturnModal()" style="background:transparent;border:none;color:var(--text);font-size:26px;cursor:pointer;width:32px;height:32px;line-height:1">×</button>
+      </div>
+      <div id="return-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- 🆕 v46: Returns Search Modal - للبيعات القديمة -->
+  <div id="returns-search-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1150;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif">
+    <div style="background:var(--bg);max-width:560px;margin:0 auto;border-radius:14px;padding:18px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:#f97316;font-size:16px">↩️ ابحث عن البيعة للمرتجع</h3>
+        <button onclick="document.getElementById('returns-search-modal').style.display='none'" style="background:transparent;border:none;color:var(--text);font-size:26px;cursor:pointer;width:32px;height:32px;line-height:1">×</button>
+      </div>
+      <div style="margin-bottom:10px">
+        <input id="returns-search-input" placeholder="رقم البيعة / تليفون العميل / رقم Shopify..." oninput="posSearchSalesForReturn()" style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:14px" autofocus>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">مثال: POS20260512 أو 01018012605 أو #1612</div>
+      </div>
+      <div id="returns-search-results"></div>
+    </div>
+  </div>
+
+  <!-- 🆕 v48: Edit Payment Modal -->
+  <div id="edit-payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1250;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif">
+    <div style="background:var(--bg);max-width:520px;margin:0 auto;border-radius:14px;padding:18px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:#3b82f6;font-size:16px">💰 تعديل طريقة الدفع</h3>
+        <button onclick="document.getElementById('edit-payment-modal').style.display='none'" style="background:transparent;border:none;color:var(--text);font-size:26px;cursor:pointer;width:32px;height:32px;line-height:1">×</button>
+      </div>
+      <div id="edit-payment-content"></div>
     </div>
   </div>
 
@@ -4017,19 +4102,174 @@ async function posRevalidatePromo(){
 async function posCheckout(method){
   if(!_posCart.length){ toast('❌ السلة فاضية'); return; }
   if(!_posStore){ toast('❌ مفيش محل محدد'); return; }
-  
+
   const subtotal = posCalcSubtotal();
   const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
   const total = subtotal - discount;
-  
+
   // 🛡️ v27: لو فيزا/انستاباي - افتح modal للـ reference + validation
   if(method === 'visa' || method === 'instapay'){
     posOpenRefValidation(method, total, subtotal, discount);
     return;
   }
-  
-  // كاش - مباشر
+
+  // 🆕 v50: كاش - افتح modal لحساب الباقي
+  if(method === 'cash'){
+    posOpenCashModal(total, subtotal, discount);
+    return;
+  }
+
+  // أي method تاني - مباشر
   await posCompleteSale({ payments: [{ method, amount: total }], total, subtotal, discount });
+}
+
+// 🆕 v50: Cash Tendered Modal - حساب الباقي
+let _pendingCashData = null;
+
+function posOpenCashModal(total, subtotal, discount){
+  _pendingCashData = { total, subtotal, discount };
+  $('cash-total').textContent = total.toFixed(0) + ' ج';
+  $('cash-tendered').value = '';
+  $('cash-change').textContent = '0 ج';
+  $('cash-change-display').style.background = '#f3f4f6';
+  $('cash-change-display').style.borderColor = 'var(--border)';
+  $('cash-change').style.color = 'var(--text)';
+  $('cash-confirm-btn').disabled = false;
+  $('cash-confirm-btn').style.opacity = '1';
+  document.getElementById('pos-cash-modal').style.display = 'block';
+  setTimeout(() => $('cash-tendered')?.focus(), 100);
+}
+
+function posCloseCashModal(){
+  document.getElementById('pos-cash-modal').style.display = 'none';
+  _pendingCashData = null;
+}
+
+function posUpdateCashChange(){
+  if(!_pendingCashData) return;
+  const tendered = parseFloat($('cash-tendered').value) || 0;
+  const total = _pendingCashData.total;
+  const change = tendered - total;
+
+  const display = $('cash-change-display');
+  const changeEl = $('cash-change');
+  const confirmBtn = $('cash-confirm-btn');
+
+  if(tendered <= 0){
+    // مفيش مبلغ
+    changeEl.textContent = '0 ج';
+    display.style.background = '#f3f4f6';
+    display.style.borderColor = 'var(--border)';
+    changeEl.style.color = 'var(--text)';
+    confirmBtn.disabled = false;
+    confirmBtn.style.opacity = '1';
+  } else if(change < 0){
+    // ناقص
+    changeEl.textContent = '⚠️ ناقص ' + Math.abs(change).toFixed(0) + ' ج';
+    display.style.background = '#fee2e2';
+    display.style.borderColor = '#ef4444';
+    changeEl.style.color = '#dc2626';
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '.5';
+    confirmBtn.style.cursor = 'not-allowed';
+  } else if(change === 0){
+    // مطابق تماماً
+    changeEl.textContent = '✅ مطابق - بدون باقي';
+    display.style.background = '#dcfce7';
+    display.style.borderColor = '#22c55e';
+    changeEl.style.color = '#16a34a';
+    changeEl.style.fontSize = '22px';
+    confirmBtn.disabled = false;
+    confirmBtn.style.opacity = '1';
+    confirmBtn.style.cursor = 'pointer';
+  } else {
+    // فيه باقي
+    changeEl.textContent = change.toFixed(0) + ' ج';
+    changeEl.style.fontSize = '36px';
+    display.style.background = '#dcfce7';
+    display.style.borderColor = '#22c55e';
+    changeEl.style.color = '#16a34a';
+    confirmBtn.disabled = false;
+    confirmBtn.style.opacity = '1';
+    confirmBtn.style.cursor = 'pointer';
+  }
+}
+
+function posSetCashQuick(value){
+  if(!_pendingCashData) return;
+  if(value === 'exact'){
+    $('cash-tendered').value = _pendingCashData.total.toFixed(0);
+  } else {
+    $('cash-tendered').value = value;
+  }
+  posUpdateCashChange();
+}
+
+function posCashRoundUp10(){
+  if(!_pendingCashData) return;
+  const total = _pendingCashData.total;
+  $('cash-tendered').value = Math.ceil(total / 10) * 10;
+  posUpdateCashChange();
+}
+
+function posCashRoundUp50(){
+  if(!_pendingCashData) return;
+  const total = _pendingCashData.total;
+  $('cash-tendered').value = Math.ceil(total / 50) * 50;
+  posUpdateCashChange();
+}
+
+async function posConfirmCash(){
+  if(!_pendingCashData) return;
+  const tendered = parseFloat($('cash-tendered').value) || 0;
+  const { total, subtotal, discount } = _pendingCashData;
+
+  // لو الكاشير ما كتبش حاجة، اعتبره دفع المطلوب بالظبط
+  const actualTendered = tendered > 0 ? tendered : total;
+
+  if(actualTendered < total){
+    toast('❌ المبلغ المدفوع ناقص', 'error');
+    return;
+  }
+
+  const change = actualTendered - total;
+  posCloseCashModal();
+
+  // اعمل البيعة بـ payments: { method: 'cash', amount: total, tenderedAmount, changeAmount }
+  await posCompleteSale({
+    payments: [{
+      method: 'cash',
+      amount: total,
+      tenderedAmount: actualTendered,
+      changeAmount: change
+    }],
+    total, subtotal, discount
+  });
+
+  // اعرض الباقي للكاشير في toast كبير لو فيه باقي
+  if(change > 0){
+    setTimeout(() => {
+      showChangeBanner(change, actualTendered);
+    }, 500);
+  }
+}
+
+// banner كبير يعرض الباقي بعد البيعة
+function showChangeBanner(change, tendered){
+  const banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:99999;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;padding:18px 28px;border-radius:14px;box-shadow:0 12px 40px rgba(22,163,74,.6);font-family:Cairo,sans-serif;text-align:center;min-width:280px;animation:slideDown .35s ease-out';
+  banner.innerHTML = `
+    <div style="font-size:12px;opacity:.9;margin-bottom:4px">💵 خد من العميل ${tendered.toFixed(0)} ج</div>
+    <div style="font-size:13px;opacity:.9;margin-bottom:6px">الباقي للعميل</div>
+    <div style="font-size:42px;font-weight:900;letter-spacing:1px">${change.toFixed(0)} ج</div>
+  `;
+  document.body.appendChild(banner);
+  setTimeout(() => {
+    banner.style.transition = 'all .4s';
+    banner.style.opacity = '0';
+    banner.style.transform = 'translateX(-50%) translateY(-30px)';
+    setTimeout(() => banner.remove(), 400);
+  }, 7000);
 }
 
 // 🛡️ v27: Reference + Validation Modal للفيزا/انستاباي
@@ -4123,9 +4363,7 @@ async function posConfirmRefValidation(){
   if(isNaN(charged) || charged <= 0){
     toast('❌ ادخل مبلغ صحيح', 'error'); return;
   }
-  if(!refNumber){
-    toast('❌ ادخل رقم العملية من الماكينة', 'error'); return;
-  }
+  // 🆕 v49: رقم العملية بقى اختياري - مفيش validation
   
   let toleranceApprovedById = null;
   let toleranceApprovedByName = null;
@@ -4621,7 +4859,7 @@ async function posConfirmRefForMixed(){
   const refNumber = $('ref-number').value.trim();
   
   if(isNaN(charged) || charged <= 0){ toast('❌ ادخل مبلغ صحيح', 'error'); return; }
-  if(!refNumber){ toast('❌ ادخل رقم العملية', 'error'); return; }
+  // 🆕 v49: رقم العملية اختياري
   
   let toleranceApprovedById = null;
   let toleranceApprovedByName = null;
@@ -4701,10 +4939,25 @@ function posShowReceipt(data){
       ${(() => {
         const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
         if(pays.length === 1){
-          return `<div style="display:flex;justify-content:space-between;margin-top:4px">
+          const p = pays[0];
+          let html = `<div style="display:flex;justify-content:space-between;margin-top:4px">
             <span>الدفع:</span>
-            <span style="font-weight:700">${methodNames[pays[0].method] || pays[0].method}</span>
+            <span style="font-weight:700">${methodNames[p.method] || p.method}</span>
           </div>`;
+          // 🆕 v50: اعرض الـ tendered + change لو كاش
+          if(p.method === 'cash' && p.tenderedAmount && parseFloat(p.tenderedAmount) > parseFloat(p.amount)){
+            html += `
+              <div style="display:flex;justify-content:space-between;margin-top:2px;font-size:11px">
+                <span>المدفوع:</span>
+                <span>${parseFloat(p.tenderedAmount).toFixed(0)} ج</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:2px;font-size:12px;font-weight:700;border-top:1px dashed #000;padding-top:3px">
+                <span>الباقي:</span>
+                <span>${parseFloat(p.changeAmount || (p.tenderedAmount - p.amount)).toFixed(0)} ج</span>
+              </div>
+            `;
+          }
+          return html;
         } else {
           return `
             <div style="margin-top:6px;padding-top:4px;border-top:1px dashed #000">
@@ -4865,51 +5118,383 @@ async function posOpenSalesHistory(){
   // 🆕 v22: اعرض الـ pending أولاً
   let pendingSales = [];
   try { pendingSales = await posDBGetAll('pendingSales'); } catch(e){}
-  
-  let pendingHtml = '';
-  if(pendingSales.length){
-    const lines = pendingSales.map(s => {
-      const time = new Date(s.createdAt).toLocaleTimeString('ar-EG', {hour: '2-digit', minute: '2-digit'});
-      return `⏳ ${time} | ${s.total.toFixed(0)}ج (${s.items.length} منتج)`;
-    }).join('\n');
-    pendingHtml = `\n⏳ بيعات معلّقة (${pendingSales.length}):\n${lines}\n\n`;
-  }
-  
+
   if(!_posIsOnline){
     if(pendingSales.length){
-      const ok = confirm(`🔴 Offline\n\n${pendingHtml}اضغط OK لإعادة المحاولة لما النت يرجع.`);
+      const ok = confirm(`🔴 Offline\n\n⏳ بيعات معلّقة (${pendingSales.length})\n\nاضغط OK لإعادة المحاولة لما النت يرجع.`);
       return;
     }
     alert('🔴 Offline - مش هينفع تشوف السجل من السيرفر');
     return;
   }
-  
+
+  // افتح الـ modal فوراً مع loader
+  posShowHistoryModal('<div style="text-align:center;padding:40px"><div style="font-size:36px;opacity:.4">⏳</div><div style="margin-top:10px;color:var(--muted)">جاري التحميل...</div></div>');
+
   try {
     const r = await apiFetch('/api/pos/sales?storeId=' + _posStore.id + '&today=1&limit=50');
     const sales = r?.sales || [];
-    
-    let serverHtml = '';
-    if(sales.length){
-      const list = sales.map(s => {
-        const time = new Date(s.created_at).toLocaleTimeString('ar-EG', {hour: '2-digit', minute: '2-digit'});
-        const sync = s.synced_to_shopify ? '✅' : (s.sync_error ? '⚠️' : '⏳');
-        return `${time} | ${s.sale_number} | ${parseFloat(s.total).toFixed(0)}ج ${sync}`;
-      }).join('\n');
-      serverHtml = `📋 بيعات اليوم (${sales.length}):\n${list}`;
-    } else {
-      serverHtml = 'مفيش بيعات النهاردة';
+
+    posRenderHistoryModal(sales, pendingSales);
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+    posShowHistoryModal(`<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`);
+  }
+}
+
+// 🆕 v43: modal سجل المبيعات بدل الـ alert
+function posShowHistoryModal(contentHtml){
+  let modal = $('pos-history-modal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'pos-history-modal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1100;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif';
+    modal.innerHTML = `
+      <div style="background:var(--bg);max-width:520px;margin:0 auto;border-radius:14px;padding:18px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3 style="margin:0;color:var(--gold);font-size:16px">📋 سجل بيعات اليوم</h3>
+          <button onclick="document.getElementById('pos-history-modal').style.display='none'" style="background:transparent;border:none;color:var(--text);font-size:26px;cursor:pointer;width:32px;height:32px;line-height:1">×</button>
+        </div>
+        <div id="pos-history-content"></div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  $('pos-history-content').innerHTML = contentHtml;
+  modal.style.display = 'block';
+}
+
+function posRenderHistoryModal(sales, pendingSales){
+  let html = '';
+
+  // الـ pending أولاً
+  if(pendingSales?.length){
+    html += `
+      <div style="background:#fbbf2420;border:1px solid #fbbf24;border-radius:10px;padding:10px;margin-bottom:12px">
+        <div style="font-weight:800;color:#fbbf24;font-size:13px;margin-bottom:6px">⏳ بيعات معلّقة (${pendingSales.length})</div>
+        ${pendingSales.map(s => {
+          const t = new Date(s.createdAt).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
+          return `<div style="font-size:12px;padding:4px 0;border-bottom:1px dashed #fbbf2440">${t} · ${s.items.length} منتج</div>`;
+        }).join('')}
+        <button onclick="posSyncPendingItems().then(()=>{document.getElementById('pos-history-modal').style.display='none';setTimeout(posOpenSalesHistory,500)})" style="width:100%;margin-top:8px;padding:8px;background:#fbbf24;color:#000;border:none;border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">📤 ارفع المعلّقات الآن</button>
+      </div>
+    `;
+  }
+
+  if(!sales.length){
+    html += '<div style="text-align:center;padding:30px;color:var(--muted)"><div style="font-size:36px;opacity:.3">📋</div><div style="margin-top:10px">مفيش بيعات النهاردة</div></div>';
+    posShowHistoryModal(html);
+    return;
+  }
+
+  // 🆕 v47: شيلنا الإجمالي - ضفنا بحث + عدد البيعات بس
+  html += `
+    <div style="margin-bottom:12px">
+      <input id="pos-history-search" placeholder="🔍 ابحث (رقم البيعة / تليفون / Shopify)..." oninput="posFilterHistory(this.value)" style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--muted);text-align:center">عدد البيعات: <strong style="color:var(--text)">${sales.length}</strong></div>
+    </div>
+    <div id="pos-history-list">
+  `;
+
+  // خزّن الـ sales عشان الفلتر يستخدمها
+  window._posHistorySales = sales;
+
+  html += renderHistorySalesList(sales);
+  html += '</div>';
+
+  posShowHistoryModal(html);
+}
+
+// 🆕 v47: فلتر البيعات في الـ history
+function posFilterHistory(query){
+  const q = (query || '').trim().toLowerCase();
+  const all = window._posHistorySales || [];
+  let filtered = all;
+  if(q.length >= 2){
+    filtered = all.filter(s =>
+      (s.sale_number || '').toLowerCase().includes(q) ||
+      (s.customer_phone || '').toLowerCase().includes(q) ||
+      (s.customer_name || '').toLowerCase().includes(q) ||
+      (s.shopify_order_name || '').toLowerCase().includes(q)
+    );
+  }
+  const list = $('pos-history-list');
+  if(list) list.innerHTML = renderHistorySalesList(filtered);
+}
+
+function renderHistorySalesList(sales){
+  if(!sales.length){
+    return '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">مفيش نتايج مطابقة</div>';
+  }
+  return sales.map(s => {
+    const time = new Date(s.created_at).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
+    const sync = s.synced_to_shopify
+      ? '<span style="font-size:10px;background:#22c55e30;color:#22c55e;padding:2px 6px;border-radius:99px">✅ تمزامن</span>'
+      : (s.sync_error
+          ? '<span style="font-size:10px;background:#ef444430;color:#ef4444;padding:2px 6px;border-radius:99px">⚠️ فشل</span>'
+          : '<span style="font-size:10px;background:#fbbf2430;color:#fbbf24;padding:2px 6px;border-radius:99px">⏳ جاري</span>');
+
+    const pays = (s.payments || []).map(p => {
+      const ico = { cash: '💵', visa: '💳', instapay: '📱' }[p.method] || '•';
+      return ico;
+    }).join(' ');
+
+    // 🔧 v47: شيلنا الإجمالي من العرض - بس الكاشير يشوف التاريخ + الـ status + الـ buttons
+    return `
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;position:relative">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:13px;font-family:monospace">${escapeHtml(s.sale_number)}</div>
+            ${s.shopify_order_name ? `<div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px">🛍️ ${escapeHtml(s.shopify_order_name)}</div>` : ''}
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">${time} · ${pays || '—'} · ${s.items_count || 0} منتج</div>
+            ${s.customer_name ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">👤 ${escapeHtml(s.customer_name)}</div>` : ''}
+          </div>
+          <div>${sync}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px">
+          <button onclick="posQuickPrintHistory(${s.id})" style="padding:8px 4px;background:var(--gold);color:#000;border:none;border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:11px">🖨️ طباعة</button>
+          <button onclick="posEditPayment(${s.id})" style="padding:8px 4px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:11px">💰 تعديل الدفع</button>
+          <button onclick="posStartReturnFromHistory(${s.id})" style="padding:8px 4px;background:#f97316;color:#fff;border:none;border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:11px">↩️ مرتجع</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// 🆕 v47: زرار مرتجع من قائمة البيعات
+function posStartReturnFromHistory(saleId){
+  $('pos-history-modal').style.display = 'none';
+  openReturnModal(saleId);
+}
+
+// ============================================================
+// 🆕 v48: تعديل طريقة الدفع لبيعة موجودة
+// ============================================================
+let _editPaymentData = null; // { sale, payments, newPayments: [{method, amount}] }
+
+async function posEditPayment(saleId){
+  $('pos-history-modal').style.display = 'none';
+  $('edit-payment-modal').style.display = 'block';
+  $('edit-payment-content').innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:36px;opacity:.4">⏳</div><div style="margin-top:10px;color:var(--muted)">جاري التحميل...</div></div>';
+
+  try {
+    const r = await apiFetch('/api/pos/sales/' + saleId);
+    if(!r?.sale){ toast('❌ مفيش بيانات', 'error'); closeEditPayment(); return; }
+    _editPaymentData = {
+      sale: r.sale,
+      origPayments: r.payments || [],
+      // ابدأ بالـ payments الحالية
+      newPayments: (r.payments || []).map(p => ({
+        method: p.method,
+        amount: parseFloat(p.amount)
+      }))
+    };
+    renderEditPaymentModal();
+  } catch(e){
+    $('edit-payment-content').innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function closeEditPayment(){
+  $('edit-payment-modal').style.display = 'none';
+  _editPaymentData = null;
+}
+
+function renderEditPaymentModal(){
+  if(!_editPaymentData) return;
+  const { sale, origPayments, newPayments } = _editPaymentData;
+  const total = parseFloat(sale.total);
+  const totalPaid = newPayments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+  const diff = total - totalPaid;
+  const balanced = Math.abs(diff) < 0.5;
+
+  const methodLabel = { cash: '💵 كاش', visa: '💳 فيزا', instapay: '📱 انستاباي', fawry: '🏧 فوري', vodafone_cash: '📲 فودافون كاش' };
+
+  // الـ payments الحالية (الأصلية) للمرجع
+  const origSummary = origPayments.map(p => `${methodLabel[p.method] || p.method}: ${parseFloat(p.amount).toFixed(0)} ج`).join(' · ');
+
+  const html = `
+    <!-- معلومات البيعة -->
+    <div style="background:var(--elev);border-radius:10px;padding:10px;margin-bottom:12px;border:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--muted)">البيعة</div>
+      <div style="font-weight:800;font-family:monospace;margin-top:2px">${escapeHtml(sale.sale_number)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">طريقة الدفع الحالية:</div>
+      <div style="font-size:11px;font-weight:600;margin-top:2px">${origSummary}</div>
+    </div>
+
+    <!-- الإجمالي اللي لازم يتدفع -->
+    <div style="background:#3b82f620;border:1px solid #3b82f6;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800;color:#3b82f6">إجمالي البيعة</div>
+      <div style="font-size:20px;font-weight:900;color:#3b82f6">${total.toFixed(0)} ج</div>
+    </div>
+
+    <!-- الـ payments الجديدة -->
+    <div style="font-weight:800;color:var(--gold);font-size:13px;margin-bottom:8px">طرق الدفع الجديدة</div>
+    <div style="margin-bottom:10px">
+      ${newPayments.map((p, idx) => `
+        <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:8px;margin-bottom:6px;display:flex;gap:6px;align-items:center">
+          <select onchange="editPaymentChangeMethod(${idx}, this.value)" style="flex:1;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-size:13px">
+            <option value="cash" ${p.method==='cash'?'selected':''}>💵 كاش</option>
+            <option value="visa" ${p.method==='visa'?'selected':''}>💳 فيزا</option>
+            <option value="instapay" ${p.method==='instapay'?'selected':''}>📱 انستاباي</option>
+            <option value="fawry" ${p.method==='fawry'?'selected':''}>🏧 فوري</option>
+            <option value="vodafone_cash" ${p.method==='vodafone_cash'?'selected':''}>📲 فودافون كاش</option>
+          </select>
+          <input type="number" value="${p.amount}" oninput="editPaymentChangeAmount(${idx}, this.value)" style="width:100px;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-size:13px;text-align:center" inputmode="decimal">
+          ${newPayments.length > 1 ? `<button onclick="editPaymentRemove(${idx})" style="width:32px;height:32px;background:#ef4444;color:#fff;border:none;border-radius:7px;font-size:14px;cursor:pointer">×</button>` : ''}
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- زرارين: ضيف طريقة دفع + الاختصارات -->
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button onclick="editPaymentAdd()" style="flex:1;padding:8px;background:var(--elev);color:var(--text);border:1px dashed var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">+ ضيف طريقة دفع</button>
+      <button onclick="editPaymentBalanceLast()" style="padding:8px 12px;background:#3b82f620;color:#3b82f6;border:1px solid #3b82f6;border-radius:7px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer;font-weight:700" title="حط الباقي في آخر طريقة">⚖️ موازنة</button>
+    </div>
+
+    <!-- ملخص الموازنة -->
+    <div style="background:${balanced ? '#22c55e20' : '#ef444420'};border:1px solid ${balanced ? '#22c55e' : '#ef4444'};border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span style="color:var(--muted)">المدفوع:</span>
+        <span style="font-weight:800">${totalPaid.toFixed(0)} ج</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span style="color:var(--muted)">الإجمالي:</span>
+        <span style="font-weight:800">${total.toFixed(0)} ج</span>
+      </div>
+      <div style="border-top:1px dashed var(--border);padding-top:4px;margin-top:4px;display:flex;justify-content:space-between;font-size:13px">
+        <span style="font-weight:800;color:${balanced ? '#22c55e' : '#ef4444'}">
+          ${balanced ? '✅ متوازن' : (diff > 0 ? `⚠️ ناقص ${diff.toFixed(0)} ج` : `⚠️ زيادة ${Math.abs(diff).toFixed(0)} ج`)}
+        </span>
+      </div>
+    </div>
+
+    <!-- سبب التعديل -->
+    <div style="margin-bottom:12px">
+      <textarea id="edit-payment-reason" placeholder="سبب التعديل (اختياري، مثلاً: الكارت مسحبش)..." style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;resize:vertical;min-height:50px;font-size:13px"></textarea>
+    </div>
+
+    <button onclick="submitEditPayment()" ${!balanced ? 'disabled' : ''} style="width:100%;padding:14px;background:${balanced ? 'linear-gradient(135deg,#3b82f6,#2563eb)' : '#444'};color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:${balanced ? 'pointer' : 'not-allowed'};opacity:${balanced ? '1' : '.5'}">
+      ${balanced ? '✅ حفظ التعديل' : 'لازم تكون متوازنة الأول'}
+    </button>
+  `;
+
+  $('edit-payment-content').innerHTML = html;
+}
+
+function editPaymentChangeMethod(idx, method){
+  if(!_editPaymentData) return;
+  _editPaymentData.newPayments[idx].method = method;
+  renderEditPaymentModal();
+}
+
+function editPaymentChangeAmount(idx, value){
+  if(!_editPaymentData) return;
+  _editPaymentData.newPayments[idx].amount = parseFloat(value) || 0;
+  // ما نعملش re-render كامل، بس update الملخص (عشان الـ focus ما يضيعش)
+  // بس لو الكاشير عايز يشوف الـ balance live، نعمل re-render خفيف
+  renderEditPaymentModal();
+  // restore focus على الـ input اللي كان فيه
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#edit-payment-content input[type="number"]');
+    if(inputs[idx]){
+      inputs[idx].focus();
+      inputs[idx].setSelectionRange(inputs[idx].value.length, inputs[idx].value.length);
     }
-    
-    const fullMsg = pendingHtml + serverHtml;
-    
-    if(pendingSales.length){
-      if(confirm(fullMsg + '\n\nاضغط OK لرفع البيعات المعلّقة دلوقتي')){
-        await posSyncPendingItems();
-      }
+  }, 0);
+}
+
+function editPaymentAdd(){
+  if(!_editPaymentData) return;
+  if(_editPaymentData.newPayments.length >= 5){
+    toast('5 طرق دفع كحد أقصى', 'error');
+    return;
+  }
+  _editPaymentData.newPayments.push({ method: 'cash', amount: 0 });
+  renderEditPaymentModal();
+}
+
+function editPaymentRemove(idx){
+  if(!_editPaymentData) return;
+  if(_editPaymentData.newPayments.length <= 1) return;
+  _editPaymentData.newPayments.splice(idx, 1);
+  renderEditPaymentModal();
+}
+
+function editPaymentBalanceLast(){
+  // حط الفرق في آخر طريقة دفع
+  if(!_editPaymentData) return;
+  const { sale, newPayments } = _editPaymentData;
+  const total = parseFloat(sale.total);
+  const lastIdx = newPayments.length - 1;
+  // اجمع كل اللي قبل الأخيرة
+  let sumExceptLast = 0;
+  for(let i = 0; i < lastIdx; i++){
+    sumExceptLast += parseFloat(newPayments[i].amount || 0);
+  }
+  const remaining = total - sumExceptLast;
+  newPayments[lastIdx].amount = Math.max(0, remaining);
+  renderEditPaymentModal();
+}
+
+async function submitEditPayment(){
+  if(!_editPaymentData) return;
+  const { sale, newPayments } = _editPaymentData;
+  const total = parseFloat(sale.total);
+  const totalPaid = newPayments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+  if(Math.abs(totalPaid - total) > 0.5){
+    toast('❌ لازم المجموع يساوي إجمالي البيعة', 'error');
+    return;
+  }
+
+  const change_reason = $('edit-payment-reason').value.trim();
+
+  // فلتر الـ payments بحيث ما نبعتش 0
+  const validPayments = newPayments.filter(p => parseFloat(p.amount) > 0);
+  if(!validPayments.length){
+    toast('❌ لازم طريقة دفع واحدة على الأقل', 'error');
+    return;
+  }
+
+  if(!confirm(`تأكيد تعديل طريقة الدفع؟\n\nالإجمالي: ${total.toFixed(0)} ج\nعدد الطرق: ${validPayments.length}`)) return;
+
+  try {
+    const r = await apiFetch('/api/pos/sales/' + sale.id + '/payments', 'PATCH', {
+      payments: validPayments,
+      change_reason
+    });
+    if(r?.success){
+      toast('✅ تم تعديل طريقة الدفع', 'success');
+      closeEditPayment();
+      // refresh history
+      setTimeout(posOpenSalesHistory, 300);
     } else {
-      alert(serverHtml);
+      toast('❌ ' + (r?.error || 'فشل التعديل'), 'error');
     }
-  } catch(e) { toast('❌ ' + e.message, 'error'); }
+  } catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// 🆕 v43: طباعة سريعة من سجل البيعات
+async function posQuickPrintHistory(saleId){
+  toast('⏳ جاري التحميل...', 'info');
+  try {
+    const r = await apiFetch('/api/pos/sales/' + saleId);
+    if(!r?.sale){ toast('❌ مفيش بيانات', 'error'); return; }
+    window._smgrCurrentSale = { sale: r.sale, items: r.items || [], payments: r.payments || [] };
+    await smgrPrintSaleReceipt();
+  } catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// 🆕 v43: عرض تفاصيل بيعة (يـ reuse الـ smgr modal)
+async function posViewSaleDetail(saleId){
+  if(typeof smgrViewSale === 'function'){
+    await smgrViewSale(saleId);
+  } else {
+    toast('❌ غير متاح', 'error');
+  }
 }
 
 async function posOpenStats(){
@@ -6390,26 +6975,30 @@ async function smgrLoadSales(){
     const reviewed = s.reviewed ? '<span style="font-size:10px;background:#3b82f620;color:#3b82f6;padding:2px 6px;border-radius:99px">👁️ مراجعة</span>' : '';
     
     return `
-      <div onclick="smgrViewSale(${s.id})" style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-          <div>
-            <div style="font-weight:800;font-size:13px;font-family:monospace">${escapeHtml(s.sale_number)}</div>
-            ${s.shopify_order_name ? `<div style="font-size:10px;color:#16a34a;font-weight:700;margin-top:2px">🛍️ ${escapeHtml(s.shopify_order_name)}</div>` : ''}
-            <div style="font-size:10px;color:var(--muted)">${time}</div>
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;position:relative">
+        <div onclick="smgrViewSale(${s.id})" style="cursor:pointer">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+            <div>
+              <div style="font-weight:800;font-size:13px;font-family:monospace">${escapeHtml(s.sale_number)}</div>
+              ${s.shopify_order_name ? `<div style="font-size:10px;color:#16a34a;font-weight:700;margin-top:2px">🛍️ ${escapeHtml(s.shopify_order_name)}</div>` : ''}
+              <div style="font-size:10px;color:var(--muted)">${time}</div>
+            </div>
+            <div style="text-align:left">
+              <div style="font-size:18px;font-weight:800;color:var(--gold)">${parseFloat(s.total).toFixed(0)} ج</div>
+              <div style="font-size:14px">${methodStr}</div>
+            </div>
           </div>
-          <div style="text-align:left">
-            <div style="font-size:18px;font-weight:800;color:var(--gold)">${parseFloat(s.total).toFixed(0)} ج</div>
-            <div style="font-size:14px">${methodStr}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <div style="font-size:11px;color:var(--muted)">
+              👤 ${escapeHtml(s.cashier_name || '—')}
+              ${s.customer_name ? '· ' + escapeHtml(s.customer_name) : ''}
+              · ${s.items_count} منتج
+            </div>
+            <div style="display:flex;gap:4px">${reviewed} ${settled}</div>
           </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-          <div style="font-size:11px;color:var(--muted)">
-            👤 ${escapeHtml(s.cashier_name || '—')}
-            ${s.customer_name ? '· ' + escapeHtml(s.customer_name) : ''}
-            · ${s.items_count} منتج
-          </div>
-          <div style="display:flex;gap:4px">${reviewed} ${settled}</div>
-        </div>
+        <!-- 🆕 v42: زرار طباعة سريع -->
+        <button onclick="event.stopPropagation();smgrQuickPrint(${s.id})" style="position:absolute;top:8px;left:8px;width:32px;height:32px;background:var(--gold);color:#000;border:none;border-radius:8px;font-size:16px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)" title="طباعة الإيصال">🖨️</button>
       </div>
     `;
   }).join('');
@@ -6454,7 +7043,10 @@ async function smgrViewSale(saleId){
     const payments = r.payments || [];
     
     $('smgr-sale-title').textContent = '📋 ' + (s.sale_number || '#' + s.id);
-    
+
+    // 🆕 v42: حفظ البيعة الحالية للطباعة
+    window._smgrCurrentSale = { sale: s, items, payments };
+
     const html = `
       ${s.shopify_order_name ? `
         <div style="background:linear-gradient(135deg,#dcfce7,#fff);border:1px solid #16a34a;border-radius:10px;padding:10px 12px;margin-bottom:14px">
@@ -6462,6 +7054,19 @@ async function smgrViewSale(saleId){
           <div style="font-weight:900;font-size:18px;color:#15803d">🛍️ ${escapeHtml(s.shopify_order_name)}</div>
         </div>
       ` : ''}
+
+      <!-- 🆕 v42: زرار طباعة الإيصال -->
+      <button onclick="smgrPrintSaleReceipt()" style="width:100%;padding:12px;background:linear-gradient(135deg,var(--gold),#d4af37);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer;font-size:14px;margin-bottom:8px;box-shadow:0 4px 12px rgba(212,175,55,.3)">
+        🖨️ طباعة الإيصال
+      </button>
+
+      <!-- 🆕 v44: زرار إنشاء مرتجع -->
+      ${s.voided_at ? '' : `
+      <button onclick="openReturnModal(${s.id})" style="width:100%;padding:12px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer;font-size:14px;margin-bottom:14px;box-shadow:0 4px 12px rgba(249,115,22,.3)">
+        ↩️ إنشاء مرتجع
+      </button>
+      `}
+
       <div style="margin-bottom:14px">
         <div style="font-size:11px;color:var(--muted)">التاريخ:</div>
         <div style="font-weight:700">${new Date(s.created_at).toLocaleString('ar-EG')}</div>
@@ -6523,6 +7128,645 @@ async function smgrViewSale(saleId){
 
 function smgrCloseSale(){
   $('smgr-sale-modal').style.display = 'none';
+}
+
+// 🆕 v42: طباعة سريعة من قائمة المبيعات (بدون فتح التفاصيل)
+async function smgrQuickPrint(saleId){
+  toast('⏳ جاري التحميل...', 'info');
+  try {
+    const r = await apiFetch('/api/pos/sales/' + saleId);
+    if(!r?.sale){ toast('❌ مفيش بيانات', 'error'); return; }
+    // خزّن الـ سيلز عشان الطباعة تستخدمها
+    window._smgrCurrentSale = { sale: r.sale, items: r.items || [], payments: r.payments || [] };
+    await smgrPrintSaleReceipt();
+  } catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// 🆕 v42: طباعة إيصال من سجل المبيعات (بيعة قديمة)
+async function smgrPrintSaleReceipt(){
+  const data = window._smgrCurrentSale;
+  if(!data?.sale){ toast('❌ مفيش بيعة', 'error'); return; }
+
+  const s = data.sale;
+  const items = data.items || [];
+  const payments = data.payments || [];
+
+  toast('🖨️ جاري الطباعة...', 'info');
+
+  // ابني الـ receipt من البيعة المحفوظة (شكل مطابق للـ posShowReceipt)
+  const methodNames = { cash: 'كاش', visa: 'فيزا', instapay: 'انستاباي' };
+  const subtotal = parseFloat(s.subtotal || 0);
+  const discount = parseFloat(s.discount_total || 0);
+  const total = parseFloat(s.total || 0);
+  const dt = new Date(s.created_at).toLocaleString('ar-EG');
+
+  // banner reprint
+  const reprintBadge = `<div style="text-align:center;background:#000;color:#fff;font-weight:800;font-size:10px;padding:3px;margin-bottom:6px;letter-spacing:1px">★ REPRINT - نسخة طبق الأصل ★</div>`;
+
+  const receiptHtml = `
+    ${reprintBadge}
+    <div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px">
+      <div style="font-size:20px;font-weight:800;letter-spacing:2px">CAFELAX</div>
+      <div style="font-size:11px">${escapeHtml(s.store_name || _posStore?.name || '')}</div>
+      <div style="font-size:10px">${dt}</div>
+      ${s.shopify_order_name ? `<div style="font-size:10px;font-weight:700;margin-top:2px">Shopify: ${escapeHtml(s.shopify_order_name)}</div>` : ''}
+    </div>
+
+    <div style="font-size:11px;margin-bottom:8px">
+      <div><strong>رقم البيعة:</strong> ${escapeHtml(s.sale_number || '')}</div>
+      <div><strong>الكاشير:</strong> ${escapeHtml(s.cashier_name || '')}</div>
+      ${s.customer_name ? `<div><strong>العميل:</strong> ${escapeHtml(s.customer_name)}${s.customer_phone ? ' ('+escapeHtml(s.customer_phone)+')' : ''}</div>` : ''}
+    </div>
+
+    <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0;margin-bottom:8px">
+      ${items.map(it => {
+        const qty = parseFloat(it.qty || 0);
+        const unit = parseFloat(it.unit_price || 0);
+        return `
+          <div style="margin-bottom:4px;font-size:11px">
+            <div style="font-weight:700">${escapeHtml(it.product_title || '')}${it.variant_title && it.variant_title !== 'Default Title' ? ' - '+escapeHtml(it.variant_title) : ''}</div>
+            <div style="display:flex;justify-content:space-between">
+              <span>${qty} × ${unit.toFixed(0)} ج</span>
+              <span style="font-weight:700">${(qty * unit).toFixed(0)} ج</span>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+
+    <div style="font-size:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span>المجموع:</span>
+        <span>${subtotal.toFixed(0)} ج</span>
+      </div>
+      ${discount > 0 ? `
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span>الخصم${s.promo_code ? ' ('+escapeHtml(s.promo_code)+')' : ''}:</span>
+          <span>-${discount.toFixed(0)} ج</span>
+        </div>
+      ` : ''}
+      <div style="display:flex;justify-content:space-between;font-weight:800;font-size:14px;border-top:2px solid #000;padding-top:4px;margin-top:4px">
+        <span>الإجمالي:</span>
+        <span>${total.toFixed(0)} ج</span>
+      </div>
+      ${payments.length === 1 ? `
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <span>الدفع:</span>
+          <span style="font-weight:700">${methodNames[payments[0].method] || payments[0].method}</span>
+        </div>
+      ` : payments.length > 1 ? `
+        <div style="margin-top:6px;padding-top:4px;border-top:1px dashed #000">
+          <div style="font-weight:700;margin-bottom:3px">طرق الدفع:</div>
+          ${payments.map(p => `
+            <div style="display:flex;justify-content:space-between;font-size:11px">
+              <span>${methodNames[p.method] || p.method}:</span>
+              <span style="font-weight:700">${parseFloat(p.amount).toFixed(0)} ج</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+
+    <div style="text-align:center;margin-top:14px;font-size:10px;border-top:1px dashed #000;padding-top:8px">
+      شكراً لزيارتكم!<br>
+      نتمنى رؤيتكم مرة أخرى ☕
+      <div style="margin-top:6px;font-size:9px;color:#666">★ Reprint at ${new Date().toLocaleString('ar-EG')} ★</div>
+    </div>
+  `;
+
+  // جهز sale-like object للـ universal printer
+  const sale = {
+    saleNumber: s.sale_number,
+    customer: s.customer_name ? { name: s.customer_name, phone: s.customer_phone } : null,
+    items: items.map(it => ({
+      productTitle: it.product_title,
+      variantTitle: it.variant_title,
+      qty: parseFloat(it.qty),
+      unitPrice: parseFloat(it.unit_price)
+    })),
+    payments: payments.map(p => ({ method: p.method, amount: parseFloat(p.amount) })),
+    subtotal, discount, total,
+    isReprint: true
+  };
+
+  try {
+    if(typeof uprPrintReceipt === 'function'){
+      const ok = await uprPrintReceipt(sale, receiptHtml);
+      if(ok){
+        toast('✅ تمت الطباعة', 'success');
+        return;
+      }
+    }
+  } catch(e){
+    console.error('UPR print failed:', e);
+  }
+
+  // browser fallback
+  const w = window.open('', '_blank', 'width=400,height=700');
+  if(!w){ toast('❌ السماح للنافذة المنبثقة', 'error'); return; }
+  const widthMm = (typeof _uprPaperWidth !== 'undefined' && _uprPaperWidth === 58) ? '58mm' : '80mm';
+  w.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl">
+    <head>
+      <meta charset="utf-8">
+      <title>إيصال - ${escapeHtml(s.sale_number || '')}</title>
+      <style>
+        @page { size: ${widthMm} auto; margin: 0; }
+        body { font-family: 'Cairo','Tahoma',sans-serif; padding: 6px; max-width: ${widthMm}; margin: 0 auto; }
+      </style>
+    </head>
+    <body>
+      ${receiptHtml}
+      <script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script>
+    </body>
+    </html>
+  `);
+  w.document.close();
+  toast('🖨️ تم فتح نافذة الطباعة', 'success');
+}
+
+// ============================================================
+// 🆕 v44: نظام المرتجعات
+// ============================================================
+let _returnSaleData = null;
+let _returnSelections = {};
+
+// 🆕 v46: فتح شاشة البحث عن بيعة للمرتجع
+function posOpenReturnsSearch(){
+  if(!_posIsOnline){
+    toast('🔴 Offline - لازم تكون متصل عشان تعمل مرتجع', 'error');
+    return;
+  }
+  $('returns-search-input').value = '';
+  $('returns-search-results').innerHTML = `
+    <div style="text-align:center;padding:30px;color:var(--muted)">
+      <div style="font-size:42px;opacity:.3">🔍</div>
+      <div style="margin-top:10px;font-size:13px">اكتب رقم البيعة أو تليفون العميل</div>
+      <div style="font-size:11px;margin-top:4px;opacity:.7">الحد الأقصى للمرتجع: 14 يوم</div>
+    </div>
+  `;
+  $('returns-search-modal').style.display = 'block';
+  setTimeout(() => $('returns-search-input')?.focus(), 100);
+}
+
+let _returnsSearchTimer = null;
+function posSearchSalesForReturn(){
+  clearTimeout(_returnsSearchTimer);
+  _returnsSearchTimer = setTimeout(async () => {
+    const q = $('returns-search-input').value.trim();
+    const cont = $('returns-search-results');
+    if(!q || q.length < 3){
+      cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">اكتب 3 حروف على الأقل</div>';
+      return;
+    }
+    cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">⏳ جاري البحث...</div>';
+    try {
+      const r = await apiFetch('/api/pos/sales/lookup?q=' + encodeURIComponent(q));
+      const sales = r?.sales || [];
+      if(!sales.length){
+        cont.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">
+          <div style="font-size:42px;opacity:.3">🔍</div>
+          <div style="margin-top:10px;font-size:13px">مفيش بيعة مطابقة</div>
+        </div>`;
+        return;
+      }
+      cont.innerHTML = sales.map(s => {
+        const dt = new Date(s.created_at);
+        const daysSince = Math.floor((Date.now() - dt.getTime()) / (1000 * 60 * 60 * 24));
+        const dateStr = dt.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+        const overLimit = daysSince > 14;
+        return `
+          <div onclick="posSelectSaleForReturn(${s.id})" style="background:var(--elev);border:1px solid ${overLimit ? '#dc2626' : 'var(--border)'};border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:800;font-size:13px;font-family:monospace">${escapeHtml(s.sale_number)}</div>
+                ${s.shopify_order_name ? `<div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px">🛍️ ${escapeHtml(s.shopify_order_name)}</div>` : ''}
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">${dateStr} · ${daysSince === 0 ? 'اليوم' : 'من ' + daysSince + ' يوم'}</div>
+                ${s.customer_name ? `<div style="font-size:11px;margin-top:2px">👤 ${escapeHtml(s.customer_name)}${s.customer_phone ? ' · ' + escapeHtml(s.customer_phone) : ''}</div>` : ''}
+              </div>
+              <div style="text-align:left">
+                <div style="font-size:11px;color:var(--muted)">${s.items_count || 0} منتج</div>
+                ${overLimit ? '<div style="font-size:9px;color:#dc2626;font-weight:700;margin-top:4px">⚠️ +14 يوم</div>' : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch(e) {
+      cont.innerHTML = `<div style="color:#ef4444;padding:14px">❌ ${escapeHtml(e.message)}</div>`;
+    }
+  }, 350);
+}
+
+function posSelectSaleForReturn(saleId){
+  $('returns-search-modal').style.display = 'none';
+  openReturnModal(saleId);
+}
+
+async function openReturnModal(saleId){
+  _returnSaleData = null;
+  _returnSelections = {};
+
+  // افتح المودال بـ loader
+  $('return-modal').style.display = 'block';
+  $('return-modal-content').innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:36px;opacity:.4">⏳</div><div style="margin-top:10px;color:var(--muted)">جاري التحميل...</div></div>';
+
+  try {
+    const r = await apiFetch('/api/pos/sales/' + saleId + '/returnable');
+    if(!r?.sale){ toast('❌ مفيش بيانات', 'error'); closeReturnModal(); return; }
+    _returnSaleData = r;
+    renderReturnModal();
+  } catch(e){
+    $('return-modal-content').innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function closeReturnModal(){
+  $('return-modal').style.display = 'none';
+  _returnSaleData = null;
+  _returnSelections = {};
+}
+
+function renderReturnModal(){
+  if(!_returnSaleData) return;
+  const { sale, items, payments } = _returnSaleData;
+
+  // الـ items المتاحة للإرجاع (متبقي أكتر من صفر)
+  const eligible = items.filter(it => parseFloat(it.available_qty) > 0);
+
+  // طريقة الدفع الأصلية (للـ default refund method)
+  const origMethod = payments[0]?.method || 'cash';
+
+  const dt = new Date(sale.created_at).toLocaleString('ar-EG');
+  const daysSince = Math.floor((Date.now() - new Date(sale.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+  if(!eligible.length){
+    $('return-modal-content').innerHTML = `
+      <div style="background:#fbbf2420;border:1px solid #fbbf24;border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:32px">⚠️</div>
+        <div style="font-weight:800;margin-top:6px;color:#fbbf24">كل المنتجات اترجعت قبل كده</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">مفيش حاجة متاحة للإرجاع في البيعة دي</div>
+      </div>
+      <button onclick="closeReturnModal()" style="width:100%;margin-top:14px;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إغلاق</button>
+    `;
+    return;
+  }
+
+  // ابني refund total
+  let refundTotal = 0;
+  eligible.forEach(it => {
+    const qty = _returnSelections[it.id] || 0;
+    refundTotal += qty * parseFloat(it.unit_price);
+  });
+
+  const html = `
+    <!-- معلومات البيعة الأصلية -->
+    <div style="background:var(--elev);border-radius:10px;padding:10px;margin-bottom:12px;border:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--muted)">البيعة الأصلية</div>
+      <div style="font-weight:800;font-family:monospace;margin-top:2px">${escapeHtml(sale.sale_number)}</div>
+      ${sale.shopify_order_name ? `<div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px">🛍️ ${escapeHtml(sale.shopify_order_name)}</div>` : ''}
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${dt} · من ${daysSince} يوم</div>
+      ${sale.customer_name ? `<div style="font-size:11px;margin-top:2px">👤 ${escapeHtml(sale.customer_name)}</div>` : ''}
+    </div>
+
+    <!-- اختر المنتجات -->
+    <div style="font-weight:800;color:var(--gold);font-size:13px;margin-bottom:8px">📦 اختر المنتجات للإرجاع</div>
+    <div style="margin-bottom:14px">
+      ${eligible.map(it => {
+        const available = parseFloat(it.available_qty);
+        const selected = _returnSelections[it.id] || 0;
+        const lineRefund = selected * parseFloat(it.unit_price);
+        const returnedBefore = parseFloat(it.returned_qty) > 0;
+        return `
+          <div style="background:var(--elev);border:1px solid ${selected > 0 ? '#f97316' : 'var(--border)'};border-radius:10px;padding:10px;margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:12px">${escapeHtml(it.product_title)}${it.variant_title && it.variant_title !== 'Default Title' ? ' - '+escapeHtml(it.variant_title) : ''}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px">
+                  بيعت ${parseFloat(it.qty)} × ${parseFloat(it.unit_price).toFixed(0)} ج
+                  ${returnedBefore ? `· <span style="color:#fbbf24">رجع ${parseFloat(it.returned_qty)} قبل كده</span>` : ''}
+                </div>
+              </div>
+              <div style="text-align:left;font-weight:800;color:#f97316;font-size:13px">${lineRefund.toFixed(0)} ج</div>
+            </div>
+            <!-- qty selector -->
+            <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+              <div style="font-size:11px;color:var(--muted)">متاح للإرجاع: <strong style="color:var(--text)">${available}</strong></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button onclick="returnChangeQty(${it.id}, -1)" style="width:32px;height:32px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:18px;font-weight:700;cursor:pointer">−</button>
+                <div style="min-width:36px;text-align:center;font-weight:800;font-size:16px;color:${selected > 0 ? '#f97316' : 'var(--text)'}">${selected}</div>
+                <button onclick="returnChangeQty(${it.id}, 1)" style="width:32px;height:32px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:18px;font-weight:700;cursor:pointer">+</button>
+                <button onclick="returnSetMax(${it.id})" style="padding:4px 10px;background:var(--gold);color:#000;border:none;border-radius:6px;font-family:Cairo,sans-serif;font-size:10px;font-weight:700;cursor:pointer">الكل</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+
+    <!-- سبب الإرجاع -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">سبب الإرجاع</div>
+      <select id="return-reason" style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif">
+        <option value="customer_changed_mind">العميل غير رأيه</option>
+        <option value="defective">منتج تالف/معيب</option>
+        <option value="wrong_item">منتج خطأ</option>
+        <option value="expired">منتهي الصلاحية</option>
+        <option value="other">أخرى</option>
+      </select>
+    </div>
+
+    <!-- طريقة استرداد الفلوس -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">طريقة استرداد الفلوس</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">
+        <button onclick="returnSetMethod('cash')" id="return-mth-cash" class="return-mth" style="padding:10px;background:${origMethod==='cash'?'var(--gold)':'var(--elev)'};color:${origMethod==='cash'?'#000':'var(--text)'};border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">💵 كاش</button>
+        <button onclick="returnSetMethod('visa')" id="return-mth-visa" class="return-mth" style="padding:10px;background:${origMethod==='visa'?'var(--gold)':'var(--elev)'};color:${origMethod==='visa'?'#000':'var(--text)'};border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">💳 فيزا</button>
+        <button onclick="returnSetMethod('instapay')" id="return-mth-instapay" class="return-mth" style="padding:10px;background:${origMethod==='instapay'?'var(--gold)':'var(--elev)'};color:${origMethod==='instapay'?'#000':'var(--text)'};border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">📱 انستاباي</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+        <button onclick="returnSetMethod('store_credit')" id="return-mth-store_credit" class="return-mth" style="padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">🏦 رصيد المحل</button>
+        <button onclick="returnSetMethod('exchange')" id="return-mth-exchange" class="return-mth" style="padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">🔄 استبدال</button>
+      </div>
+      <input type="hidden" id="return-method-value" value="${origMethod}">
+    </div>
+
+    <!-- ملاحظات -->
+    <div style="margin-bottom:14px">
+      <textarea id="return-notes" placeholder="ملاحظات (اختياري)..." style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;resize:vertical;min-height:50px"></textarea>
+    </div>
+
+    <!-- إجمالي + زرار التأكيد -->
+    <div style="background:#f9731620;border:1px solid #f97316;border-radius:10px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800;color:#f97316">إجمالي المرتجع</div>
+      <div style="font-size:22px;font-weight:900;color:#f97316">${refundTotal.toFixed(0)} ج</div>
+    </div>
+
+    <button onclick="submitReturn()" ${refundTotal <= 0 ? 'disabled' : ''} style="width:100%;padding:14px;background:${refundTotal > 0 ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#444'};color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:${refundTotal > 0 ? 'pointer' : 'not-allowed'};opacity:${refundTotal > 0 ? '1' : '.5'}">
+      ${refundTotal > 0 ? `✅ تأكيد المرتجع (${refundTotal.toFixed(0)} ج)` : 'اختر منتجات أولاً'}
+    </button>
+  `;
+
+  $('return-modal-content').innerHTML = html;
+}
+
+function returnChangeQty(itemId, delta){
+  const data = _returnSaleData;
+  if(!data) return;
+  const item = data.items.find(i => i.id === itemId);
+  if(!item) return;
+  const current = _returnSelections[itemId] || 0;
+  const max = parseFloat(item.available_qty);
+  const next = Math.max(0, Math.min(max, current + delta));
+  _returnSelections[itemId] = next;
+  renderReturnModal();
+}
+
+function returnSetMax(itemId){
+  const data = _returnSaleData;
+  if(!data) return;
+  const item = data.items.find(i => i.id === itemId);
+  if(!item) return;
+  _returnSelections[itemId] = parseFloat(item.available_qty);
+  renderReturnModal();
+}
+
+function returnSetMethod(method){
+  $('return-method-value').value = method;
+  document.querySelectorAll('.return-mth').forEach(b => {
+    b.style.background = 'var(--elev)';
+    b.style.color = 'var(--text)';
+  });
+  const btn = $('return-mth-' + method);
+  if(btn){
+    btn.style.background = 'var(--gold)';
+    btn.style.color = '#000';
+  }
+}
+
+async function submitReturn(){
+  if(!_returnSaleData) return;
+  const items = [];
+  for(const [id, qty] of Object.entries(_returnSelections)){
+    if(parseFloat(qty) > 0){
+      items.push({ original_sale_item_id: parseInt(id), qty: parseFloat(qty) });
+    }
+  }
+  if(!items.length){ toast('❗ اختر منتج واحد على الأقل'); return; }
+
+  const reason = $('return-reason').value;
+  const refund_method = $('return-method-value').value;
+  const refund_notes = $('return-notes').value.trim();
+
+  const refundTotal = items.reduce((sum, it) => {
+    const item = _returnSaleData.items.find(x => x.id === it.original_sale_item_id);
+    return sum + it.qty * parseFloat(item?.unit_price || 0);
+  }, 0);
+
+  const methodLabels = {
+    cash: 'كاش', visa: 'فيزا', instapay: 'انستاباي',
+    store_credit: 'رصيد المحل', exchange: 'استبدال'
+  };
+
+  if(!confirm(`تأكيد إنشاء مرتجع؟\n\nالإجمالي: ${refundTotal.toFixed(0)} ج\nطريقة الإرجاع: ${methodLabels[refund_method] || refund_method}\n\nاضغط OK للتأكيد`)) return;
+
+  await _submitReturnRequest({
+    original_sale_id: _returnSaleData.sale.id,
+    items, refund_method, reason, refund_notes,
+    admin_override_14day: false
+  });
+}
+
+async function _submitReturnRequest(payload){
+  try {
+    const r = await apiFetch('/api/pos/returns', 'POST', payload);
+    if(!r?.success){
+      // 🆕 v45: لو فيه requires_override (14 يوم) - اطلب admin override
+      if(r?.requires_override){
+        const ok = confirm(`⚠️ ${r.error}\n\nاضغط OK لو admin هـ يتجاوز الحد (هـ يطلب كلمة سره بعدها)`);
+        if(ok){
+          // أعد المحاولة مع override
+          await _submitReturnRequest({ ...payload, admin_override_14day: true });
+        }
+        return;
+      }
+      toast('❌ ' + (r?.error || 'فشل الإنشاء'), 'error');
+      return;
+    }
+    toast(`✅ تم - ${r.returnNumber}`, 'success');
+
+    // اطبع receipt المرتجع
+    await printReturnReceipt(r.returnId);
+
+    // 🆕 v45: افتح شاشة admin confirmation بعد ما يتم المرتجع
+    openAdminConfirmModal(r);
+  } catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// 🆕 v45: شاشة admin confirmation
+function openAdminConfirmModal(returnData){
+  closeReturnModal();
+  let modal = $('admin-confirm-modal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'admin-confirm-modal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1300;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:var(--bg);max-width:420px;margin:0 auto;border-radius:14px;padding:20px;border:2px solid #f97316;box-shadow:0 20px 60px rgba(249,115,22,.3)">
+        <div style="text-align:center;margin-bottom:14px">
+          <div style="font-size:42px">🔒</div>
+          <h3 style="margin:8px 0 4px;color:#f97316;font-size:18px">تأكيد admin</h3>
+          <div style="font-size:12px;color:var(--muted)" id="admin-confirm-subtitle">المرتجع تم - لازم admin يأكد</div>
+        </div>
+        <div id="admin-confirm-info" style="background:var(--elev);border-radius:10px;padding:10px;margin-bottom:14px;font-size:12px"></div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">اسم المستخدم admin</div>
+          <input id="admin-confirm-username" placeholder="admin" style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:14px">
+        </div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">كلمة السر</div>
+          <input id="admin-confirm-password" type="password" placeholder="••••••••" style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:14px">
+        </div>
+        <button onclick="submitAdminConfirm()" style="width:100%;padding:14px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:6px">
+          ✅ تأكيد
+        </button>
+        <button onclick="skipAdminConfirm()" style="width:100%;padding:10px;background:transparent;color:var(--muted);border:none;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">
+          تخطّي (سيتم التأكيد لاحقاً)
+        </button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  window._pendingReturnApproval = returnData;
+  $('admin-confirm-info').innerHTML = `
+    <div style="display:flex;justify-content:space-between;padding:3px 0">
+      <span style="color:var(--muted)">رقم المرتجع:</span>
+      <span style="font-weight:700;font-family:monospace">${escapeHtml(returnData.returnNumber)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:3px 0">
+      <span style="color:var(--muted)">المبلغ:</span>
+      <span style="font-weight:800;color:#f97316">${parseFloat(returnData.refundTotal).toFixed(0)} ج</span>
+    </div>
+  `;
+  $('admin-confirm-username').value = '';
+  $('admin-confirm-password').value = '';
+  modal.style.display = 'flex';
+  setTimeout(() => $('admin-confirm-username')?.focus(), 100);
+}
+
+async function submitAdminConfirm(){
+  const username = $('admin-confirm-username').value.trim();
+  const password = $('admin-confirm-password').value;
+  const returnData = window._pendingReturnApproval;
+  if(!returnData){ $('admin-confirm-modal').style.display = 'none'; return; }
+  if(!username || !password){ toast('❗ اكتب البيانات', 'error'); return; }
+
+  // hash password (نفس الـ method اللي بـ يستخدمه الـ login)
+  const passHash = await _sha256Hex(password);
+
+  try {
+    const r = await apiFetch('/api/pos/returns/' + returnData.returnId + '/approve', 'POST', {
+      admin_username: username,
+      admin_pass_hash: passHash
+    });
+    if(r?.success){
+      toast(`✅ تم التأكيد بواسطة ${r.approvedBy || 'admin'}`, 'success');
+      $('admin-confirm-modal').style.display = 'none';
+      window._pendingReturnApproval = null;
+      if(typeof smgrLoadSales === 'function') smgrLoadSales();
+    } else {
+      toast('❌ ' + (r?.error || 'كلمة سر غلط'), 'error');
+    }
+  } catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function skipAdminConfirm(){
+  const ok = confirm('متأكد إنك عايز تتخطى تأكيد admin؟\nالمرتجع تم بالفعل لكن من غير تأكيد.');
+  if(ok){
+    $('admin-confirm-modal').style.display = 'none';
+    window._pendingReturnApproval = null;
+    if(typeof smgrLoadSales === 'function') smgrLoadSales();
+  }
+}
+
+// helper: SHA-256 hex (Web Crypto)
+async function _sha256Hex(text){
+  const buf = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function printReturnReceipt(returnId){
+  try {
+    const r = await apiFetch('/api/pos/returns/' + returnId);
+    if(!r?.return) return;
+    const ret = r.return;
+    const items = r.items || [];
+    const dt = new Date(ret.created_at).toLocaleString('ar-EG');
+    const methodNames = { cash: 'كاش', visa: 'فيزا', instapay: 'انستاباي' };
+
+    const receiptHtml = `
+      <div style="text-align:center;background:#f97316;color:#fff;font-weight:800;font-size:11px;padding:4px;margin-bottom:8px;letter-spacing:1px">★ RETURN - مرتجع ★</div>
+      <div style="text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px">
+        <div style="font-size:20px;font-weight:800;letter-spacing:2px">CAFELAX</div>
+        <div style="font-size:11px">${escapeHtml(ret.store_name || '')}</div>
+        <div style="font-size:10px">${dt}</div>
+      </div>
+      <div style="font-size:11px;margin-bottom:8px">
+        <div><strong>رقم المرتجع:</strong> ${escapeHtml(ret.return_number)}</div>
+        <div><strong>البيعة الأصلية:</strong> ${escapeHtml(ret.original_sale_number || '')}</div>
+        <div><strong>الكاشير:</strong> ${escapeHtml(ret.cashier_name || '')}</div>
+        ${ret.customer_name ? `<div><strong>العميل:</strong> ${escapeHtml(ret.customer_name)}</div>` : ''}
+      </div>
+      <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0;margin-bottom:8px">
+        ${items.map(it => `
+          <div style="margin-bottom:4px;font-size:11px">
+            <div style="font-weight:700">${escapeHtml(it.product_title)}${it.variant_title && it.variant_title !== 'Default Title' ? ' - '+escapeHtml(it.variant_title) : ''}</div>
+            <div style="display:flex;justify-content:space-between">
+              <span>${parseFloat(it.qty)} × ${parseFloat(it.unit_price).toFixed(0)} ج</span>
+              <span style="font-weight:700">-${parseFloat(it.line_total).toFixed(0)} ج</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="font-size:12px">
+        <div style="display:flex;justify-content:space-between;font-weight:800;font-size:14px;border-top:2px solid #000;padding-top:4px">
+          <span>المسترد:</span>
+          <span>${parseFloat(ret.refund_total).toFixed(0)} ج</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <span>طريقة الاسترداد:</span>
+          <span style="font-weight:700">${methodNames[ret.refund_method] || ret.refund_method}</span>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:14px;font-size:10px;border-top:1px dashed #000;padding-top:8px">
+        نأسف لاستلام مرتجع<br>
+        نتمنى رؤيتكم مرة أخرى ☕
+      </div>
+    `;
+
+    const saleLike = { saleNumber: ret.return_number, isReturn: true };
+    try {
+      if(typeof uprPrintReceipt === 'function'){
+        const ok = await uprPrintReceipt(saleLike, receiptHtml);
+        if(ok){ toast('✅ طُبع إيصال المرتجع', 'success'); return; }
+      }
+    } catch(e){}
+
+    // browser fallback
+    const w = window.open('', '_blank', 'width=400,height=700');
+    if(!w) return;
+    const widthMm = (typeof _uprPaperWidth !== 'undefined' && _uprPaperWidth === 58) ? '58mm' : '80mm';
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>مرتجع</title><style>@page{size:${widthMm} auto;margin:0}body{font-family:'Cairo','Tahoma',sans-serif;padding:6px;max-width:${widthMm};margin:0 auto}</style></head><body>${receiptHtml}<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script></body></html>`);
+    w.document.close();
+  } catch(e){ console.warn('printReturnReceipt:', e); }
 }
 
 async function smgrReviewSale(saleId){
