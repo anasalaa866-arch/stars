@@ -565,6 +565,7 @@ a{color:inherit;text-decoration:none}
       
       /* Main grid layout - LEFT search/products 65%, RIGHT cart 35% */
       .pos-main{display:grid;grid-template-columns:65% 35%;gap:0;height:calc(100vh - 58px);overflow:hidden}
+      .pos-main.with-shift-bar{height:calc(100vh - 58px - 36px)}
       
       /* LEFT panel */
       .pos-left{display:flex;flex-direction:column;overflow:hidden;background:#f3f3f3}
@@ -735,6 +736,12 @@ a{color:inherit;text-decoration:none}
         <button class="pos-tb-btn icon-only" onclick="logout()" title="خروج" style="color:#dc2626;border-color:#fecaca">⏻</button>
       </div>
     </div>
+
+    <!-- 🆕 v52: SHIFT BAR - بداية الشيفت + عدد البيعات -->
+    <div id="pos-shift-bar" style="display:none;padding:8px 16px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-bottom:1px solid #fbbf24;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;color:#78350f;text-align:center">
+      <span id="pos-shift-icon" style="font-size:15px">🕐</span>
+      <span id="pos-shift-text" style="margin-right:6px">—</span>
+    </div>
     
     <!-- MAIN AREA -->
     <div class="pos-main">
@@ -865,6 +872,32 @@ a{color:inherit;text-decoration:none}
   </div>
   
   <!-- 🆕 v24: Mixed Payment Modal -->
+
+  <!-- 🆕 v53: NO CUSTOMER PROMPT - يبان لو الكاشير حاول يقفل بدون عميل -->
+  <div id="pos-no-customer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1100;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif">
+    <div style="background:var(--bg);max-width:480px;margin:8vh auto 0;border-radius:14px;padding:22px;border:2px solid #fbbf24">
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="font-size:48px;margin-bottom:8px">⚠️</div>
+        <h3 style="margin:0;color:#d97706;font-size:18px">العميل مش محدد</h3>
+        <div style="font-size:13px;color:var(--muted);margin-top:6px;line-height:1.6">
+          مش مسموح بإقفال البيع بدون عميل.<br>
+          اختار العميل أو استخدم العميل الافتراضي.
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:18px">
+        <button onclick="posPickCustomerInstead()" style="padding:14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer;font-size:14px">
+          👤 اختار/أضف عميل
+        </button>
+        <button onclick="posUseDefaultCustomer()" style="padding:14px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer;font-size:14px">
+          🏪 استخدم العميل الافتراضي (عميل عام)
+        </button>
+        <button onclick="posCloseNoCustomerPrompt()" style="padding:11px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:600;cursor:pointer;font-size:12px;margin-top:4px">
+          إلغاء
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- 🆕 v50: Cash Tendered Modal - حساب الباقي -->
   <div id="pos-cash-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1001;padding:14px;overflow-y:auto">
@@ -3203,6 +3236,12 @@ async function loadPosPage(){
     const cashierName = (window.cachedCourierName) || 'الكاشير';
     $('pos-cashier-info').textContent = `👤 ${cashierName}`;
     
+    // 🆕 v52: حدّث shift badge
+    posUpdateShiftBadge();
+    // اعمل refresh كل دقيقة عشان "من 5 دقايق" يبقى accurate
+    if(window._posShiftInterval) clearInterval(window._posShiftInterval);
+    window._posShiftInterval = setInterval(posUpdateShiftBadge, 60000);
+    
     // 4. جيب الـ catalog
     await loadPosCatalog();
     
@@ -3214,7 +3253,10 @@ async function loadPosPage(){
     
     // 6. focus على الـ scan input
     setTimeout(() => $('pos-scan-input')?.focus(), 200);
-    
+
+    // 🆕 v54: keep scan input always focused (for barcode scanner)
+    posSetupAutoRefocus();
+
     // 7. attach scan listener
     setupPosScanInput();
     
@@ -3502,6 +3544,62 @@ function posRenderProducts(filter = ''){
   }).join('')}</div>`;
 }
 
+// 🆕 v54: يخلي الـ scan input دايماً في الـ focus
+// مهم جداً للباركود scanners (بـ تكتب زي keyboard - محتاجة الـ input يكون focused)
+let _autoRefocusEnabled = false;
+function posSetupAutoRefocus(){
+  if(_autoRefocusEnabled) return; // مش يتركب مرتين
+  _autoRefocusEnabled = true;
+
+  // 1. لو الـ user ضغط على area فاضي → ارجع للـ scan input
+  document.addEventListener('click', (e) => {
+    // بس لو احنا في صفحة الـ POS
+    const posPage = document.getElementById('page-pos');
+    if(!posPage || !posPage.classList.contains('active')) return;
+
+    const target = e.target;
+    // متجاهلش الـ click على inputs/buttons/selects/textarea
+    if(!target) return;
+    const tag = target.tagName?.toLowerCase();
+    if(['input', 'button', 'select', 'textarea', 'a'].includes(tag)) return;
+    // متجاهلش لو جوا modal مفتوح
+    if(target.closest('[id$="-modal"]')) return;
+    // متجاهلش لو ضغط على بطاقة منتج (هتضيف للسلة)
+    if(target.closest('.pos-product-card, .pos-qa-tile, .pos-cart-item, .pos-pay-btn')) return;
+
+    // refocus
+    const inp = $('pos-scan-input');
+    if(inp && document.activeElement !== inp){
+      inp.focus();
+    }
+  });
+
+  // 2. لو الـ focus راح في أي حتة تانية بدون سبب، نرجعه
+  // كل 1.5 ثانية، شيك إن الـ focus على الـ scan input (طول ما مفيش modal/input تاني مفتوح)
+  setInterval(() => {
+    const posPage = document.getElementById('page-pos');
+    if(!posPage || !posPage.classList.contains('active')) return;
+
+    // لو فيه modal مفتوح، سيب الـ focus
+    const anyModalOpen = document.querySelector('[id$="-modal"]:not([style*="display: none"]):not([style*="display:none"])');
+    if(anyModalOpen){
+      // شوف لو الـ modal فعلاً visible
+      const styles = window.getComputedStyle(anyModalOpen);
+      if(styles.display !== 'none' && styles.visibility !== 'hidden'){
+        return; // فيه modal - متعدلش الـ focus
+      }
+    }
+
+    // لو الـ active element مش الـ scan input ومش input تاني، رجع الـ focus
+    const active = document.activeElement;
+    const tag = active?.tagName?.toLowerCase();
+    if(active === document.body || (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && tag !== 'button')){
+      const inp = $('pos-scan-input');
+      if(inp) inp.focus();
+    }
+  }, 1500);
+}
+
 function setupPosScanInput(){
   const inp = $('pos-scan-input');
   if(!inp) return;
@@ -3638,6 +3736,9 @@ function posAddToCart(variantId){
   }, 50);
   // أعد تحميل البرومو لو موجود
   if(_posPromo) posRevalidatePromo();
+
+  // 🆕 v54: refocus على الـ scan input بعد كل إضافة
+  setTimeout(() => $('pos-scan-input')?.focus(), 80);
 }
 
 function posRenderCart(){
@@ -4098,11 +4199,33 @@ async function posRevalidatePromo(){
   } catch(e){}
 }
 
+// 🆕 v53: العميل الافتراضي (عميل عام) - يستخدم لو الكاشير ما اختارش عميل
+const POS_DEFAULT_CUSTOMER = {
+  id: 9851111375138,
+  shopifyId: 9851111375138,  // الـ backend بـ يستخدم shopifyId
+  shopify_id: 9851111375138,
+  name: 'عميل عام',
+  firstName: 'عميل عام',
+  phone: '',
+  source: 'default'
+};
+
 // ─── Checkout ───
 async function posCheckout(method){
   if(!_posCart.length){ toast('❌ السلة فاضية'); return; }
   if(!_posStore){ toast('❌ مفيش محل محدد'); return; }
 
+  // 🆕 v53: لو مفيش عميل، اطلب من الكاشير يحدد
+  if(!_posCustomer){
+    posOpenNoCustomerPrompt(method);
+    return;
+  }
+
+  await _posCheckoutInner(method);
+}
+
+// 🆕 v53: تكملة الـ checkout بعد ما العميل اتحدد
+async function _posCheckoutInner(method){
   const subtotal = posCalcSubtotal();
   const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
   const total = subtotal - discount;
@@ -4121,6 +4244,40 @@ async function posCheckout(method){
 
   // أي method تاني - مباشر
   await posCompleteSale({ payments: [{ method, amount: total }], total, subtotal, discount });
+}
+
+// 🆕 v53: شاشة لو الكاشير حاول يقفل بدون عميل
+function posOpenNoCustomerPrompt(pendingMethod){
+  // خزّن الـ method عشان نكمل بعد ما يختار
+  window._posPendingCheckoutMethod = pendingMethod;
+  const modal = $('pos-no-customer-modal');
+  if(!modal) return;
+  modal.style.display = 'block';
+}
+
+function posCloseNoCustomerPrompt(){
+  const modal = $('pos-no-customer-modal');
+  if(modal) modal.style.display = 'none';
+  window._posPendingCheckoutMethod = null;
+}
+
+// 🆕 v53: اختار العميل الافتراضي وكمّل
+function posUseDefaultCustomer(){
+  posSelectCustomer({ ...POS_DEFAULT_CUSTOMER });
+  const method = window._posPendingCheckoutMethod;
+  posCloseNoCustomerPrompt();
+  if(method){
+    _posCheckoutInner(method);
+  }
+}
+
+// 🆕 v53: افتح شاشة اختيار العميل
+function posPickCustomerInstead(){
+  posCloseNoCustomerPrompt();
+  // posOpenCustomer هي اللي بـ تفتح شاشة بحث/إضافة العميل
+  if(typeof posOpenCustomer === 'function'){
+    posOpenCustomer();
+  }
 }
 
 // 🆕 v50: Cash Tendered Modal - حساب الباقي
@@ -4528,6 +4685,12 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
   posClearCustomer();
   posClearPromo();
   posRenderCart();
+
+  // 🆕 v52: حدث shift badge عشان عدد البيعات يبقى accurate
+  posUpdateShiftBadge();
+
+  // 🆕 v54: refocus على الـ scan input عشان الكاشير يبدأ البيعة الجاية فوراً
+  setTimeout(() => $('pos-scan-input')?.focus(), 200);
   
   // beep success
   try { 
@@ -5114,6 +5277,61 @@ async function posSendWhatsApp(){
 }
 
 // ─── Sales History ───
+// 🆕 v52: تحدث shift bar - يعرض بداية الشيفت أو "شيفت جديد"
+async function posUpdateShiftBadge(){
+  if(!_posIsOnline) return;
+  const bar = $('pos-shift-bar');
+  if(!bar) return;
+  try {
+    const r = await apiFetch('/api/pos/me/shift');
+    if(!r) return;
+    bar.style.display = 'block';
+    // adjust main height
+    document.querySelector('.pos-main')?.classList.add('with-shift-bar');
+
+    const iconEl = $('pos-shift-icon');
+    const textEl = $('pos-shift-text');
+    if(!iconEl || !textEl) return;
+
+    if(!r.sales_count || r.sales_count === 0){
+      // شيفت جديد - مفيش بيعات لسه
+      iconEl.textContent = '🆕';
+      textEl.textContent = 'شيفت جديد';
+      bar.style.background = 'linear-gradient(135deg,#dcfce7,#bbf7d0)';
+      bar.style.borderBottomColor = '#22c55e';
+      bar.style.color = '#14532d';
+    } else {
+      // فيه بيعات - اعرض وقت أول بيعة
+      const firstAt = new Date(r.first_sale_at);
+      const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+      const day = dayNames[firstAt.getDay()];
+      const dateStr = firstAt.toLocaleDateString('ar-EG', { month: 'numeric', day: 'numeric' });
+      const timeStr = firstAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+      // كام من الوقت اللي فات
+      const diffMs = Date.now() - firstAt.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHrs = Math.floor(diffMins / 60);
+      let elapsed = '';
+      if(diffHrs > 0){
+        elapsed = ` (من ${diffHrs} ساعة و ${diffMins % 60} دقيقة)`;
+      } else if(diffMins > 0){
+        elapsed = ` (من ${diffMins} دقيقة)`;
+      } else {
+        elapsed = ' (من شوية)';
+      }
+
+      iconEl.textContent = '🕐';
+      textEl.innerHTML = `الشيفت بدأ: <strong>${day} ${dateStr} الساعة ${timeStr}</strong><span style="opacity:.75;font-weight:600">${elapsed}</span> · <strong>${r.sales_count}</strong> بيعة`;
+      bar.style.background = 'linear-gradient(135deg,#fef3c7,#fde68a)';
+      bar.style.borderBottomColor = '#fbbf24';
+      bar.style.color = '#78350f';
+    }
+  } catch(e){
+    console.warn('shift bar update failed:', e.message);
+  }
+}
+
 async function posOpenSalesHistory(){
   // 🆕 v22: اعرض الـ pending أولاً
   let pendingSales = [];
