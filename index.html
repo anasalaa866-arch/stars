@@ -3546,58 +3546,49 @@ function posRenderProducts(filter = ''){
 
 // 🆕 v54: يخلي الـ scan input دايماً في الـ focus
 // مهم جداً للباركود scanners (بـ تكتب زي keyboard - محتاجة الـ input يكون focused)
+// 🆕 v55: شيلنا الـ interval - كان بـ يـ steal focus من inputs/modals
 let _autoRefocusEnabled = false;
 function posSetupAutoRefocus(){
   if(_autoRefocusEnabled) return; // مش يتركب مرتين
   _autoRefocusEnabled = true;
 
-  // 1. لو الـ user ضغط على area فاضي → ارجع للـ scan input
+  // لو الـ user ضغط على area فاضي في صفحة الـ POS فقط → ارجع للـ scan input
   document.addEventListener('click', (e) => {
-    // بس لو احنا في صفحة الـ POS
+    // 1. بس لو احنا في صفحة الـ POS وliter الـ modals كلها مقفولة
     const posPage = document.getElementById('page-pos');
     if(!posPage || !posPage.classList.contains('active')) return;
 
+    // 2. لو فيه أي modal مفتوح في أي حتة، متعدلش الـ focus خالص
+    const modals = document.querySelectorAll('[id$="-modal"]');
+    for(const m of modals){
+      const style = m.style.display;
+      if(style && style !== 'none'){
+        return; // فيه modal مفتوح - سيب الـ focus
+      }
+    }
+
     const target = e.target;
-    // متجاهلش الـ click على inputs/buttons/selects/textarea
     if(!target) return;
+
+    // 3. متجاهلش الـ click على أي عنصر interactive
     const tag = target.tagName?.toLowerCase();
-    if(['input', 'button', 'select', 'textarea', 'a'].includes(tag)) return;
-    // متجاهلش لو جوا modal مفتوح
-    if(target.closest('[id$="-modal"]')) return;
-    // متجاهلش لو ضغط على بطاقة منتج (هتضيف للسلة)
+    if(['input', 'button', 'select', 'textarea', 'a', 'option', 'label'].includes(tag)) return;
+
+    // 4. متجاهلش لو ضغط داخل button/input (حتى لو target = span داخل button)
+    if(target.closest('button, input, select, textarea, a, label, [role="button"]')) return;
+
+    // 5. متجاهلش لو ضغط على بطاقة منتج (هتضيف للسلة بنفسها)
     if(target.closest('.pos-product-card, .pos-qa-tile, .pos-cart-item, .pos-pay-btn')) return;
 
-    // refocus
+    // 6. refocus
     const inp = $('pos-scan-input');
     if(inp && document.activeElement !== inp){
       inp.focus();
     }
   });
 
-  // 2. لو الـ focus راح في أي حتة تانية بدون سبب، نرجعه
-  // كل 1.5 ثانية، شيك إن الـ focus على الـ scan input (طول ما مفيش modal/input تاني مفتوح)
-  setInterval(() => {
-    const posPage = document.getElementById('page-pos');
-    if(!posPage || !posPage.classList.contains('active')) return;
-
-    // لو فيه modal مفتوح، سيب الـ focus
-    const anyModalOpen = document.querySelector('[id$="-modal"]:not([style*="display: none"]):not([style*="display:none"])');
-    if(anyModalOpen){
-      // شوف لو الـ modal فعلاً visible
-      const styles = window.getComputedStyle(anyModalOpen);
-      if(styles.display !== 'none' && styles.visibility !== 'hidden'){
-        return; // فيه modal - متعدلش الـ focus
-      }
-    }
-
-    // لو الـ active element مش الـ scan input ومش input تاني، رجع الـ focus
-    const active = document.activeElement;
-    const tag = active?.tagName?.toLowerCase();
-    if(active === document.body || (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && tag !== 'button')){
-      const inp = $('pos-scan-input');
-      if(inp) inp.focus();
-    }
-  }, 1500);
+  // 🆕 v55: شيلنا الـ setInterval (1.5s) لأنه كان بـ يـ steal focus
+  // الـ click listener كافي للـ POS - الـ user بـ يضغط ثم يـ scan
 }
 
 function setupPosScanInput(){
