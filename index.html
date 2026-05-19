@@ -2375,6 +2375,72 @@ function showApp(){
     return;
   }
   
+  // 🆕 v66: لو admin - dashboard فيه 3 modes
+  if(ROLE === 'admin'){
+    const adminMode = sessionStorage.getItem('adminMode');
+    if(!adminMode){
+      // أول مرة → اعرض الـ dashboard chooser
+      adminShowModeChooser();
+      return;
+    }
+    
+    // عرض زرار "بدل الدور" دايماً
+    adminShowModeSwitcher();
+    
+    if(adminMode === 'stocktaker'){
+      // تشغيل وضع الجرد
+      document.querySelectorAll('.nav-item').forEach(el => {
+        if(el.id !== 'nav-stocktake') el.style.display = 'none';
+      });
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      if(stkNav){
+        stkNav.style.display = '';
+        stkNav.classList.add('active');
+      }
+      $('page-stocktake').classList.add('active');
+      loadStkSessions();
+      return;
+    }
+    
+    if(adminMode === 'cashier'){
+      // تشغيل وضع الكاشير - نفس flow الكاشير العادي
+      document.querySelectorAll('.nav-item').forEach(el => {
+        if(el.id !== 'nav-pos' && el.id !== 'nav-pickup-orders') el.style.display = 'none';
+      });
+      const pickupNav = $('nav-pickup-orders');
+      if(pickupNav) pickupNav.style.display = '';
+      
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      if(posNav){
+        posNav.style.display = '';
+        posNav.classList.add('active');
+      }
+      $('page-pos').classList.add('active');
+      loadPosPage();
+      
+      setTimeout(pickupCheckCount, 5000);
+      setInterval(pickupCheckCount, 60 * 1000);
+      return;
+    }
+    
+    // adminMode === 'manager' (default)
+    // تشغيل وضع المدير - يشوف كل المحلات
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if(el.id !== 'nav-store-mgr') el.style.display = 'none';
+    });
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    if(smgrNav){
+      smgrNav.style.display = '';
+      smgrNav.classList.add('active');
+    }
+    $('page-store-mgr').classList.add('active');
+    loadStoreMgrPage();
+    return;
+  }
+  
   // 🆕 v19: لو stocktaker - اخفي كل الـ nav التانية وروح للجرد على طول
   if(ROLE === 'stocktaker'){
     document.querySelectorAll('.nav-item').forEach(el => {
@@ -3315,7 +3381,48 @@ async function loadPosPage(){
       return;
     }
     
-    _posStore = stores[0];
+    // 🆕 v66: لو admin وفيه أكتر من محل، اطلب يختار
+    if(ROLE === 'admin' && stores.length > 1){
+      const savedStoreId = sessionStorage.getItem('adminPosStoreId');
+      const saved = savedStoreId ? stores.find(s => s.id == savedStoreId) : null;
+      
+      if(saved){
+        _posStore = saved;
+      } else {
+        // اعرض selector
+        await new Promise(resolve => {
+          const modal = document.createElement('div');
+          modal.id = 'admin-store-picker';
+          modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;font-family:Cairo,sans-serif';
+          modal.innerHTML = `
+            <div style="background:var(--bg);max-width:420px;width:100%;border-radius:16px;padding:24px;border:1px solid var(--gold)">
+              <div style="text-align:center;margin-bottom:18px">
+                <div style="font-size:48px;margin-bottom:6px">🏪</div>
+                <h2 style="margin:0;color:var(--gold);font-size:18px;font-weight:900">اختر المحل اللي عايز تبيع منه</h2>
+                <div style="color:var(--muted);font-size:11px;margin-top:6px">كأدمن، تقدر تختار أي محل</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                ${stores.map(s => `
+                  <button onclick="(function(){ sessionStorage.setItem('adminPosStoreId', '${s.id}'); document.getElementById('admin-store-picker').remove(); window._adminStorePickerResolve(${s.id}); })()"
+                          style="background:var(--elev);border:1px solid var(--border);color:var(--text);padding:14px;border-radius:10px;cursor:pointer;font-family:Cairo,sans-serif;font-size:14px;font-weight:700;text-align:right;display:flex;align-items:center;gap:10px">
+                    <span style="font-size:20px">🏪</span>
+                    <span style="flex:1">${escapeHtml(s.name)}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          window._adminStorePickerResolve = (storeId) => {
+            _posStore = stores.find(s => s.id == storeId);
+            delete window._adminStorePickerResolve;
+            resolve();
+          };
+        });
+      }
+    } else {
+      _posStore = stores[0];
+    }
     $('pos-store-name').textContent = '🏪 ' + _posStore.name;
     
     const cashierName = (window.cachedCourierName) || 'الكاشير';
@@ -7351,13 +7458,139 @@ function smgrShowModeSwitcher(){
   document.body.appendChild(btn);
 }
 
+// ════════════════════════════════════════════════════════════════
+// 🆕 v66: ADMIN STARS DASHBOARD
+// ════════════════════════════════════════════════════════════════
+// الأدمن يدخل بـ OrderPro credentials → dashboard فيه 3 modes:
+// - مدير (manager mode - يشوف كل المحلات)
+// - كاشير (cashier mode - يقدر يبيع)
+// - جرد (stocktaker mode)
+
+function adminShowModeChooser(){
+  // اخفي كل nav-items
+  document.querySelectorAll('.nav-item').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  
+  // امسح أي modal قديم
+  const existingModal = document.getElementById('admin-mode-chooser');
+  if(existingModal) existingModal.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'admin-mode-chooser';
+  modal.style.cssText = 'position:fixed;inset:0;background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);display:flex;align-items:center;justify-content:center;z-index:9999;font-family:Cairo,sans-serif;padding:20px;overflow-y:auto';
+  modal.innerHTML = `
+    <div style="max-width:720px;width:100%;padding:24px;text-align:center">
+      <div style="margin-bottom:32px">
+        <div style="font-size:64px;margin-bottom:12px">⭐</div>
+        <h1 style="color:#fff;font-size:28px;font-weight:900;margin:0 0 8px 0">أهلاً يا أدمن 👑</h1>
+        <p style="color:#94a3b8;font-size:14px;margin:0">اختر الوضع اللي عايز تشتغل بيه دلوقتي</p>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px">
+        <!-- Manager mode -->
+        <button onclick="adminSwitchMode('manager')" 
+                style="background:linear-gradient(135deg,#d4af37,#b8860b);border:none;color:#000;padding:28px 16px;border-radius:16px;cursor:pointer;font-family:Cairo,sans-serif;transition:transform 0.2s;box-shadow:0 8px 24px rgba(212,175,55,0.3)"
+                onmouseover="this.style.transform='translateY(-4px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+          <div style="font-size:48px;margin-bottom:10px">📊</div>
+          <div style="font-size:18px;font-weight:900;margin-bottom:4px">مدير عام</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.5">كل المحلات<br/>تقارير، مرتجعات، خصومات</div>
+        </button>
+        
+        <!-- Cashier mode -->
+        <button onclick="adminSwitchMode('cashier')" 
+                style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);border:none;color:#fff;padding:28px 16px;border-radius:16px;cursor:pointer;font-family:Cairo,sans-serif;transition:transform 0.2s;box-shadow:0 8px 24px rgba(59,130,246,0.3)"
+                onmouseover="this.style.transform='translateY(-4px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+          <div style="font-size:48px;margin-bottom:10px">🛍️</div>
+          <div style="font-size:18px;font-weight:900;margin-bottom:4px">كاشير</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.5">بيع POS<br/>(تجربة أو مساعدة)</div>
+        </button>
+        
+        <!-- Stocktaker mode -->
+        <button onclick="adminSwitchMode('stocktaker')" 
+                style="background:linear-gradient(135deg,#a855f7,#7e22ce);border:none;color:#fff;padding:28px 16px;border-radius:16px;cursor:pointer;font-family:Cairo,sans-serif;transition:transform 0.2s;box-shadow:0 8px 24px rgba(168,85,247,0.3)"
+                onmouseover="this.style.transform='translateY(-4px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+          <div style="font-size:48px;margin-bottom:10px">🔍</div>
+          <div style="font-size:18px;font-weight:900;margin-bottom:4px">جرد</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.5">جلسات الجرد<br/>(يشوف كل القيم)</div>
+        </button>
+      </div>
+      
+      <div style="margin-top:24px;color:#64748b;font-size:12px;line-height:1.6">
+        💡 تقدر تبدّل بين الأوضاع أي وقت من زرار "بدل الدور" في الأسفل<br/>
+        🔓 الأدمن يشوف كل البيانات بدون قيود
+      </div>
+      
+      <button onclick="logout()" style="margin-top:20px;background:transparent;border:1px solid #475569;color:#94a3b8;padding:10px 20px;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">
+        🚪 خروج
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function adminSwitchMode(newMode){
+  if(!['manager', 'cashier', 'stocktaker'].includes(newMode)) return;
+  sessionStorage.setItem('adminMode', newMode);
+  
+  const modal = document.getElementById('admin-mode-chooser');
+  if(modal) modal.remove();
+  
+  // remove أي FAB قديم
+  const btn = document.getElementById('admin-mode-switcher-btn');
+  if(btn) btn.remove();
+  
+  // reload للـ initial routing
+  location.reload();
+}
+
+function adminShowModeSwitcher(){
+  const existing = document.getElementById('admin-mode-switcher-btn');
+  if(existing) existing.remove();
+  
+  const currentMode = sessionStorage.getItem('adminMode') || 'manager';
+  const modeIcon = currentMode === 'cashier' ? '🛍️' : currentMode === 'stocktaker' ? '🔍' : '📊';
+  const modeName = currentMode === 'cashier' ? 'كاشير' : currentMode === 'stocktaker' ? 'جرد' : 'مدير';
+  
+  const btn = document.createElement('button');
+  btn.id = 'admin-mode-switcher-btn';
+  btn.onclick = adminGoToDashboard;
+  btn.style.cssText = `
+    position:fixed;bottom:80px;left:12px;z-index:5000;
+    padding:10px 14px;background:#0f172a;color:#fff;
+    border:2px solid #d4af37;border-radius:99px;font-family:Cairo,sans-serif;
+    font-size:12px;font-weight:800;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    display:flex;align-items:center;gap:6px;
+    white-space:nowrap
+  `;
+  btn.innerHTML = `${modeIcon} ${modeName} · 🔄 بدل الدور`;
+  document.body.appendChild(btn);
+}
+
+function adminGoToDashboard(){
+  sessionStorage.removeItem('adminMode');
+  // إزالة الـ FAB قبل الـ reload
+  const btn = document.getElementById('admin-mode-switcher-btn');
+  if(btn) btn.remove();
+  location.reload();
+}
+
 async function loadStoreMgrPage(){
   try {
-    // جيب معلومات المحل
-    const r = await apiFetch('/api/store-mgr/my-store');
-    if(r?.store){
-      $('smgr-store-name').textContent = '🏪 ' + r.store.name;
-      $('smgr-mgr-name').textContent = '👨‍💼 ' + (window.cachedCourierName || 'المدير');
+    // 🆕 v66: الأدمن مش بيتربط بمحل - اعرض "كل المحلات"
+    if(ROLE === 'admin'){
+      $('smgr-store-name').textContent = '👑 كل المحلات (وضع الأدمن)';
+      $('smgr-mgr-name').textContent = '👨‍💼 ' + (window.cachedCourierName || USER?.username || 'أدمن');
+    } else {
+      // جيب معلومات المحل
+      const r = await apiFetch('/api/store-mgr/my-store');
+      if(r?.store){
+        $('smgr-store-name').textContent = '🏪 ' + r.store.name;
+        $('smgr-mgr-name').textContent = '👨‍💼 ' + (window.cachedCourierName || 'المدير');
+      }
     }
     
     // افتح الـ tab الافتراضي
