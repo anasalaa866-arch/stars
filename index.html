@@ -520,7 +520,7 @@ a{color:inherit;text-decoration:none}
       
       <!-- Stats area -->
       <div id="stk-stats-area">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0" id="stk-stats-grid">
           <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center">
             <div style="font-size:11px;color:var(--muted)">المعدود</div>
             <div style="font-size:18px;font-weight:800;color:var(--gold)" id="stk-stat-counted">0</div>
@@ -529,7 +529,7 @@ a{color:inherit;text-decoration:none}
             <div style="font-size:11px;color:var(--muted)">الإجمالي</div>
             <div style="font-size:18px;font-weight:800" id="stk-stat-total">0</div>
           </div>
-          <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center">
+          <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center" id="stk-stat-diff-card">
             <div style="font-size:11px;color:var(--muted)">فروقات</div>
             <div style="font-size:18px;font-weight:800;color:#fbbf24" id="stk-stat-diff">0</div>
           </div>
@@ -731,6 +731,7 @@ a{color:inherit;text-decoration:none}
         <span class="pos-online-pill online" id="pos-online-indicator">🟢 Online</span>
         <button class="pos-tb-btn" onclick="posOpenSalesHistory()" title="سجل البيعات">📋 السجل</button>
         <button class="pos-tb-btn" onclick="posOpenReturnsSearch()" title="إنشاء مرتجع" style="background:#fed7aa;color:#9a3412;border-color:#fdba74">↩️ مرتجع</button>
+        <button class="pos-tb-btn" onclick="posShowCloseShiftModal()" title="اقفل الشيفت" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🔒 قفل الشيفت</button>
         <button class="pos-tb-btn icon-only" onclick="posForceRefresh()" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
         <button class="pos-tb-btn icon-only" onclick="posOpenPrinterSettings()" id="pos-printer-btn" title="إعداد الطابعة">🖨️</button>
         <button class="pos-tb-btn icon-only" onclick="logout()" title="خروج" style="color:#dc2626;border-color:#fecaca">⏻</button>
@@ -2593,6 +2594,20 @@ function renderStkActiveSession(){
   $('stk-stat-total').textContent = total;
   $('stk-stat-diff').textContent = differences;
   
+  // 🆕 v65: blind mode - اخفي card الفروقات وخلي الـ grid 2 columns
+  const isBlind = s.show_system_qty !== true;
+  const diffCard = $('stk-stat-diff-card');
+  const statsGrid = $('stk-stats-grid');
+  if(diffCard && statsGrid){
+    if(isBlind){
+      diffCard.style.display = 'none';
+      statsGrid.style.gridTemplateColumns = 'repeat(2,1fr)';
+    } else {
+      diffCard.style.display = '';
+      statsGrid.style.gridTemplateColumns = 'repeat(3,1fr)';
+    }
+  }
+  
   // Recent scans (آخر 8)
   const recent = [...items]
     .filter(i => i.counted_at)
@@ -2608,6 +2623,8 @@ function renderStkActiveSession(){
   }
   
   recentList.innerHTML = recent.map(i => {
+    // 🆕 v65: blind mode - مش بنعرض الـ system_qty ولا الفرق للجرّاد
+    const isBlind = _stkActiveSession?.show_system_qty !== true;
     const diff = i.counted_qty - i.system_qty;
     const diffColor = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'var(--muted)';
     const diffStr = diff === 0 ? '✓' : (diff > 0 ? `+${diff}` : `${diff}`);
@@ -2622,10 +2639,16 @@ function renderStkActiveSession(){
           <div style="font-size:11px;color:var(--muted)">عُدّ</div>
           <div style="font-weight:800;font-size:16px;color:var(--gold)">${i.counted_qty}</div>
         </div>
-        <div style="text-align:center;flex-shrink:0;min-width:40px">
-          <div style="font-size:11px;color:var(--muted)">فرق</div>
-          <div style="font-weight:800;font-size:14px;color:${diffColor}">${diffStr}</div>
-        </div>
+        ${isBlind ? '' : `
+          <div style="text-align:center;flex-shrink:0;min-width:40px">
+            <div style="font-size:11px;color:var(--muted)">غدّ</div>
+            <div style="font-weight:800;font-size:14px;color:var(--text)">${i.system_qty ?? '—'}</div>
+          </div>
+          <div style="text-align:center;flex-shrink:0;min-width:40px">
+            <div style="font-size:11px;color:var(--muted)">فرق</div>
+            <div style="font-weight:800;font-size:14px;color:${diffColor}">${diffStr}</div>
+          </div>
+        `}
       </div>
     `;
   }).join('');
@@ -3235,6 +3258,35 @@ async function loadPosPage(){
   window.addEventListener('online', posOnReconnect);
   window.addEventListener('offline', posUpdateOnlineIndicator);
   
+  // 🆕 v59: check cash drawer session - لو الكاشير مفتوحش شيفت، نوريله modal
+  // (المدير في cashier mode بيـ skip ده لأنه ممكن يدخل cashier mode بدون فتح شيفت رسمي)
+  if(_posIsOnline && ROLE !== 'admin'){
+    try {
+      const sR = await apiFetch('/api/pos/sessions/current');
+      if(sR && !sR.hasOpen){
+        // مفيش شيفت مفتوح - اظهر modal
+        await posShowOpenShiftModal();
+        // لو الكاشير قفل الـ modal بدون فتح شيفت، نسيب الـ POS بس بدون products
+        const recheck = await apiFetch('/api/pos/sessions/current');
+        if(!recheck?.hasOpen){
+          $('pos-products-grid').innerHTML = `
+            <div style="padding:30px;text-align:center;color:var(--muted)">
+              <div style="font-size:48px;opacity:.4">🔒</div>
+              <div style="font-weight:700;margin-bottom:8px">مفيش شيفت مفتوح</div>
+              <div style="font-size:13px">لازم تفتح الشيفت قبل ما تبدأ البيع</div>
+              <button onclick="posShowOpenShiftModal()" style="margin-top:14px;background:var(--gold);color:#000;border:none;padding:12px 24px;border-radius:8px;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">💰 افتح شيفت</button>
+            </div>
+          `;
+          return;
+        }
+      }
+      // store الـ session في الـ window للاستخدام
+      window._posCurrentSession = sR.session;
+    } catch(e) {
+      console.warn('Session check failed:', e.message);
+      // مش هـ نمنع الـ POS لو الـ check فشل عشان لو الـ backend مش deployed لسه
+    }
+  }
   // 3. جيب المحلات (من cache لو offline)
   try {
     let stores = [];
@@ -3450,6 +3502,205 @@ function _posBuildBarcodeIndex(){
         }
       }
     }
+  }
+}
+
+// 🆕 v59: Open Shift Modal (الكاشير يدخل opening cash)
+async function posShowOpenShiftModal(){
+  return new Promise((resolve) => {
+    const existing = document.getElementById('pos-open-shift-modal');
+    if(existing) existing.remove();
+    
+    const modal = document.createElement('div');
+    modal.id = 'pos-open-shift-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;font-family:Cairo,sans-serif';
+    modal.innerHTML = `
+      <div style="background:var(--bg);max-width:420px;width:100%;border-radius:16px;padding:24px;border:1px solid var(--gold);box-shadow:0 12px 48px rgba(0,0,0,0.4)">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:48px;margin-bottom:8px">💰</div>
+          <h2 style="margin:0;color:var(--gold);font-size:22px;font-weight:900">افتح الشيفت</h2>
+          <div style="color:var(--muted);font-size:13px;margin-top:6px">عدّ الكاش في الدرج وأدخل المبلغ</div>
+        </div>
+        
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">رصيد الدرج الافتتاحي (ج) *</label>
+          <input id="pos-opening-cash" type="number" min="0" step="0.01" placeholder="مثلاً: 500" 
+                 inputmode="decimal"
+                 style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid var(--gold);border-radius:10px;font-family:Cairo,sans-serif;font-size:22px;text-align:center;font-weight:800">
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">💡 الفكّة اللي معاك في الدرج دلوقتي</div>
+        </div>
+        
+        <div style="margin-bottom:16px">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">ملاحظات (اختياري)</label>
+          <input id="pos-opening-notes" type="text" placeholder="مثلاً: استلمت كاش الفكّة من المدير"
+                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px">
+        </div>
+        
+        <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.2);border-radius:8px;padding:10px;margin-bottom:16px;font-size:11px;color:var(--muted);line-height:1.6">
+          ⚠️ ده الرصيد بتاع الكاش بس. <strong>الفيزا والإنستا باي بيبدأوا من صفر</strong>.
+          عند نهاية الشيفت، هتدخل القيم النهائية للـ 3 طرق.
+        </div>
+        
+        <button id="pos-confirm-open-btn" onclick="posConfirmOpenShift()" 
+                style="width:100%;padding:14px;background:var(--gold);color:#000;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-size:15px;font-weight:900;cursor:pointer">
+          ✅ افتح الشيفت
+        </button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    setTimeout(() => $('pos-opening-cash')?.focus(), 200);
+    
+    // store resolver للاستخدام بعدين
+    window._posOpenShiftResolve = resolve;
+  });
+}
+
+async function posConfirmOpenShift(){
+  const cashInput = $('pos-opening-cash');
+  const opening = parseFloat(cashInput.value);
+  if(isNaN(opening) || opening < 0){
+    toast('❌ ادخل رقم صحيح للرصيد', 'error');
+    cashInput.focus();
+    return;
+  }
+  
+  const notes = ($('pos-opening-notes')?.value || '').trim();
+  const storeId = _posStore?.id;
+  
+  const btn = $('pos-confirm-open-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري الفتح...'; }
+  
+  try {
+    const r = await apiFetch('/api/pos/sessions/open', 'POST', {
+      openingCash: opening,
+      storeId,
+      notes
+    });
+    
+    if(r?.session){
+      window._posCurrentSession = r.session;
+      toast(`✅ تم فتح الشيفت - رصيد ${opening.toFixed(0)} ج`, 'success');
+      document.getElementById('pos-open-shift-modal')?.remove();
+      
+      // resolve الـ promise لو موجودة
+      if(window._posOpenShiftResolve){
+        window._posOpenShiftResolve(r.session);
+        delete window._posOpenShiftResolve;
+      }
+    } else {
+      throw new Error('فشل فتح الشيفت');
+    }
+  } catch(e) {
+    if(btn){ btn.disabled = false; btn.textContent = '✅ افتح الشيفت'; }
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// 🆕 v60: Close Shift Modal (الكاشير يدخل الـ counted - وشيفت جديد يفتح تلقائي)
+// 🆕 v61: blind counting - الكاشير ما يشوفش الـ expected
+async function posShowCloseShiftModal(){
+  // نـ verify بس إن في session مفتوحة (بدون ما نـ display أي summary)
+  try {
+    const r = await apiFetch('/api/pos/sessions/current');
+    if(!r?.hasOpen){
+      toast('❌ مفيش شيفت مفتوح', 'error');
+      return;
+    }
+  } catch(e) {
+    toast('⚠️ ' + e.message, 'warning');
+    return;
+  }
+  
+  const existing = document.getElementById('pos-close-shift-modal');
+  if(existing) existing.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'pos-close-shift-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif';
+  modal.innerHTML = `
+    <div style="background:var(--bg);max-width:480px;width:100%;border-radius:16px;padding:22px;border:1px solid #ef4444;margin-top:30px;box-shadow:0 12px 48px rgba(0,0,0,0.4)">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:42px;margin-bottom:6px">🔒</div>
+        <h2 style="margin:0;color:#ef4444;font-size:20px;font-weight:900">قفل الشيفت</h2>
+        <div style="color:var(--muted);font-size:13px;margin-top:8px;line-height:1.6">عدّ الكاش والفيزا والإنستاباي بنفسك<br/>وادخّل القيم الفعلية اللي عندك</div>
+      </div>
+      
+      <!-- Inputs - blank values, blind counting -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:#22c55e;font-weight:800;display:block;margin-bottom:6px">💵 الكاش الفعلي في الدرج *</label>
+        <input id="pos-close-cash" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"
+               style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid #22c55e;border-radius:10px;font-family:Roboto,sans-serif;font-size:22px;text-align:center;font-weight:800">
+      </div>
+      
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:#3b82f6;font-weight:800;display:block;margin-bottom:6px">💳 الفيزا (من POS terminal) *</label>
+        <input id="pos-close-visa" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"
+               style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid #3b82f6;border-radius:10px;font-family:Roboto,sans-serif;font-size:22px;text-align:center;font-weight:800">
+      </div>
+      
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;color:#a855f7;font-weight:800;display:block;margin-bottom:6px">📱 الإنستاباي (من التطبيق) *</label>
+        <input id="pos-close-instapay" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"
+               style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid #a855f7;border-radius:10px;font-family:Roboto,sans-serif;font-size:22px;text-align:center;font-weight:800">
+      </div>
+      
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">ملاحظات (اختياري)</label>
+        <input id="pos-close-notes" type="text" placeholder="مثلاً: في فرق بسيط بسبب فكّة"
+               style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px">
+      </div>
+      
+      <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:10px;margin-bottom:14px;font-size:11px;color:var(--muted);line-height:1.6">
+        ✅ بعد ما تأكد، الشيفت ده هـ يقفل ويتبعت للمدير للمراجعة.<br/>
+        <strong>شيفت جديد هـ يفتح تلقائي</strong> برصيد الكاش اللي دخّلته فوق، عشان تكمل بيع.
+      </div>
+      
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('pos-close-shift-modal').remove()" 
+                style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
+        <button id="pos-confirm-close-btn" onclick="posConfirmCloseShift()" 
+                style="flex:2;padding:14px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:900;cursor:pointer">🔒 قفل + شيفت جديد</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => $('pos-close-cash')?.focus(), 200);
+}
+
+async function posConfirmCloseShift(){
+  const cash = parseFloat($('pos-close-cash').value);
+  const visa = parseFloat($('pos-close-visa').value);
+  const insta = parseFloat($('pos-close-instapay').value);
+  const notes = ($('pos-close-notes')?.value || '').trim();
+  
+  if(isNaN(cash) || cash < 0) return toast('❌ ادخل الكاش الفعلي', 'error');
+  if(isNaN(visa) || visa < 0) return toast('❌ ادخل مبلغ الفيزا', 'error');
+  if(isNaN(insta) || insta < 0) return toast('❌ ادخل مبلغ الإنستاباي', 'error');
+  
+  const btn = $('pos-confirm-close-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري القفل...'; }
+  
+  try {
+    const r = await apiFetch('/api/pos/sessions/close', 'POST', {
+      countedCash: cash,
+      countedVisa: visa,
+      countedInstapay: insta,
+      notes
+    });
+    
+    if(r?.newSession){
+      window._posCurrentSession = r.newSession;
+      const total = cash + visa + insta;
+      toast(`✅ الشيفت اتقفل (${total.toFixed(0)} ج) - شيفت جديد ابتدأ`, 'success');
+      document.getElementById('pos-close-shift-modal')?.remove();
+      // refresh الـ shift badge
+      if(typeof posUpdateShiftBadge === 'function') posUpdateShiftBadge();
+    } else {
+      throw new Error('فشل قفل الشيفت');
+    }
+  } catch(e) {
+    if(btn){ btn.disabled = false; btn.textContent = '🔒 قفل + شيفت جديد'; }
+    toast('❌ ' + e.message, 'error');
   }
 }
 
@@ -5319,47 +5570,58 @@ async function posUpdateShiftBadge(){
   if(!_posIsOnline) return;
   const bar = $('pos-shift-bar');
   if(!bar) return;
+  
   try {
-    const r = await apiFetch('/api/pos/me/shift');
-    if(!r) return;
+    // 🆕 v63: استخدم الـ session الجديدة بدل ما نعد من أول بيعة في اليوم
+    const r = await apiFetch('/api/pos/sessions/current');
+    if(!r?.hasOpen || !r.session){
+      // مفيش session مفتوحة → اخفي الـ bar
+      bar.style.display = 'none';
+      document.querySelector('.pos-main')?.classList.remove('with-shift-bar');
+      return;
+    }
+    
     bar.style.display = 'block';
-    // adjust main height
     document.querySelector('.pos-main')?.classList.add('with-shift-bar');
-
+    
     const iconEl = $('pos-shift-icon');
     const textEl = $('pos-shift-text');
     if(!iconEl || !textEl) return;
-
-    if(!r.sales_count || r.sales_count === 0){
-      // شيفت جديد - مفيش بيعات لسه
+    
+    const session = r.session;
+    const summary = r.summary || {};
+    const salesCount = (summary.salesCounts?.cash || 0) + (summary.salesCounts?.visa || 0) + (summary.salesCounts?.instapay || 0);
+    const openingCash = summary.openingCash || 0;
+    
+    const openedAt = new Date(session.opened_at);
+    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const day = dayNames[openedAt.getDay()];
+    const timeStr = openedAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    
+    // كام من الوقت فات من بداية الشيفت
+    const diffMs = Date.now() - openedAt.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHrs = Math.floor(diffMins / 60);
+    let elapsed = '';
+    if(diffHrs > 0){
+      elapsed = `${diffHrs}س ${diffMins % 60}د`;
+    } else if(diffMins > 0){
+      elapsed = `${diffMins} دقيقة`;
+    } else {
+      elapsed = 'لسه ابتدأ';
+    }
+    
+    if(salesCount === 0){
+      // شيفت جديد مفيش بيعات لسه
       iconEl.textContent = '🆕';
-      textEl.textContent = 'شيفت جديد';
+      textEl.innerHTML = `شيفت ابتدأ ${day} ${timeStr} · رصيد افتتاح <strong>${openingCash.toFixed(0)} ج</strong> · <strong>${elapsed}</strong>`;
       bar.style.background = 'linear-gradient(135deg,#dcfce7,#bbf7d0)';
       bar.style.borderBottomColor = '#22c55e';
       bar.style.color = '#14532d';
     } else {
-      // فيه بيعات - اعرض وقت أول بيعة
-      const firstAt = new Date(r.first_sale_at);
-      const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-      const day = dayNames[firstAt.getDay()];
-      const dateStr = firstAt.toLocaleDateString('ar-EG', { month: 'numeric', day: 'numeric' });
-      const timeStr = firstAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-
-      // كام من الوقت اللي فات
-      const diffMs = Date.now() - firstAt.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHrs = Math.floor(diffMins / 60);
-      let elapsed = '';
-      if(diffHrs > 0){
-        elapsed = ` (من ${diffHrs} ساعة و ${diffMins % 60} دقيقة)`;
-      } else if(diffMins > 0){
-        elapsed = ` (من ${diffMins} دقيقة)`;
-      } else {
-        elapsed = ' (من شوية)';
-      }
-
+      // فيه بيعات
       iconEl.textContent = '🕐';
-      textEl.innerHTML = `الشيفت بدأ: <strong>${day} ${dateStr} الساعة ${timeStr}</strong><span style="opacity:.75;font-weight:600">${elapsed}</span> · <strong>${r.sales_count}</strong> بيعة`;
+      textEl.innerHTML = `شيفت ابتدأ ${day} ${timeStr} (<strong>${elapsed}</strong>) · <strong>${salesCount}</strong> بيعة · رصيد افتتاح ${openingCash.toFixed(0)} ج`;
       bar.style.background = 'linear-gradient(135deg,#fef3c7,#fde68a)';
       bar.style.borderBottomColor = '#fbbf24';
       bar.style.color = '#78350f';
@@ -7068,20 +7330,22 @@ function smgrShowModeSwitcher(){
   
   const currentMode = sessionStorage.getItem('smgrMode') || 'manager';
   const otherMode = currentMode === 'cashier' ? 'manager' : 'cashier';
-  const label = otherMode === 'cashier' ? '🛍️ ادخل وضع البيع' : '📊 ارجع لوضع المدير';
+  const label = otherMode === 'cashier' ? '🛍️ وضع البيع' : '📊 وضع المدير';
   const bgColor = otherMode === 'cashier' ? '#3b82f6' : '#d4af37';
   const txtColor = otherMode === 'cashier' ? '#fff' : '#000';
   
   const btn = document.createElement('button');
   btn.id = 'smgr-mode-switcher-btn';
   btn.onclick = () => smgrSwitchMode(otherMode);
+  // 🆕 v62: الزرار في bottom-left عشان ميتلاصقش مع الـ topbar buttons
   btn.style.cssText = `
-    position:fixed;top:12px;left:12px;z-index:5000;
-    padding:8px 14px;background:${bgColor};color:${txtColor};
-    border:none;border-radius:8px;font-family:Cairo,sans-serif;
+    position:fixed;bottom:80px;left:12px;z-index:5000;
+    padding:10px 14px;background:${bgColor};color:${txtColor};
+    border:none;border-radius:99px;font-family:Cairo,sans-serif;
     font-size:12px;font-weight:800;cursor:pointer;
-    box-shadow:0 4px 12px rgba(0,0,0,0.2);
-    display:flex;align-items:center;gap:6px
+    box-shadow:0 4px 16px rgba(0,0,0,0.3);
+    display:flex;align-items:center;gap:6px;
+    white-space:nowrap
   `;
   btn.innerHTML = label;
   document.body.appendChild(btn);
@@ -7226,10 +7490,35 @@ async function smgrLoadCashiers(){
                         rating >= 2.5 ? '#f59e0b' :
                         rating >= 1.5 ? '#f97316' : '#ef4444';
     
+    // 🆕 v60: pending settlement badge
+    // 🆕 v64: support multiple pending sessions
+    const pendingCount = parseInt(cash.pending_count) || 0;
+    const hasPending = pendingCount > 0;
+    const pendingTime = cash.oldest_pending_at ? 
+      'من ' + (() => {
+        const diff = Math.round((Date.now() - new Date(cash.oldest_pending_at).getTime()) / 60000);
+        if(diff < 1) return 'لحظة';
+        if(diff < 60) return diff + ' دقيقة';
+        const hr = Math.floor(diff / 60);
+        return hr + ' ساعة' + (diff % 60 ? ' و' + (diff % 60) + ' دقيقة' : '');
+      })() : '';
+    
+    const pendingBadgeText = pendingCount > 1 
+      ? `⏰ ${pendingCount} تصفيات بانتظار المراجعة (الأقدم ${pendingTime})`
+      : `⏰ تصفية بانتظار المراجعة (${pendingTime})`;
+    
+    const settleButtonText = pendingCount > 1
+      ? `⏰ راجع التصفيات (${pendingCount})`
+      : hasPending ? '⏰ راجع التصفية' : '💰 تصفية';
+    
+    const cardBorder = hasPending ? '2px solid #fbbf24' : '1px solid var(--border)';
+    const cardShadow = hasPending ? '0 4px 16px rgba(251,191,36,0.25)' : '0 1px 3px rgba(0,0,0,.04)';
+    
     return `
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
-        <!-- Header مع rating -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">
+      <div style="background:var(--card);border:${cardBorder};border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:${cardShadow};position:relative">
+        ${hasPending ? `<div style="position:absolute;top:-1px;left:-1px;right:-1px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;padding:6px 12px;border-radius:11px 11px 0 0;font-weight:800;font-size:11px;text-align:center">${pendingBadgeText}</div>` : ''}
+        
+        <div style="${hasPending ? 'margin-top:22px;' : ''}display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">
           <div style="flex:1;min-width:0">
             <div style="font-weight:800;font-size:15px;color:var(--gold)">👤 ${escapeHtml(cash.name)}</div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">📱 ${escapeHtml(cash.phone || '—')}</div>
@@ -7261,7 +7550,6 @@ async function smgrLoadCashiers(){
           </div>
         </div>
         
-        <!-- متوسط + status -->
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:10px;font-size:12px">
           <div>
             <span style="color:var(--muted)">متوسط البيعة:</span>
@@ -7271,9 +7559,10 @@ async function smgrLoadCashiers(){
           <span style="font-size:10px;padding:3px 8px;border-radius:99px;background:${cash.status === 'نشط' || !cash.status ? '#22c55e20' : '#ef444420'};color:${cash.status === 'نشط' || !cash.status ? '#22c55e' : '#ef4444'}">${cash.status || 'نشط'}</span>
         </div>
         
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <button onclick="smgrViewCashierSales(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer">📋 بيعاته</button>
-          <button onclick="smgrOpenSettlement(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">💰 تصفية</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <button onclick="smgrViewCashierSales(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px 6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">📋 بيعاته</button>
+          <button onclick="smgrOpenCashDrawer(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px 6px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">💵 الدرج</button>
+          <button onclick="smgrOpenSettlement(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px 6px;background:${hasPending ? '#fbbf24' : 'var(--gold)'};color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">${settleButtonText}</button>
         </div>
       </div>
     `;
@@ -8138,23 +8427,264 @@ async function smgrReviewSale(saleId){
   }
 }
 
+// 🆕 v59: Cash Drawer Management (Cash In/Out)
+async function smgrOpenCashDrawer(cashierId, cashierName){
+  // امسح modal سابق
+  const existing = document.getElementById('smgr-cash-drawer-modal');
+  if(existing) existing.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'smgr-cash-drawer-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1100;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif';
+  modal.innerHTML = `
+    <div style="background:var(--bg);max-width:520px;width:100%;border-radius:14px;padding:20px;border:1px solid var(--gold);margin-top:30px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="margin:0;color:var(--gold)">💵 إدارة درج ${escapeHtml(cashierName)}</h3>
+        <button onclick="document.getElementById('smgr-cash-drawer-modal').remove()" style="background:transparent;color:var(--muted);border:none;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      
+      <div id="smgr-drawer-summary" style="text-align:center;padding:20px;color:var(--muted)">
+        ⏳ جاري التحميل...
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  // جيب الـ summary + movements
+  try {
+    const r = await apiFetch(`/api/store-mgr/cash-movements/${cashierId}`);
+    smgrRenderCashDrawer(cashierId, cashierName, r);
+  } catch(e) {
+    $('smgr-drawer-summary').innerHTML = `<div style="color:#ef4444;padding:20px">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function smgrRenderCashDrawer(cashierId, cashierName, data){
+  const c = $('smgr-drawer-summary');
+  if(!c) return;
+  
+  const session = data?.session;
+  const movements = data?.movements || [];
+  const summary = data?.summary;
+  
+  if(!session){
+    c.innerHTML = `
+      <div style="text-align:center;padding:30px">
+        <div style="font-size:48px;opacity:.3">🔒</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:10px">الكاشير ده مفيش عنده شيفت مفتوح</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:4px">مش هتقدر تعمل cash in/out لحد ما يفتح شيفت</div>
+      </div>
+    `;
+    return;
+  }
+  
+  const expected = summary?.expected || {};
+  const openingCash = summary?.openingCash || 0;
+  const cashIn = summary?.cashIn || 0;
+  const cashOut = summary?.cashOut || 0;
+  const cashSales = summary?.sales?.cash || 0;
+  
+  let html = `
+    <!-- Cash Drawer Summary -->
+    <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">💰 ملخّص الكاش الحالي</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">رصيد الافتتاح</td><td style="text-align:left;font-weight:700;font-family:Roboto,sans-serif">${parseFloat(openingCash).toFixed(0)} ج</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">+ مبيعات كاش</td><td style="text-align:left;font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(cashSales).toFixed(0)} ج</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">+ إيداعات (Cash In)</td><td style="text-align:left;font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(cashIn).toFixed(0)} ج</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">- سحوبات (Cash Out)</td><td style="text-align:left;font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">-${parseFloat(cashOut).toFixed(0)} ج</td></tr>
+        <tr><td style="padding:8px 0;font-weight:900;color:var(--gold)">= المفروض في الدرج</td><td style="text-align:left;font-weight:900;color:var(--gold);font-family:Roboto,sans-serif;font-size:16px">${parseFloat(expected.cash || 0).toFixed(0)} ج</td></tr>
+      </table>
+    </div>
+    
+    <!-- Cash In/Out Actions -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <button onclick="smgrPromptCashMovement(${cashierId}, '${escapeHtml(cashierName).replace(/'/g, "\\'")}', 'in')" 
+              style="background:#22c55e;color:#fff;border:none;padding:14px;border-radius:10px;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">
+        + إيداع كاش
+      </button>
+      <button onclick="smgrPromptCashMovement(${cashierId}, '${escapeHtml(cashierName).replace(/'/g, "\\'")}', 'out')" 
+              style="background:#ef4444;color:#fff;border:none;padding:14px;border-radius:10px;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">
+        - سحب كاش
+      </button>
+    </div>
+    
+    <!-- Movements History -->
+    <div style="background:var(--elev);border-radius:10px;padding:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">📋 سجل الحركات (${movements.length})</div>
+  `;
+  
+  if(movements.length === 0){
+    html += `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">مفيش حركات لسه</div>`;
+  } else {
+    movements.forEach(m => {
+      const time = new Date(m.created_at).toLocaleString('ar-EG', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
+      const isIn = m.direction === 'in';
+      html += `
+        <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-right:3px solid ${isIn ? '#22c55e' : '#ef4444'}">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:800;color:${isIn ? '#22c55e' : '#ef4444'}">${isIn ? '+' : '-'} ${parseFloat(m.amount).toFixed(0)} ج</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(m.reason || '')}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">${time} · ${escapeHtml(m.created_by_name || '')}</div>
+          </div>
+        </div>
+      `;
+    });
+  }
+  
+  html += `</div>`;
+  c.innerHTML = html;
+}
+
+function smgrPromptCashMovement(cashierId, cashierName, direction){
+  const isIn = direction === 'in';
+  const existing = document.getElementById('smgr-cash-move-modal');
+  if(existing) existing.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'smgr-cash-move-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:1200;display:flex;align-items:center;justify-content:center;padding:14px;font-family:Cairo,sans-serif';
+  modal.innerHTML = `
+    <div style="background:var(--bg);max-width:380px;width:100%;border-radius:14px;padding:20px;border:1px solid ${isIn ? '#22c55e' : '#ef4444'}">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:36px;margin-bottom:4px">${isIn ? '💵' : '💸'}</div>
+        <h3 style="margin:0;color:${isIn ? '#22c55e' : '#ef4444'}">${isIn ? '+ إيداع كاش' : '- سحب كاش'}</h3>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">من درج ${escapeHtml(cashierName)}</div>
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">المبلغ (ج) *</label>
+        <input id="cm-amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0"
+               style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid ${isIn ? '#22c55e' : '#ef4444'};border-radius:10px;font-family:Roboto,sans-serif;font-size:22px;text-align:center;font-weight:800">
+      </div>
+      
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">السبب *</label>
+        <input id="cm-reason" type="text" placeholder="${isIn ? 'مثلاً: تعزيز فكّة' : 'مثلاً: ترحيل للخزنة'}"
+               style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px">
+      </div>
+      
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('smgr-cash-move-modal').remove()" style="flex:1;background:transparent;color:var(--text);border:1px solid var(--border);padding:12px;border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">إلغاء</button>
+        <button onclick="smgrSubmitCashMovement(${cashierId}, '${escapeHtml(cashierName).replace(/'/g, "\\'")}', '${direction}')" style="flex:2;background:${isIn ? '#22c55e' : '#ef4444'};color:#fff;border:none;padding:12px;border-radius:8px;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">✅ تأكيد</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => $('cm-amount')?.focus(), 200);
+}
+
+async function smgrSubmitCashMovement(cashierId, cashierName, direction){
+  const amount = parseFloat($('cm-amount').value);
+  const reason = ($('cm-reason').value || '').trim();
+  
+  if(isNaN(amount) || amount <= 0) return toast('❌ المبلغ لازم يكون رقم > 0', 'error');
+  if(!reason) return toast('❌ السبب مطلوب', 'error');
+  
+  try {
+    const r = await apiFetch('/api/store-mgr/cash-movements', 'POST', {
+      cashierId, direction, amount, reason
+    });
+    if(r?.movement){
+      toast(`✅ تمت ${direction === 'in' ? 'إضافة' : 'سحب'} ${amount.toFixed(0)} ج`, 'success');
+      document.getElementById('smgr-cash-move-modal')?.remove();
+      // refresh الـ drawer view
+      smgrOpenCashDrawer(cashierId, cashierName);
+    }
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
 // ─── Settlement ───
+// 🆕 v64: entry point - يفحص لو في pending متعددة ويعرض selector
 async function smgrOpenSettlement(cashierId, cashierName){
   _smgrSelectedCashier = { id: cashierId, name: cashierName };
+  
+  $('smgr-settlement-content').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ جاري التحميل...</div>';
+  $('smgr-settlement-modal').style.display = 'block';
+  
+  // الأول نشوف فيه كام pending
+  let pendingsList = [];
+  try {
+    const lr = await apiFetch(`/api/store-mgr/pending-sessions/${cashierId}`);
+    pendingsList = lr?.pendingSessions || [];
+  } catch(e) {
+    // لو فشلت، نكمل بـ flow القديم (سيـ default للأقدم)
+    return smgrOpenSettlementForSession(cashierId, cashierName, null);
+  }
+  
+  if(pendingsList.length === 0){
+    // مفيش pending خالص
+    return smgrOpenSettlementForSession(cashierId, cashierName, null);
+  }
+  
+  if(pendingsList.length === 1){
+    // واحدة بس - دخل عليها مباشرة
+    return smgrOpenSettlementForSession(cashierId, cashierName, pendingsList[0].sessionId);
+  }
+  
+  // أكتر من واحدة - اعرض selector
+  const html = `
+    <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-weight:800;font-size:14px;color:var(--gold);margin-bottom:4px">${escapeHtml(cashierName)}</div>
+      <div style="font-size:12px;color:var(--muted)">في <strong style="color:#fbbf24">${pendingsList.length}</strong> تصفيات بانتظار المراجعة - اختار واحدة تبدأ بيها</div>
+    </div>
+    
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+      ${pendingsList.map((ps, idx) => {
+        const opened = new Date(ps.openedAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+        const closed = ps.closedAt ? new Date(ps.closedAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+        const isOldest = idx === 0;
+        return `
+          <button onclick="smgrOpenSettlementForSession(${cashierId}, '${escapeHtml(cashierName).replace(/'/g, "\\'")}', ${ps.sessionId})"
+                  style="background:var(--bg);border:${isOldest ? '2px solid #fbbf24' : '1px solid var(--border)'};border-radius:10px;padding:12px;cursor:pointer;text-align:right;font-family:Cairo,sans-serif;position:relative">
+            ${isOldest ? '<div style="position:absolute;top:-8px;right:10px;background:#fbbf24;color:#000;font-size:10px;font-weight:800;padding:2px 8px;border-radius:99px">الأقدم</div>' : ''}
+            <div style="font-weight:800;font-size:13px;color:var(--gold);margin-bottom:4px">شيفت #${ps.sessionId}</div>
+            <div style="font-size:11px;color:var(--muted);line-height:1.6">
+              فُتح: ${opened}<br/>
+              قُفل: ${closed}<br/>
+              ${ps.salesCount} بيعة · إجمالي ${parseFloat(ps.salesTotal).toFixed(0)} ج
+            </div>
+            <div style="display:flex;gap:6px;margin-top:8px;font-size:10px">
+              <span style="color:#22c55e">💵 ${ps.cashierCounted.cash.toFixed(0)}</span>
+              <span style="color:#3b82f6">💳 ${ps.cashierCounted.visa.toFixed(0)}</span>
+              <span style="color:#a855f7">📱 ${ps.cashierCounted.instapay.toFixed(0)}</span>
+            </div>
+          </button>
+        `;
+      }).join('')}
+    </div>
+    
+    <button onclick="smgrCloseSettlement()" style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
+  `;
+  $('smgr-settlement-content').innerHTML = html;
+}
+
+// الـ logic الفعلية للـ settlement لـ session معينة (أو الأقدم لو null)
+async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
+  _smgrSelectedCashier = { id: cashierId, name: cashierName, sessionId };
   
   // جيب الـ preview
   $('smgr-settlement-content').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ جاري التحميل...</div>';
   $('smgr-settlement-modal').style.display = 'block';
   
   try {
-    const r = await apiFetch('/api/store-mgr/settlement-preview?cashierId=' + cashierId);
+    let url = '/api/store-mgr/settlement-preview?cashierId=' + cashierId;
+    if(sessionId) url += '&sessionId=' + sessionId;
+    const r = await apiFetch(url);
     
-    if(r.count === 0){
+    // 🆕 v60: لو مفيش pending session - مفيش تصفية ممكنة
+    if(!r.pendingSession){
       $('smgr-settlement-content').innerHTML = `
         <div style="text-align:center;padding:30px">
-          <div style="font-size:48px;opacity:.3">✅</div>
+          <div style="font-size:48px;opacity:.3">⏳</div>
           <div style="font-weight:700;margin-top:10px">${escapeHtml(cashierName)}</div>
-          <div style="color:var(--muted);font-size:12px;margin-top:6px">مفيش بيعات للتصفية</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:6px">${escapeHtml(r.message || 'مفيش شيفت بانتظار التصفية')}</div>
+          <div style="color:var(--muted);font-size:11px;margin-top:8px;line-height:1.6">
+            الكاشير لازم يقفل شيفته من الـ POS الأول (زرار "🔒 قفل الشيفت")<br/>
+            عشان تظهر التصفية هنا.
+          </div>
           <button onclick="smgrCloseSettlement()" style="margin-top:14px;padding:10px 20px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;cursor:pointer">إغلاق</button>
         </div>
       `;
@@ -8162,7 +8692,7 @@ async function smgrOpenSettlement(cashierId, cashierName){
     }
     
     const byM = r.byMethod || {};
-    const cash = byM.cash?.total || 0;
+    const cashSales = byM.cash?.total || 0;
     const visa = byM.visa?.total || 0;
     const instapay = byM.instapay?.total || 0;
     
@@ -8170,17 +8700,72 @@ async function smgrOpenSettlement(cashierId, cashierName){
     const visaCount = byM.visa?.count || 0;
     const instapayCount = byM.instapay?.count || 0;
     
+    // الـ cashDrawer + cashierCounted
+    const drawer = r.cashDrawer || null;
+    const openingCash = drawer?.openingCash || 0;
+    const cashIn = drawer?.cashIn || 0;
+    const cashOut = drawer?.cashOut || 0;
+    
+    const expectedCash = drawer?.expected?.cash !== undefined ? drawer.expected.cash : cashSales;
+    const expectedVisa = drawer?.expected?.visa !== undefined ? drawer.expected.visa : visa;
+    const expectedInstapay = drawer?.expected?.instapay !== undefined ? drawer.expected.instapay : instapay;
+    
+    // 🆕 v60: الـ counted من الكاشير
+    const cashierCounted = r.cashierCounted || { cash: 0, visa: 0, instapay: 0 };
+    
+    // Cash drawer breakdown
+    const drawerBreakdownHtml = `
+      <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid #3b82f6">
+        <div style="font-weight:800;font-size:13px;color:#3b82f6;margin-bottom:10px">💵 تفصيل درج الكاش</div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <tr><td style="padding:3px 0;color:var(--muted)">رصيد الافتتاح</td><td style="text-align:left;font-family:Roboto,sans-serif">${openingCash.toFixed(0)} ج</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted)">+ مبيعات كاش</td><td style="text-align:left;color:#22c55e;font-family:Roboto,sans-serif">+${cashSales.toFixed(0)} ج</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted)">+ إيداعات</td><td style="text-align:left;color:#22c55e;font-family:Roboto,sans-serif">+${cashIn.toFixed(0)} ج</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted)">- سحوبات</td><td style="text-align:left;color:#ef4444;font-family:Roboto,sans-serif">-${cashOut.toFixed(0)} ج</td></tr>
+          <tr style="border-top:1px solid var(--border)"><td style="padding:6px 0;font-weight:800;color:var(--gold)">= المفروض في الدرج</td><td style="text-align:left;font-weight:900;color:var(--gold);font-family:Roboto,sans-serif">${expectedCash.toFixed(0)} ج</td></tr>
+        </table>
+      </div>
+    `;
+    
+    // 🆕 v60: Cashier counted comparison
+    const cashierCountedHtml = `
+      <div style="background:rgba(59,130,246,0.08);border:1px solid #3b82f6;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:800;font-size:13px;color:#3b82f6;margin-bottom:10px">👤 الكاشير قال إن المعدود عنده</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:10px;color:var(--muted)">💵 كاش</div>
+            <div style="font-weight:800;color:#22c55e;font-family:Roboto,sans-serif;font-size:14px">${cashierCounted.cash.toFixed(0)} ج</div>
+            ${Math.abs(cashierCounted.cash - expectedCash) > 0.01 ? `<div style="font-size:9px;color:${cashierCounted.cash > expectedCash ? '#3b82f6' : '#ef4444'};font-weight:700">${(cashierCounted.cash - expectedCash > 0 ? '+' : '')}${(cashierCounted.cash - expectedCash).toFixed(0)} عن المتوقع</div>` : '<div style="font-size:9px;color:#22c55e;font-weight:700">✓ مظبوط</div>'}
+          </div>
+          <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:10px;color:var(--muted)">💳 فيزا</div>
+            <div style="font-weight:800;color:#3b82f6;font-family:Roboto,sans-serif;font-size:14px">${cashierCounted.visa.toFixed(0)} ج</div>
+            ${Math.abs(cashierCounted.visa - expectedVisa) > 0.01 ? `<div style="font-size:9px;color:${cashierCounted.visa > expectedVisa ? '#3b82f6' : '#ef4444'};font-weight:700">${(cashierCounted.visa - expectedVisa > 0 ? '+' : '')}${(cashierCounted.visa - expectedVisa).toFixed(0)} عن المتوقع</div>` : '<div style="font-size:9px;color:#22c55e;font-weight:700">✓ مظبوط</div>'}
+          </div>
+          <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:10px;color:var(--muted)">📱 إنستا</div>
+            <div style="font-weight:800;color:#a855f7;font-family:Roboto,sans-serif;font-size:14px">${cashierCounted.instapay.toFixed(0)} ج</div>
+            ${Math.abs(cashierCounted.instapay - expectedInstapay) > 0.01 ? `<div style="font-size:9px;color:${cashierCounted.instapay > expectedInstapay ? '#3b82f6' : '#ef4444'};font-weight:700">${(cashierCounted.instapay - expectedInstapay > 0 ? '+' : '')}${(cashierCounted.instapay - expectedInstapay).toFixed(0)} عن المتوقع</div>` : '<div style="font-size:9px;color:#22c55e;font-weight:700">✓ مظبوط</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+    
     const html = `
       <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
         <div style="font-weight:800;font-size:14px;color:var(--gold);margin-bottom:4px">${escapeHtml(cashierName)}</div>
         <div style="font-size:11px;color:var(--muted)">${r.count} بيعة - من ${new Date(r.first_sale_at).toLocaleString('ar-EG', {dateStyle:'short',timeStyle:'short'})} لـ ${new Date(r.last_sale_at).toLocaleString('ar-EG', {dateStyle:'short',timeStyle:'short'})}</div>
+        ${r.pendingSession.closeNotes ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;padding:6px;background:var(--bg);border-radius:6px">📝 ${escapeHtml(r.pendingSession.closeNotes)}</div>` : ''}
       </div>
       
+      ${drawerBreakdownHtml}
+      ${cashierCountedHtml}
+      
       <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
-        <div style="font-weight:800;font-size:13px;color:var(--gold);margin-bottom:10px">💰 توزيع المبيعات (المفروض)</div>
+        <div style="font-weight:800;font-size:13px;color:var(--gold);margin-bottom:10px">💰 توزيع المبيعات</div>
         <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
           <span>💵 كاش <span style="font-size:10px;color:var(--muted)">(${cashCount})</span></span>
-          <span style="font-weight:800;color:#22c55e">${cash.toFixed(0)} ج</span>
+          <span style="font-weight:800;color:#22c55e">${cashSales.toFixed(0)} ج</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
           <span>💳 فيزا <span style="font-size:10px;color:var(--muted)">(${visaCount})</span></span>
@@ -8196,47 +8781,47 @@ async function smgrOpenSettlement(cashierId, cashierName){
         </div>
       </div>
       
-      <!-- 🆕 v24: 3 collections inputs -->
+      <!-- 🆕 v60: counted من المدير (default = counted من الكاشير) -->
       <div style="background:rgba(212,175,55,.1);border:2px solid var(--gold);border-radius:10px;padding:14px;margin-bottom:14px">
-        <div style="font-weight:800;color:var(--gold);font-size:13px;margin-bottom:10px;text-align:center">📊 المبالغ الفعلية</div>
+        <div style="font-weight:800;color:var(--gold);font-size:13px;margin-bottom:4px;text-align:center">📊 المبالغ اللي عدّيتها بنفسك</div>
+        <div style="font-size:10px;color:var(--muted);text-align:center;margin-bottom:10px">القيم محملة من اللي الكاشير دخّله — عدّل لو فيه فرق</div>
         
         <!-- Cash -->
         <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:8px;border-right:3px solid #22c55e">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
-            <span>💵 كاش - المفروض:</span>
-            <span style="font-weight:800;color:#22c55e">${cash.toFixed(0)} ج</span>
+            <span>💵 كاش - المفروض في الدرج:</span>
+            <span style="font-weight:800;color:#22c55e">${expectedCash.toFixed(0)} ج</span>
           </div>
-          <input type="number" id="smgr-cash-collected" value="${cash.toFixed(0)}" min="0" step="any" 
-                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #22c55e;border-radius:6px;font-family:Cairo,sans-serif;font-size:16px;text-align:center;font-weight:800" 
-                 oninput="smgrUpdateAllDiffs(${cash}, ${visa}, ${instapay})">
+          <input type="number" id="smgr-cash-collected" value="${cashierCounted.cash.toFixed(0)}" min="0" step="any" inputmode="decimal"
+                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #22c55e;border-radius:6px;font-family:Roboto,sans-serif;font-size:16px;text-align:center;font-weight:800" 
+                 oninput="smgrUpdateAllDiffs(${expectedCash}, ${expectedVisa}, ${expectedInstapay})">
           <div id="smgr-cash-diff" style="margin-top:4px;text-align:center;font-size:11px;font-weight:800;color:#22c55e">✅ مظبوط</div>
         </div>
         
         <!-- Visa -->
         <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:8px;border-right:3px solid #3b82f6">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
-            <span>💳 فيزا - المفروض:</span>
-            <span style="font-weight:800;color:#3b82f6">${visa.toFixed(0)} ج</span>
+            <span>💳 فيزا - المفروض (من POS):</span>
+            <span style="font-weight:800;color:#3b82f6">${expectedVisa.toFixed(0)} ج</span>
           </div>
-          <input type="number" id="smgr-visa-collected" value="${visa.toFixed(0)}" min="0" step="any" 
-                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #3b82f6;border-radius:6px;font-family:Cairo,sans-serif;font-size:16px;text-align:center;font-weight:800" 
-                 oninput="smgrUpdateAllDiffs(${cash}, ${visa}, ${instapay})">
+          <input type="number" id="smgr-visa-collected" value="${cashierCounted.visa.toFixed(0)}" min="0" step="any" inputmode="decimal"
+                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #3b82f6;border-radius:6px;font-family:Roboto,sans-serif;font-size:16px;text-align:center;font-weight:800" 
+                 oninput="smgrUpdateAllDiffs(${expectedCash}, ${expectedVisa}, ${expectedInstapay})">
           <div id="smgr-visa-diff" style="margin-top:4px;text-align:center;font-size:11px;font-weight:800;color:#22c55e">✅ مظبوط</div>
         </div>
         
         <!-- Instapay -->
         <div style="background:var(--bg);border-radius:8px;padding:10px;border-right:3px solid #a855f7">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
-            <span>📱 انستاباي - المفروض:</span>
-            <span style="font-weight:800;color:#a855f7">${instapay.toFixed(0)} ج</span>
+            <span>📱 انستاباي - المفروض (من التطبيق):</span>
+            <span style="font-weight:800;color:#a855f7">${expectedInstapay.toFixed(0)} ج</span>
           </div>
-          <input type="number" id="smgr-instapay-collected" value="${instapay.toFixed(0)}" min="0" step="any" 
-                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #a855f7;border-radius:6px;font-family:Cairo,sans-serif;font-size:16px;text-align:center;font-weight:800" 
-                 oninput="smgrUpdateAllDiffs(${cash}, ${visa}, ${instapay})">
+          <input type="number" id="smgr-instapay-collected" value="${cashierCounted.instapay.toFixed(0)}" min="0" step="any" inputmode="decimal"
+                 style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid #a855f7;border-radius:6px;font-family:Roboto,sans-serif;font-size:16px;text-align:center;font-weight:800" 
+                 oninput="smgrUpdateAllDiffs(${expectedCash}, ${expectedVisa}, ${expectedInstapay})">
           <div id="smgr-instapay-diff" style="margin-top:4px;text-align:center;font-size:11px;font-weight:800;color:#22c55e">✅ مظبوط</div>
         </div>
         
-        <!-- Total diff -->
         <div id="smgr-total-diff" style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;text-align:center;font-weight:800;font-size:14px;color:#22c55e">
           ✅ كل الفروقات مظبوطة
         </div>
@@ -8251,6 +8836,9 @@ async function smgrOpenSettlement(cashierId, cashierName){
     `;
     
     $('smgr-settlement-content').innerHTML = html;
+    
+    // trigger initial calc لتظهر الـ diffs لو الكاشير دخل قيم مختلفة عن expected
+    smgrUpdateAllDiffs(expectedCash, expectedVisa, expectedInstapay);
   } catch(e) {
     $('smgr-settlement-content').innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
   }
@@ -8327,6 +8915,7 @@ async function smgrConfirmSettlement(){
   try {
     const r = await apiFetch('/api/store-mgr/settle-cashier', 'POST', {
       cashierId: _smgrSelectedCashier.id,
+      sessionId: _smgrSelectedCashier.sessionId || null,
       cashCollected,
       visaCollected,
       instapayCollected,
