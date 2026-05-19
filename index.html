@@ -1068,9 +1068,9 @@ a{color:inherit;text-decoration:none}
       
       <div style="margin-bottom:10px">
         <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">رقم الموبايل:</label>
-        <input type="tel" id="pos-cust-phone" placeholder="01xxxxxxxxx" 
+        <input type="tel" id="pos-cust-phone" placeholder="01xxxxxxxxx" maxlength="11" inputmode="numeric"
                style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:16px;text-align:center"
-               oninput="posDebounceSearchCustomer()">
+               oninput="this.value=this.value.replace(/\D/g,'').slice(0,11); posDebounceSearchCustomer()">
       </div>
       
       <div id="pos-cust-result" style="margin:10px 0"></div>
@@ -4006,12 +4006,25 @@ function posCloseCustomer(){
 
 function posDebounceSearchCustomer(){
   if(_posSearchTimer) clearTimeout(_posSearchTimer);
-  _posSearchTimer = setTimeout(posSearchCustomer, 500);
+  // 🆕 v58: استنى لحد ما يكتب 11 رقم كاملين (الرقم المصري) قبل ما نبدأ البحث
+  // ده يتجنب الـ lookups المبكرة قبل ما الكاشير يخلّص الرقم
+  const phone = ($('pos-cust-phone')?.value || '').replace(/\D/g,'');
+  if(phone.length < 11){
+    // امسح أي نتائج قديمة لو موجودة
+    const resEl = $('pos-cust-result');
+    if(resEl) resEl.innerHTML = '';
+    const newForm = $('pos-cust-new-form');
+    if(newForm) newForm.style.display = 'none';
+    return;
+  }
+  _posSearchTimer = setTimeout(posSearchCustomer, 300);
 }
 
 async function posSearchCustomer(){
   const phone = $('pos-cust-phone').value.trim();
-  if(phone.length < 7){
+  // 🆕 v58: لازم 11 رقم
+  const digits = phone.replace(/\D/g, '');
+  if(digits.length < 11){
     $('pos-cust-result').innerHTML = '';
     $('pos-cust-new-form').style.display = 'none';
     return;
@@ -8669,15 +8682,13 @@ async function smgrLoadPromos(){
     const r = await apiFetch('/api/store-mgr/promo-codes');
     _smgrPromos = r?.codes || [];
     
-    // جيب الـ Shopify codes (read-only للعرض)
+    // جيب الـ Shopify codes (read-only) من endpoint مخصص للـ store_manager
     let shopifyCodes = [];
     try {
-      const sR = await apiFetch('/api/pos/promo-codes');
-      shopifyCodes = (sR?.codes || []).filter(c => c.source === 'shopify');
+      const sR = await apiFetch('/api/store-mgr/shopify-codes');
+      shopifyCodes = sR?.codes || [];
     } catch(e) {
-      // store_manager قد ما يكونش عنده access لـ /api/pos/promo-codes (admin only)
-      // مش مشكلة، نكمل بدون
-      console.warn('Shopify codes fetch:', e.message);
+      console.warn('Shopify codes fetch (non-critical):', e.message);
     }
     _smgrAllPromosCache = { local: _smgrPromos, shopify: shopifyCodes };
     
@@ -8845,7 +8856,7 @@ function smgrOpenPromoModal(promo){
         </div>
         
         <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.2);border-radius:6px;padding:8px;font-size:10px;color:var(--muted)">
-          💡 الحد الأقصى لنسبة الخصم 50% لمدير المحل
+          💡 نسبة الخصم لازم تكون من 0 لـ 100%
         </div>
         
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -8860,8 +8871,8 @@ function smgrOpenPromoModal(promo){
         </div>
         
         <div>
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">عدد مرات الاستخدام (فاضي = بلا حدود)</label>
-          <input id="pm-usage" type="number" min="0" value="${isEdit ? (promo.usage_limit || '') : ''}" placeholder="اختياري" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">الحد الأقصى لمرات الاستخدام (فاضي = بلا حدود)</label>
+          <input id="pm-usage" type="number" min="0" value="${isEdit ? (promo.usage_limit || '') : ''}" placeholder="مثلاً: 50 — الكود يبطل بعد 50 استخدام" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
         </div>
         
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -8910,7 +8921,7 @@ async function smgrSavePromo(editId){
   
   if(!editId && !code) return toast('الكود مطلوب', 'error');
   if(!discountValue || discountValue <= 0) return toast('قيمة الخصم لازم تكون أكبر من صفر', 'error');
-  if(discountType === 'percentage' && discountValue > 50) return toast('الحد الأقصى لنسبة الخصم 50% لمدير المحل', 'error');
+  if(discountType === 'percentage' && discountValue > 100) return toast('نسبة الخصم لازم تكون من 0 لـ 100%', 'error');
   
   const body = {
     title, discountType, discountValue,
