@@ -1331,7 +1331,9 @@ a{color:inherit;text-decoration:none}
       <button class="smgr-tab on" onclick="smgrSwitchTab('overview', this)" style="padding:8px 14px;background:var(--gold);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">📊 الملخص</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('cashiers', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">👥 الكاشييرز</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('sales', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📋 البيعات</button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('returns', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;position:relative">↩️ المرتجعات <span id="smgr-returns-badge" style="display:none;background:#ef4444;color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;margin-right:4px"></span></button>
       <button class="smgr-tab" onclick="smgrSwitchTab('settlements', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💰 سجل التصفيات</button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('promos', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🎟️ أكواد الخصم</button>
     </div>
     
     <div id="smgr-content" style="padding:14px;padding-bottom:80px"></div>
@@ -2409,6 +2411,37 @@ function showApp(){
   
   // 🆕 v23: لو store_manager - اخفي الباقي
   if(ROLE === 'store_manager'){
+    // 🆕 v58: اختيار mode (cashier or manager) لمدير المحل
+    let smgrMode = sessionStorage.getItem('smgrMode');
+    if(!smgrMode){
+      // مفيش mode محفوظ → اظهر شاشة الاختيار
+      smgrShowModeChooser();
+      return;
+    }
+    
+    // عرض الزرار في الـ header لتبديل المود
+    smgrShowModeSwitcher();
+    
+    if(smgrMode === 'cashier'){
+      // المدير في وضع كاشير - نفس الـ flow بتاع الكاشير العادي
+      document.querySelectorAll('.nav-item').forEach(el => {
+        if(el.id !== 'nav-pos' && el.id !== 'nav-pickup-orders') el.style.display = 'none';
+      });
+      const pickupNav = $('nav-pickup-orders');
+      if(pickupNav) pickupNav.style.display = '';
+      
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      if(posNav) posNav.classList.add('active');
+      $('page-pos').classList.add('active');
+      loadPosPage();
+      
+      setTimeout(pickupCheckCount, 5000);
+      setInterval(pickupCheckCount, 60 * 1000);
+      return;
+    }
+    
+    // smgrMode === 'manager' (default الباقي)
     document.querySelectorAll('.nav-item').forEach(el => {
       if(el.id !== 'nav-store-mgr') el.style.display = 'none';
     });
@@ -6953,6 +6986,94 @@ let _smgrCurrentTab = 'overview';
 let _smgrCashiers = [];
 let _smgrSelectedCashier = null;
 
+// 🆕 v58: Mode chooser لمدير المحل (cashier أو manager)
+function smgrShowModeChooser(){
+  // اخفي كل nav-items
+  document.querySelectorAll('.nav-item').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  
+  // أنشئ modal كبير في النص
+  const existingModal = document.getElementById('smgr-mode-chooser');
+  if(existingModal) existingModal.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'smgr-mode-chooser';
+  modal.style.cssText = 'position:fixed;inset:0;background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);display:flex;align-items:center;justify-content:center;z-index:9999;font-family:Cairo,sans-serif';
+  modal.innerHTML = `
+    <div style="max-width:600px;width:90%;padding:32px;text-align:center">
+      <div style="margin-bottom:32px">
+        <h1 style="color:#fff;font-size:32px;font-weight:900;margin:0 0 8px 0">مرحباً يا مدير 👋</h1>
+        <p style="color:#94a3b8;font-size:16px;margin:0">اختر وضع التشغيل</p>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <button onclick="smgrSwitchMode('cashier')" 
+                style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);border:none;color:#fff;padding:32px 16px;border-radius:16px;cursor:pointer;font-family:Cairo,sans-serif;transition:transform 0.2s;box-shadow:0 8px 24px rgba(59,130,246,0.3)"
+                onmouseover="this.style.transform='translateY(-4px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+          <div style="font-size:56px;margin-bottom:12px">🛍️</div>
+          <div style="font-size:20px;font-weight:900;margin-bottom:6px">كاشير</div>
+          <div style="font-size:12px;opacity:0.85;line-height:1.5">بيع وعمليات الكاشير<br/>(للمساعدة في ساعات الذروة)</div>
+        </button>
+        
+        <button onclick="smgrSwitchMode('manager')" 
+                style="background:linear-gradient(135deg,#d4af37,#b8860b);border:none;color:#000;padding:32px 16px;border-radius:16px;cursor:pointer;font-family:Cairo,sans-serif;transition:transform 0.2s;box-shadow:0 8px 24px rgba(212,175,55,0.3)"
+                onmouseover="this.style.transform='translateY(-4px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+          <div style="font-size:56px;margin-bottom:12px">📊</div>
+          <div style="font-size:20px;font-weight:900;margin-bottom:6px">مدير</div>
+          <div style="font-size:12px;opacity:0.85;line-height:1.5">إدارة، تقارير، مرتجعات،<br/>وأكواد خصم</div>
+        </button>
+      </div>
+      
+      <div style="margin-top:24px;color:#64748b;font-size:12px">
+        💡 تقدر تبدّل بين الوضعين أي وقت من زرار في الأعلى
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function smgrSwitchMode(newMode){
+  if(!['cashier', 'manager'].includes(newMode)) return;
+  
+  sessionStorage.setItem('smgrMode', newMode);
+  
+  // امسح الـ modal
+  const modal = document.getElementById('smgr-mode-chooser');
+  if(modal) modal.remove();
+  
+  // re-init الصفحة
+  location.reload();
+}
+
+// إظهار زرار تبديل الوضع في الـ header
+function smgrShowModeSwitcher(){
+  // امسح الزرار القديم لو موجود
+  const existing = document.getElementById('smgr-mode-switcher-btn');
+  if(existing) existing.remove();
+  
+  const currentMode = sessionStorage.getItem('smgrMode') || 'manager';
+  const otherMode = currentMode === 'cashier' ? 'manager' : 'cashier';
+  const label = otherMode === 'cashier' ? '🛍️ ادخل وضع البيع' : '📊 ارجع لوضع المدير';
+  const bgColor = otherMode === 'cashier' ? '#3b82f6' : '#d4af37';
+  const txtColor = otherMode === 'cashier' ? '#fff' : '#000';
+  
+  const btn = document.createElement('button');
+  btn.id = 'smgr-mode-switcher-btn';
+  btn.onclick = () => smgrSwitchMode(otherMode);
+  btn.style.cssText = `
+    position:fixed;top:12px;left:12px;z-index:5000;
+    padding:8px 14px;background:${bgColor};color:${txtColor};
+    border:none;border-radius:8px;font-family:Cairo,sans-serif;
+    font-size:12px;font-weight:800;cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,0.2);
+    display:flex;align-items:center;gap:6px
+  `;
+  btn.innerHTML = label;
+  document.body.appendChild(btn);
+}
+
 async function loadStoreMgrPage(){
   try {
     // جيب معلومات المحل
@@ -6964,6 +7085,9 @@ async function loadStoreMgrPage(){
     
     // افتح الـ tab الافتراضي
     smgrLoadTab('overview');
+
+    // 🆕 v225: حدث badge المرتجعات
+    smgrUpdateReturnsBadge();
   } catch(e) {
     toast('❌ ' + e.message, 'error');
   }
@@ -6999,7 +7123,9 @@ async function smgrLoadTab(tab){
     if(tab === 'overview') await smgrLoadOverview();
     else if(tab === 'cashiers') await smgrLoadCashiers();
     else if(tab === 'sales') await smgrLoadSales();
+    else if(tab === 'returns') await smgrLoadReturns();
     else if(tab === 'settlements') await smgrLoadSettlements();
+    else if(tab === 'promos') await smgrLoadPromos();
   } catch(e) {
     c.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
   }
@@ -7723,22 +7849,26 @@ function renderReturnModal(){
 }
 
 function returnChangeQty(itemId, delta){
+  console.log('[return] changeQty called:', itemId, delta);
   const data = _returnSaleData;
-  if(!data) return;
-  const item = data.items.find(i => i.id === itemId);
-  if(!item) return;
+  if(!data) { console.warn('[return] no data'); return; }
+  // 🆕 v56: loose comparison - الـ id ممكن يكون string من DB أو number
+  const item = data.items.find(i => String(i.id) === String(itemId));
+  if(!item) { console.warn('[return] item not found:', itemId, 'available:', data.items.map(i=>i.id)); return; }
   const current = _returnSelections[itemId] || 0;
   const max = parseFloat(item.available_qty);
   const next = Math.max(0, Math.min(max, current + delta));
   _returnSelections[itemId] = next;
+  console.log('[return] selection updated:', itemId, '=', next);
   renderReturnModal();
 }
 
 function returnSetMax(itemId){
+  console.log('[return] setMax called:', itemId);
   const data = _returnSaleData;
   if(!data) return;
-  const item = data.items.find(i => i.id === itemId);
-  if(!item) return;
+  const item = data.items.find(i => String(i.id) === String(itemId));
+  if(!item) { console.warn('[return] item not found:', itemId); return; }
   _returnSelections[itemId] = parseFloat(item.available_qty);
   renderReturnModal();
 }
@@ -8211,6 +8341,144 @@ async function smgrConfirmSettlement(){
   }
 }
 
+// 🆕 v225: ─── Returns Review Tab ───
+let _smgrReturnsFilter = { reviewed: 'no' }; // default: غير متراجعة
+
+async function smgrLoadReturns(){
+  const c = $('smgr-content');
+  c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ جاري التحميل...</div>';
+
+  try {
+    const params = new URLSearchParams();
+    if(_smgrReturnsFilter.reviewed === 'yes') params.append('reviewed', 'yes');
+    else if(_smgrReturnsFilter.reviewed === 'no') params.append('reviewed', 'no');
+
+    const r = await apiFetch('/api/store-mgr/returns?' + params.toString());
+    const returns = r?.returns || [];
+
+    const filterBar = `
+      <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--elev);padding:6px;border-radius:10px;border:1px solid var(--border);overflow-x:auto">
+        <button onclick="smgrSetReturnsFilter('no')" style="padding:8px 14px;background:${_smgrReturnsFilter.reviewed==='no'?'#ef4444':'transparent'};color:${_smgrReturnsFilter.reviewed==='no'?'#fff':'var(--text)'};border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⏳ غير متراجعة</button>
+        <button onclick="smgrSetReturnsFilter('yes')" style="padding:8px 14px;background:${_smgrReturnsFilter.reviewed==='yes'?'#16a34a':'transparent'};color:${_smgrReturnsFilter.reviewed==='yes'?'#fff':'var(--text)'};border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✅ متراجعة</button>
+        <button onclick="smgrSetReturnsFilter('all')" style="padding:8px 14px;background:${_smgrReturnsFilter.reviewed===null||_smgrReturnsFilter.reviewed==='all'?'#3b82f6':'transparent'};color:${_smgrReturnsFilter.reviewed===null||_smgrReturnsFilter.reviewed==='all'?'#fff':'var(--text)'};border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">الكل</button>
+      </div>
+    `;
+
+    if(!returns.length){
+      c.innerHTML = filterBar + '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px;opacity:.3">↩️</div><div>مفيش مرتجعات</div></div>';
+      return;
+    }
+
+    const methodIcons = { cash: '💵', visa: '💳', instapay: '📱', store_credit: '🏦', exchange: '🔁' };
+    const methodNames = { cash: 'كاش', visa: 'فيزا', instapay: 'انستاباي', store_credit: 'رصيد المحل', exchange: 'استبدال' };
+    const reasonNames = {
+      customer_changed_mind: 'العميل غير رأيه',
+      defective: 'منتج تالف/معيب',
+      wrong_item: 'منتج خطأ',
+      expired: 'منتهي الصلاحية',
+      other: 'أخرى'
+    };
+
+    c.innerHTML = filterBar + returns.map(ret => {
+      const dt = new Date(ret.created_at);
+      const items = ret.items || [];
+      const refundMethod = ret.refund_method || 'cash';
+      const reasonLbl = reasonNames[ret.reason] || ret.reason || '-';
+      const total = parseFloat(ret.refund_total) || 0;
+      const reviewed = !!ret.smgr_reviewed;
+      const syncFail = !ret.synced_to_shopify && ret.sync_error;
+      const syncOk = !!ret.synced_to_shopify;
+
+      return `
+        <div style="background:var(--elev);border:1px solid ${reviewed?'#22c55e':'#ef4444'};border-radius:10px;padding:12px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:800;font-size:13px;color:#f97316">↩️ ${escapeHtml(ret.return_number || ret.id)}</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">من بيعة <strong style="color:var(--text)">${escapeHtml(ret.original_sale_number || '-')}</strong> · ${dt.toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})}</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px">👤 ${escapeHtml(ret.cashier_name||'-')}${ret.customer_name?' · 🧍 '+escapeHtml(ret.customer_name):''}</div>
+            </div>
+            <div style="text-align:left">
+              <div style="font-size:18px;font-weight:900;color:#f97316">${total.toLocaleString()} ج</div>
+              <div style="font-size:10px;color:var(--muted)">${methodIcons[refundMethod]||'•'} ${methodNames[refundMethod]||refundMethod}</div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg);border-radius:6px;padding:8px;margin-bottom:8px">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">📦 المنتجات (${items.length})</div>
+            ${items.map(it => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;border-top:1px solid var(--border)">
+                <div style="flex:1;min-width:0">${escapeHtml(it.product_title)}${it.variant_title&&it.variant_title!=='Default Title'?' - '+escapeHtml(it.variant_title):''} <span style="color:var(--muted)">× ${parseFloat(it.qty)}</span>${it.restock?' <span style="color:#22c55e;font-size:9px">📥 يرجع للمخزن</span>':' <span style="color:#ef4444;font-size:9px">🚫 مش يرجع</span>'}</div>
+                <div style="font-weight:700;color:#f97316">${parseFloat(it.line_total).toLocaleString()} ج</div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;margin-bottom:8px">
+            <span style="background:#fef3c7;color:#78350f;padding:3px 8px;border-radius:99px;font-weight:700">📝 ${escapeHtml(reasonLbl)}</span>
+            ${syncOk ? '<span style="background:#dcfce7;color:#14532d;padding:3px 8px;border-radius:99px;font-weight:700">✅ متزامن مع Shopify</span>' : ''}
+            ${syncFail ? `<span style="background:#fee2e2;color:#991b1b;padding:3px 8px;border-radius:99px;font-weight:700" title="${escapeHtml(ret.sync_error||'')}">❌ فشل sync</span>` : ''}
+            ${reviewed ? `<span style="background:#dcfce7;color:#14532d;padding:3px 8px;border-radius:99px;font-weight:700">✅ متراجع ${ret.smgr_reviewed_by?'بواسطة '+escapeHtml(ret.smgr_reviewed_by):''}</span>` : '<span style="background:#fee2e2;color:#991b1b;padding:3px 8px;border-radius:99px;font-weight:700">⏳ في انتظار المراجعة</span>'}
+          </div>
+
+          ${ret.refund_notes ? `<div style="font-size:11px;color:var(--muted);padding:6px;background:var(--bg);border-radius:6px;margin-bottom:8px">📝 ${escapeHtml(ret.refund_notes)}</div>` : ''}
+          ${ret.smgr_review_notes ? `<div style="font-size:11px;color:#22c55e;padding:6px;background:#0f2419;border-radius:6px;margin-bottom:8px">✅ ملاحظات المراجعة: ${escapeHtml(ret.smgr_review_notes)}</div>` : ''}
+
+          <div style="display:flex;gap:6px">
+            ${!reviewed ? `<button onclick="smgrReviewReturn(${ret.id})" style="flex:1;padding:10px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">✅ تم المراجعة</button>` : ''}
+            ${syncFail ? `<button onclick="smgrRetryReturnSync(${ret.id})" style="flex:1;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">🔄 اعادة محاولة Shopify</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e){
+    c.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function smgrSetReturnsFilter(filter){
+  _smgrReturnsFilter.reviewed = filter === 'all' ? null : filter;
+  smgrLoadReturns();
+}
+
+async function smgrReviewReturn(id){
+  const notes = prompt('ملاحظات المراجعة (اختياري):');
+  if(notes === null) return; // cancelled
+  try {
+    const r = await apiFetch(`/api/store-mgr/returns/${id}/review`, 'POST', { notes });
+    if(r?.success){
+      toast('✅ تم المراجعة');
+      smgrLoadReturns();
+      smgrUpdateReturnsBadge();
+    } else toast('❌ ' + (r?.error || 'فشل'), 'error');
+  } catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
+async function smgrRetryReturnSync(id){
+  if(!confirm('إعادة محاولة مزامنة المرتجع مع Shopify؟')) return;
+  try {
+    const r = await apiFetch(`/api/pos/returns/${id}/retry-sync`, 'POST', {});
+    if(r?.success){
+      toast('🔄 ' + (r.message || 'بدأت'));
+      setTimeout(() => smgrLoadReturns(), 3000);
+    } else toast('❌ ' + (r?.error || 'فشل'), 'error');
+  } catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
+async function smgrUpdateReturnsBadge(){
+  try {
+    const r = await apiFetch('/api/store-mgr/returns/pending-count');
+    const badge = $('smgr-returns-badge');
+    if(!badge) return;
+    const cnt = r?.count || 0;
+    if(cnt > 0){
+      badge.textContent = cnt;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e){}
+}
+
 // ─── Settlements History ───
 async function smgrLoadSettlements(){
   const r = await apiFetch('/api/store-mgr/settlements?limit=50');
@@ -8384,6 +8652,299 @@ async function smgrViewSettlement(settlementId){
     
     $('smgr-sale-content').innerHTML = html;
     $('smgr-sale-modal').style.display = 'block';
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// ─── 🆕 v58: PROMO CODES TAB ───
+let _smgrPromos = [];
+let _smgrAllPromosCache = null; // includes Shopify codes (read-only)
+
+async function smgrLoadPromos(){
+  const c = $('smgr-content');
+  
+  try {
+    // جيب أكواد محله بس
+    const r = await apiFetch('/api/store-mgr/promo-codes');
+    _smgrPromos = r?.codes || [];
+    
+    // جيب الـ Shopify codes (read-only للعرض)
+    let shopifyCodes = [];
+    try {
+      const sR = await apiFetch('/api/pos/promo-codes');
+      shopifyCodes = (sR?.codes || []).filter(c => c.source === 'shopify');
+    } catch(e) {
+      // store_manager قد ما يكونش عنده access لـ /api/pos/promo-codes (admin only)
+      // مش مشكلة، نكمل بدون
+      console.warn('Shopify codes fetch:', e.message);
+    }
+    _smgrAllPromosCache = { local: _smgrPromos, shopify: shopifyCodes };
+    
+    smgrRenderPromos();
+  } catch(e) {
+    c.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function smgrRenderPromos(){
+  const c = $('smgr-content');
+  const local = _smgrAllPromosCache?.local || [];
+  const shopify = _smgrAllPromosCache?.shopify || [];
+  
+  const today = new Date().toISOString().slice(0,10);
+  const isExpired = (p) => p.valid_until && p.valid_until < today;
+  const isActive = (p) => p.is_active && !isExpired(p);
+  
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px">
+      <div>
+        <div style="font-size:18px;font-weight:900;color:var(--gold)">🎟️ أكواد الخصم</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${local.length} كود محلي · ${shopify.length} كود Shopify</div>
+      </div>
+      <button onclick="smgrOpenNewPromoModal()" style="background:var(--gold);color:#000;border:none;padding:10px 14px;border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">+ كود جديد</button>
+    </div>
+    
+    <!-- محلي -->
+    <div style="background:var(--elev);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:800;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        <span>🏪 أكواد محلك</span>
+        <span style="background:rgba(212,175,55,0.2);color:var(--gold);padding:2px 8px;border-radius:99px;font-size:10px">${local.length}</span>
+      </div>`;
+  
+  if(local.length === 0){
+    html += `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">مفيش أكواد محلية - اضغط "+ كود جديد" لإضافة واحد</div>`;
+  } else {
+    local.forEach(p => {
+      const expired = isExpired(p);
+      const active = isActive(p);
+      const usageText = p.usage_limit ? `${p.usage_count || 0}/${p.usage_limit}` : `${p.usage_count || 0}/∞`;
+      const valueText = p.discount_type === 'percentage' 
+        ? `${parseFloat(p.discount_value).toFixed(0)}%`
+        : `${parseFloat(p.discount_value).toFixed(0)} ج`;
+      
+      html += `
+        <div style="background:var(--bg);border-radius:8px;padding:12px;margin-bottom:8px;border-right:4px solid ${active ? '#22c55e' : '#64748b'}">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px">
+              <div style="font-weight:900;font-size:15px;color:var(--text)">${escapeHtml(p.code)} 
+                <span style="background:${active ? '#22c55e' : '#64748b'};color:#fff;padding:1px 6px;border-radius:99px;font-size:9px;font-weight:700;margin-right:4px">${active ? 'مفعّل' : (expired ? 'منتهي' : 'متوقّف')}</span>
+              </div>
+              ${p.title ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(p.title)}</div>` : ''}
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">
+                خصم: <span style="color:var(--gold);font-weight:700">${valueText}</span> · 
+                استخدام: ${usageText}
+                ${p.valid_until ? ' · ينتهي: ' + p.valid_until : ''}
+                ${p.min_order_amount > 0 ? ' · حد أدنى: ' + parseFloat(p.min_order_amount).toFixed(0) + ' ج' : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:4px">
+              <button onclick="smgrEditPromo(${p.id})" style="background:#3b82f6;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif">تعديل</button>
+              <button onclick="smgrDeletePromo(${p.id}, '${escapeHtml(p.code).replace(/'/g, "\\'")}', ${p.usage_count || 0})" style="background:#ef4444;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:Cairo,sans-serif">${(p.usage_count || 0) > 0 ? 'تعطيل' : 'حذف'}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+  }
+  
+  html += `</div>`;
+  
+  // أكواد Shopify (read-only)
+  if(shopify.length > 0){
+    html += `
+      <div style="background:var(--elev);border-radius:10px;padding:12px">
+        <div style="font-size:12px;font-weight:800;color:#10b981;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+          <span>🛒 أكواد Shopify (للعرض فقط)</span>
+          <span style="background:rgba(16,185,129,0.2);color:#10b981;padding:2px 8px;border-radius:99px;font-size:10px">${shopify.length}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">الأكواد دي بتيجي من Shopify Admin. للتعديل لازم تروح Shopify Admin → Discounts</div>
+    `;
+    
+    // اعرض الأكواد المفعّلة فقط
+    const activeShopify = shopify.filter(p => isActive(p));
+    activeShopify.slice(0, 20).forEach(p => {
+      const valueText = p.discount_type === 'percentage' 
+        ? `${parseFloat(p.discount_value).toFixed(0)}%`
+        : `${parseFloat(p.discount_value).toFixed(0)} ج`;
+      const usageText = p.usage_limit ? `${p.usage_count || 0}/${p.usage_limit}` : `${p.usage_count || 0}/∞`;
+      
+      html += `
+        <div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-weight:800;font-size:13px">${escapeHtml(p.code)}</div>
+            <div style="font-size:10px;color:var(--muted)">${valueText} · ${usageText} ${p.valid_until ? '· ينتهي ' + p.valid_until : ''}</div>
+          </div>
+          <span style="background:rgba(16,185,129,0.15);color:#10b981;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">Shopify</span>
+        </div>
+      `;
+    });
+    
+    if(activeShopify.length > 20){
+      html += `<div style="text-align:center;font-size:11px;color:var(--muted);padding:6px">+ ${activeShopify.length - 20} كود إضافي</div>`;
+    }
+    
+    html += `</div>`;
+  }
+  
+  c.innerHTML = html;
+}
+
+function smgrOpenNewPromoModal(){
+  smgrOpenPromoModal(null);
+}
+
+function smgrEditPromo(id){
+  const promo = _smgrPromos.find(p => p.id === id);
+  if(!promo) return;
+  smgrOpenPromoModal(promo);
+}
+
+function smgrOpenPromoModal(promo){
+  const isEdit = !!promo;
+  const modalId = 'smgr-promo-modal';
+  
+  // امسح modal سابق
+  const existing = document.getElementById(modalId);
+  if(existing) existing.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = modalId;
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1100;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;font-family:Cairo,sans-serif';
+  modal.innerHTML = `
+    <div style="background:var(--bg);max-width:500px;width:100%;border-radius:14px;padding:20px;border:1px solid var(--gold);margin-top:30px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="margin:0;color:var(--gold)">${isEdit ? '✏️ تعديل كود' : '➕ كود جديد'}</h3>
+        <button onclick="document.getElementById('${modalId}').remove()" style="background:transparent;color:var(--muted);border:none;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">الكود *</label>
+          <input id="pm-code" value="${isEdit ? escapeHtml(promo.code) : ''}" ${isEdit ? 'disabled' : ''} placeholder="WEEKEND10" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:14px;${isEdit ? 'opacity:0.6' : ''}">
+          ${isEdit ? '<div style="font-size:10px;color:var(--muted);margin-top:4px">مش هتقدر تغيّر الكود نفسه</div>' : ''}
+        </div>
+        
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">الوصف</label>
+          <input id="pm-title" value="${isEdit ? escapeHtml(promo.title || '') : ''}" placeholder="مثلاً: خصم الويك إند" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">نوع الخصم *</label>
+            <select id="pm-type" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+              <option value="percentage" ${isEdit && promo.discount_type === 'percentage' ? 'selected' : ''}>نسبة %</option>
+              <option value="fixed" ${isEdit && promo.discount_type === 'fixed' ? 'selected' : ''}>قيمة ثابتة</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">القيمة *</label>
+            <input id="pm-value" type="number" min="0" step="0.01" value="${isEdit ? promo.discount_value : ''}" placeholder="10" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+          </div>
+        </div>
+        
+        <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.2);border-radius:6px;padding:8px;font-size:10px;color:var(--muted)">
+          💡 الحد الأقصى لنسبة الخصم 50% لمدير المحل
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">حد أدنى للطلب (ج)</label>
+            <input id="pm-min" type="number" min="0" step="0.01" value="${isEdit ? (promo.min_order_amount || 0) : 0}" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">حد أقصى للخصم (ج)</label>
+            <input id="pm-max" type="number" min="0" step="0.01" value="${isEdit ? (promo.max_discount || '') : ''}" placeholder="اختياري" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+          </div>
+        </div>
+        
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">عدد مرات الاستخدام (فاضي = بلا حدود)</label>
+          <input id="pm-usage" type="number" min="0" value="${isEdit ? (promo.usage_limit || '') : ''}" placeholder="اختياري" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">يبدأ في</label>
+            <input id="pm-from" type="date" value="${isEdit && promo.valid_from ? promo.valid_from.slice(0,10) : ''}" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">ينتهي في</label>
+            <input id="pm-until" type="date" value="${isEdit && promo.valid_until ? promo.valid_until.slice(0,10) : ''}" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+          </div>
+        </div>
+        
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+          <input id="pm-active" type="checkbox" ${isEdit ? (promo.is_active ? 'checked' : '') : 'checked'}>
+          <span>الكود مفعّل</span>
+        </label>
+        
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">ملاحظات</label>
+          <textarea id="pm-notes" rows="2" placeholder="اختياري" style="width:100%;padding:10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;resize:vertical">${isEdit ? escapeHtml(promo.notes || '') : ''}</textarea>
+        </div>
+        
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button onclick="document.getElementById('${modalId}').remove()" style="flex:1;background:transparent;color:var(--text);border:1px solid var(--border);padding:12px;border-radius:8px;font-family:Cairo,sans-serif;font-size:14px;font-weight:700;cursor:pointer">إلغاء</button>
+          <button onclick="smgrSavePromo(${isEdit ? promo.id : 'null'})" style="flex:2;background:var(--gold);color:#000;border:none;padding:12px;border-radius:8px;font-family:Cairo,sans-serif;font-size:14px;font-weight:800;cursor:pointer">${isEdit ? '💾 حفظ' : '➕ إضافة'}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function smgrSavePromo(editId){
+  const code = ($('pm-code')?.value || '').trim();
+  const title = ($('pm-title')?.value || '').trim();
+  const discountType = $('pm-type').value;
+  const discountValue = parseFloat($('pm-value').value);
+  const minOrderAmount = parseFloat($('pm-min').value) || 0;
+  const maxDiscount = parseFloat($('pm-max').value) || null;
+  const usageLimit = parseInt($('pm-usage').value) || null;
+  const validFrom = $('pm-from').value || null;
+  const validUntil = $('pm-until').value || null;
+  const isActive = $('pm-active').checked;
+  const notes = ($('pm-notes')?.value || '').trim();
+  
+  if(!editId && !code) return toast('الكود مطلوب', 'error');
+  if(!discountValue || discountValue <= 0) return toast('قيمة الخصم لازم تكون أكبر من صفر', 'error');
+  if(discountType === 'percentage' && discountValue > 50) return toast('الحد الأقصى لنسبة الخصم 50% لمدير المحل', 'error');
+  
+  const body = {
+    title, discountType, discountValue,
+    minOrderAmount, maxDiscount, usageLimit,
+    validFrom, validUntil, isActive, notes
+  };
+  if(!editId) body.code = code;
+  
+  try {
+    if(editId){
+      await apiFetch(`/api/store-mgr/promo-codes/${editId}`, 'PUT', body);
+      toast('✅ تم التحديث', 'success');
+    } else {
+      await apiFetch('/api/store-mgr/promo-codes', 'POST', body);
+      toast('✅ الكود اتضاف', 'success');
+    }
+    
+    document.getElementById('smgr-promo-modal')?.remove();
+    await smgrLoadPromos();
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function smgrDeletePromo(id, code, usageCount){
+  const action = usageCount > 0 ? 'تعطيل' : 'حذف';
+  if(!confirm(`هل تريد ${action} الكود "${code}"؟`)) return;
+  
+  try {
+    const r = await apiFetch(`/api/store-mgr/promo-codes/${id}`, 'DELETE');
+    if(r?.success){
+      toast(r.action === 'deactivated' ? '✅ تم التعطيل' : '✅ تم الحذف', 'success');
+      await smgrLoadPromos();
+    }
   } catch(e) {
     toast('❌ ' + e.message, 'error');
   }
