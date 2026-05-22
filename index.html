@@ -1778,7 +1778,77 @@ if(document.readyState === 'loading'){
   setTimeout(updateThemeToggleIcon, 0);
 }
 
-// ===== Stars v27 — ANTI-THEFT SYSTEM =====
+// ===== Stars v70 — BUG FIX: BIGINT ID COMPARISON =====
+// 2026-05-22: إصلاح "المنتج مش موجود" لما تدوس زرار التعديل في الجرد
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// السبب: stocktake_items.id نوعه BIGSERIAL في DB، فـ node-pg بيرجعه string
+// (عشان JavaScript Number ميقدرش يحتمل BIGINT بدقة). لكن الـ HTML template
+// `onclick="stkOpenEditEntries(${i.id})"` بيحول الـ string لـ number literal.
+// النتيجة: i.id === itemId كان بيقارن "123" === 123 → false ❌
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// الإصلاح: استخدام String() على الاتنين قبل المقارنة:
+//   String(i.id) === String(itemId)
+// اتطبق في:
+//   • stkOpenEditEntries() — البحث الأول
+//   • stkRenderEditEntries() — إعادة الرسم
+//   • stkDeleteEntryFromList() — البحث بعد الحذف
+// =================================
+// السابق: Stars v69 — STOCKTAKE: EDIT/DELETE COUNT ENTRIES =====
+// 2026-05-22: لو الجرّاد عدّ غلط، يقدر يرجع ويصحح
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// السيناريو: الجرّاد عدّ 14 بدل 13، أو عدّ منتج مرتين عن طريق الخطأ.
+// قبل كده كان لازم يكنسل الجلسة كلها أو يعدّل في DB يدوياً.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ زرار 📝 صغير في كرت كل منتج في "آخر العمليات"
+// 2. ✅ الكرت كله clickable - الضغط في أي مكان فيه يفتح Modal التعديل
+// 3. ✅ تنبيه "X عمليات" بجنب الـ SKU لو فيه أكتر من عملية عدّ
+// 4. ✅ Modal التعديل يعرض:
+//    • اسم المنتج + الـ SKU
+//    • Stats card: عدد العمليات + المجموع + الفرق (مع blind mode awareness)
+//    • قائمة بكل العمليات (الأحدث فوق) + tag "الأحدث" على آخر واحدة
+//    • كل عملية فيها: الكمية + التاريخ والوقت + اسم اللي عدّ + ملاحظة الموقع
+//    • زرار 🗑️ بجنب كل عملية لحذفها
+// 5. ✅ بعد الحذف:
+//    • Confirmation dialog قبل التأكيد
+//    • Auto-refresh للـ session ولـ recent items list
+//    • لو الـ entries كلها اتشالت → الـ modal بيقفل تلقائياً والمنتج بيرجع unset
+// 6. ✅ Backend موجود من v145 - مفيش تعديل في server!
+//    استخدمنا: DELETE /api/stocktake/entries/:entryId
+// =================================
+// السابق: Stars v68 — FORCE CLOSE SESSION (MANAGER) =====
+// 2026-05-22: المدير يقدر يقفل شيفت كاشير بدلاً منه + يفتح شيفت جديد تلقائي
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// السيناريو: الكاشير راح من غير قفل شيفت، أو Railway كان down وقت ما حب يقفل،
+// أو الجهاز عطل. كان لازم نتدخّل يدوياً في DB. دلوقتي المدير يقفله من Stars.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ زرار "🔒 إقفال إجباري" أحمر في Modal التصفية الحالية (تحت تنبيه أصفر)
+// 2. ✅ Modal الإقفال الإجباري:
+//    • المدير يدخّل الكاش/فيزا/إنستاباي اللي عدها بنفسه
+//    • سبب الإقفال إلزامي (5 حروف على الأقل) — بيتسجل دايماً للـ audit
+//    • Checkbox "افتح شيفت جديد تلقائياً" (افتراضياً مفعّل) — صفر gap
+//    • Confirmation dialog بكل التفاصيل قبل التأكيد النهائي
+// 3. ✅ Endpoint: POST /api/store-mgr/force-close-session
+//    • نفس الـ atomic logic بتاع sessions/close (BEGIN ... COMMIT)
+//    • Security check: الكاشير لازم يكون في محل المدير
+//    • السبب + اسم المدير بيتسجلوا في cashier_close_notes
+//    • console.log واضح للـ audit trail
+// 4. ✅ بعد النجاح: refresh تاب الكاشييرز ليبان الـ pending settlement الجديد
+// =================================
+// السابق: Stars v67 — CURRENT SESSION PREVIEW =====
+// 2026-05-22: عرض تفاصيل التصفية الشغّالة دلوقتي من تاب الكاشييرز
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ زرار جديد في كرت الكاشير: "📊 التصفية الحالية"
+// 2. ✅ Modal يفتح ويعرض:
+//    • وقت بداية الشيفت + مدته
+//    • إجمالي البيعات (عدد + مبلغ)
+//    • تفصيل المبالغ حسب طريقة الدفع (كاش/فيزا/إنستاباي)
+//    • نسبة كل طريقة من الإجمالي + progress bars
+//    • ملخّص الدرج (افتتاح + إيداع + سحب + المتوقع)
+// 3. ✅ لو الكاشير مفيش عنده شيفت مفتوح → رسالة واضحة
+// 4. ✅ Grid الأزرار اتعدّل من 3 أعمدة لـ 2×2 عشان يستوعب الزرار الجديد
+// 5. ✅ Endpoint جديد في server: /api/store-mgr/current-session-preview/:cashierId
+// =================================
+// السابق: Stars v27 — ANTI-THEFT SYSTEM =====
 // 2026-05-05: حماية ضد السرقة
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 1. ✅ Visa/Instapay Reference + Validation
@@ -2695,11 +2765,14 @@ function renderStkActiveSession(){
     const diffColor = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'var(--muted)';
     const diffStr = diff === 0 ? '✓' : (diff > 0 ? `+${diff}` : `${diff}`);
     
+    // 🆕 v69: عدد العمليات على المنتج ده
+    const entriesCount = (i.entries || []).length;
+    
     return `
-      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="stkOpenEditEntries(${i.id})" title="اضغط لعرض/تعديل عمليات العدّ">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(i.product_title || '')}</div>
-          <div style="font-size:10px;color:var(--muted)">${escapeHtml(i.sku || '—')}</div>
+          <div style="font-size:10px;color:var(--muted)">${escapeHtml(i.sku || '—')}${entriesCount > 1 ? ` · <span style="color:var(--gold);font-weight:700">${entriesCount} عمليات</span>` : ''}</div>
         </div>
         <div style="text-align:center;flex-shrink:0">
           <div style="font-size:11px;color:var(--muted)">عُدّ</div>
@@ -2715,9 +2788,151 @@ function renderStkActiveSession(){
             <div style="font-weight:800;font-size:14px;color:${diffColor}">${diffStr}</div>
           </div>
         `}
+        <!-- 🆕 v69: زرار تعديل -->
+        <button onclick="event.stopPropagation();stkOpenEditEntries(${i.id})" style="flex-shrink:0;background:var(--bg);border:1px solid var(--border);color:var(--gold);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px" title="تعديل العمليات">📝</button>
       </div>
     `;
   }).join('');
+}
+
+// 🆕 v69: ─── تعديل/حذف عمليات العدّ ───
+// لو الجرّاد عدّ غلط ممكن يفتح modal العمليات السابقة على المنتج ده ويحذف عملية معينة
+// 🛠️ v70: bug fix - الـ id كان bigint من DB فبيرجع string، فالـ === كان بيفشل
+async function stkOpenEditEntries(itemId){
+  if(!_stkActiveSession) return;
+  
+  // دور على الـ item في الـ cache (compare as string عشان BIGINT ids)
+  const target = String(itemId);
+  const item = (_stkActiveItems || []).find(i => String(i.id) === target);
+  if(!item){
+    toast('❌ المنتج مش موجود', 'error');
+    return;
+  }
+  
+  // امسح أي modal قديم
+  const existingModal = document.getElementById('stk-edit-entries-modal');
+  if(existingModal) existingModal.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'stk-edit-entries-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)';
+  document.body.appendChild(modal);
+  
+  stkRenderEditEntries(itemId);
+}
+
+function stkRenderEditEntries(itemId){
+  const modal = document.getElementById('stk-edit-entries-modal');
+  if(!modal) return;
+  
+  // 🛠️ v70: same fix - compare as string
+  const target = String(itemId);
+  const item = (_stkActiveItems || []).find(i => String(i.id) === target);
+  if(!item){
+    modal.remove();
+    return;
+  }
+  
+  const entries = (item.entries || []).slice().sort((a,b) => new Date(b.counted_at) - new Date(a.counted_at));
+  const isBlind = _stkActiveSession?.show_system_qty !== true;
+  const total = entries.reduce((sum, e) => sum + (parseInt(e.qty) || 0), 0);
+  const diff = total - (item.system_qty || 0);
+  
+  modal.innerHTML = `
+    <div style="background:var(--card);border-radius:14px;padding:18px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px">
+        <div style="flex:1;min-width:0">
+          <h3 style="margin:0 0 4px 0;color:var(--gold);font-size:15px;font-weight:900;line-height:1.3">📝 تعديل عمليات العدّ</h3>
+          <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(item.product_title || '')}</div>
+          <div style="font-size:11px;color:var(--muted)">${escapeHtml(item.sku || '—')}</div>
+        </div>
+        <button onclick="document.getElementById('stk-edit-entries-modal').remove()" style="background:transparent;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1;padding:0;flex-shrink:0">×</button>
+      </div>
+      
+      <!-- الإجمالي -->
+      <div style="background:linear-gradient(135deg, var(--gold)20, var(--gold)08);border:1px solid var(--gold);border-radius:10px;padding:12px;margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:repeat(${isBlind ? 2 : 3}, 1fr);gap:8px;text-align:center">
+          <div>
+            <div style="font-size:10px;color:var(--muted);font-weight:700">عدد العمليات</div>
+            <div style="font-size:20px;font-weight:900;color:var(--text)">${entries.length}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);font-weight:700">المجموع المعدود</div>
+            <div style="font-size:20px;font-weight:900;color:var(--gold)">${total}</div>
+          </div>
+          ${isBlind ? '' : `
+            <div>
+              <div style="font-size:10px;color:var(--muted);font-weight:700">الفرق</div>
+              <div style="font-size:20px;font-weight:900;color:${diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'var(--muted)'}">${diff === 0 ? '✓' : (diff > 0 ? '+' + diff : diff)}</div>
+            </div>
+          `}
+        </div>
+      </div>
+      
+      <!-- قائمة العمليات -->
+      ${entries.length === 0 ? `
+        <div style="text-align:center;padding:30px 20px;color:var(--muted)">
+          <div style="font-size:40px;opacity:.4;margin-bottom:8px">📭</div>
+          <div style="font-size:13px">مفيش عمليات عدّ على المنتج ده</div>
+        </div>
+      ` : `
+        <div style="font-weight:800;font-size:11px;color:var(--muted);margin-bottom:8px">📋 العمليات (الأحدث فوق)</div>
+        ${entries.map((e, idx) => {
+          const dt = new Date(e.counted_at);
+          const timeStr = dt.toLocaleString('ar-EG', {dateStyle:'short', timeStyle:'short'});
+          const isLatest = idx === 0;
+          return `
+            <div style="background:${isLatest ? 'var(--gold)10' : 'var(--elev)'};border:1px solid ${isLatest ? 'var(--gold)40' : 'var(--border)'};border-radius:10px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                  <span style="font-weight:900;font-size:18px;color:var(--gold)">+${e.qty}</span>
+                  ${isLatest ? '<span style="background:var(--gold);color:#000;font-size:9px;font-weight:800;padding:2px 6px;border-radius:99px">الأحدث</span>' : ''}
+                </div>
+                <div style="font-size:10px;color:var(--muted)">
+                  🕐 ${timeStr}
+                  ${e.counted_by ? ` · 👤 ${escapeHtml(e.counted_by)}` : ''}
+                </div>
+                ${e.location_note ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(e.location_note)}</div>` : ''}
+              </div>
+              <button onclick="stkDeleteEntryFromList(${e.id}, ${item.id}, ${e.qty})" style="flex-shrink:0;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:16px" title="حذف هذه العملية">🗑️</button>
+            </div>
+          `;
+        }).join('')}
+      `}
+      
+      <div style="background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:10px;margin-top:10px;font-size:10px;color:var(--muted);line-height:1.6">
+        💡 لو عدّيت غلط، اضغط على 🗑️ بجنب العملية اللي عايز تحذفها. الباقي هيتجمع تلقائياً ويظهر في "آخر العمليات".
+      </div>
+      
+      <button onclick="document.getElementById('stk-edit-entries-modal').remove()" style="width:100%;margin-top:12px;padding:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">إغلاق</button>
+    </div>
+  `;
+}
+
+async function stkDeleteEntryFromList(entryId, itemId, qty){
+  if(!confirm(`متأكد إنك عايز تحذف عملية العدّ دي (+${qty})؟\n\nالعملية هتتشال من المجموع نهائياً.`)) return;
+  
+  try {
+    await apiFetch('/api/stocktake/entries/' + entryId, 'DELETE');
+    toast(`✅ اتحذفت عملية بـ ${qty}`, 'success');
+    
+    // اعد تحميل الجلسة عشان نجيب الـ entries بعد الحذف
+    await reloadStkSession();
+    
+    // فيه احتمال إن الـ item اتشال خالص (لو مفيش entries تانية)
+    // 🛠️ v70: compare as string for BIGINT ids
+    const target = String(itemId);
+    const updated = (_stkActiveItems || []).find(i => String(i.id) === target);
+    if(updated && (updated.entries || []).length > 0){
+      // لسه فيه entries → اعد رسم الـ modal
+      stkRenderEditEntries(itemId);
+    } else {
+      // مفيش entries خالص → اقفل الـ modal
+      document.getElementById('stk-edit-entries-modal')?.remove();
+    }
+  } catch(e){
+    toast('❌ فشل الحذف: ' + (e.message || ''), 'error');
+  }
 }
 
 // ─── Scan باركود يدوي ───
@@ -7792,14 +8007,352 @@ async function smgrLoadCashiers(){
           <span style="font-size:10px;padding:3px 8px;border-radius:99px;background:${cash.status === 'نشط' || !cash.status ? '#22c55e20' : '#ef444420'};color:${cash.status === 'نشط' || !cash.status ? '#22c55e' : '#ef4444'}">${cash.status || 'نشط'}</span>
         </div>
         
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
           <button onclick="smgrViewCashierSales(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px 6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">📋 بيعاته</button>
+          <!-- 🆕 v67: زرار التصفية الحالية - يعرض تفاصيل الشيفت المفتوح حالياً -->
+          <button onclick="smgrOpenCurrentSession(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px 6px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">📊 التصفية الحالية</button>
           <button onclick="smgrOpenCashDrawer(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px 6px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">💵 الدرج</button>
           <button onclick="smgrOpenSettlement(${cash.id}, '${escapeHtml(cash.name).replace(/'/g, "\\'")}')" style="padding:10px 6px;background:${hasPending ? '#fbbf24' : 'var(--gold)'};color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">${settleButtonText}</button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+// 🆕 v67: ─── التصفية الحالية (الشيفت المفتوح) ───
+// يفتح Modal يعرض تفاصيل الشيفت الشغّال دلوقتي للكاشير:
+// متى ابتدا، قد إيه باع كاش/فيزا/إنستاباي، عدد البيعات، إلخ
+async function smgrOpenCurrentSession(cashierId, cashierName){
+  // Modal loader أولاً
+  const existingModal = document.getElementById('smgr-current-session-modal');
+  if(existingModal) existingModal.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'smgr-current-session-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)';
+  modal.innerHTML = `
+    <div style="background:var(--card);border-radius:14px;padding:20px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;border:1px solid var(--border)">
+      <div style="text-align:center;padding:40px 20px;color:var(--muted)">
+        <div style="font-size:32px;margin-bottom:8px">⏳</div>
+        <div>جاري التحميل...</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  try {
+    const r = await apiFetch(`/api/store-mgr/current-session-preview/${cashierId}`);
+    smgrRenderCurrentSession(cashierId, cashierName, r);
+  } catch(e){
+    toast('فشل تحميل التصفية الحالية: ' + (e.message || ''), 'error');
+    modal.remove();
+  }
+}
+
+function smgrRenderCurrentSession(cashierId, cashierName, data){
+  const modal = document.getElementById('smgr-current-session-modal');
+  if(!modal) return;
+  
+  // لو الكاشير مفيش عنده شيفت مفتوح
+  if(!data.hasOpenSession){
+    modal.querySelector('div').innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="margin:0;color:var(--gold);font-size:16px">📊 التصفية الحالية</h3>
+        <button onclick="document.getElementById('smgr-current-session-modal').remove()" style="background:transparent;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1">×</button>
+      </div>
+      <div style="text-align:center;padding:40px 20px">
+        <div style="font-size:48px;opacity:.3;margin-bottom:12px">💤</div>
+        <div style="font-weight:700;color:var(--text);margin-bottom:6px">${escapeHtml(cashierName)}</div>
+        <div style="color:var(--muted);font-size:13px">${escapeHtml(data.message || 'مفيش شيفت مفتوح حالياً')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6">
+          الكاشير لازم يفتح شيفت من POS الأول<br>
+          عشان تظهر هنا حركة بيعاته الحالية
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  // عندنا شيفت مفتوح - نعرض التفاصيل
+  const sess = data.session;
+  const openedAt = new Date(sess.openedAt).toLocaleString('ar-EG', {dateStyle:'short', timeStyle:'short'});
+  
+  // تحويل المدة لصيغة قابلة للقراءة
+  const mins = sess.durationMinutes;
+  let durationText;
+  if(mins < 1) durationText = 'أقل من دقيقة';
+  else if(mins < 60) durationText = `${mins} دقيقة`;
+  else {
+    const hr = Math.floor(mins / 60);
+    const rem = mins % 60;
+    durationText = `${hr} ساعة${rem ? ' و ' + rem + ' دقيقة' : ''}`;
+  }
+  
+  const total = parseFloat(data.total || 0);
+  const count = parseInt(data.count) || 0;
+  const firstSale = data.first_sale_at ? new Date(data.first_sale_at).toLocaleString('ar-EG', {timeStyle:'short'}) : '—';
+  const lastSale = data.last_sale_at ? new Date(data.last_sale_at).toLocaleString('ar-EG', {timeStyle:'short'}) : '—';
+  
+  // تفصيل طرق الدفع
+  const methods = data.byMethod || {};
+  const methodInfo = {
+    cash: { icon: '💵', label: 'كاش', color: '#22c55e' },
+    visa: { icon: '💳', label: 'فيزا', color: '#3b82f6' },
+    instapay: { icon: '📱', label: 'إنستاباي', color: '#a855f7' }
+  };
+  
+  // اعرض كل الطرق المعروفة + أي طريقة تانية موجودة
+  const allMethods = ['cash', 'visa', 'instapay', ...Object.keys(methods).filter(m => !['cash','visa','instapay'].includes(m))];
+  
+  const methodsHtml = allMethods.map(m => {
+    const info = methodInfo[m] || { icon: '💰', label: m, color: '#6b7280' };
+    const d = methods[m] || { total: 0, count: 0 };
+    const pct = total > 0 ? Math.round((d.total / total) * 100) : 0;
+    return `
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:20px">${info.icon}</span>
+            <div>
+              <div style="font-weight:800;font-size:13px;color:var(--text)">${info.label}</div>
+              <div style="font-size:10px;color:var(--muted)">${d.count} بيعة</div>
+            </div>
+          </div>
+          <div style="text-align:left">
+            <div style="font-weight:800;font-size:15px;color:${info.color};font-family:Roboto,sans-serif">${d.total.toFixed(0)} ج</div>
+            <div style="font-size:10px;color:var(--muted)">${pct}%</div>
+          </div>
+        </div>
+        <!-- progress bar -->
+        <div style="height:4px;background:var(--bg);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${info.color};transition:width .3s"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  // ملخص الدرج (لو موجود)
+  let cashDrawerHtml = '';
+  if(data.cashDrawer){
+    const cd = data.cashDrawer;
+    cashDrawerHtml = `
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:12px">
+        <div style="font-weight:800;font-size:12px;color:var(--gold);margin-bottom:8px">💼 ملخّص الدرج</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+          <div>
+            <div style="color:var(--muted)">رصيد الافتتاح</div>
+            <div style="font-weight:700;color:var(--text);font-family:Roboto,sans-serif">${parseFloat(cd.openingCash||0).toFixed(0)} ج</div>
+          </div>
+          <div>
+            <div style="color:var(--muted)">المتوقع في الدرج</div>
+            <div style="font-weight:800;color:var(--gold);font-family:Roboto,sans-serif">${parseFloat(cd.expected||0).toFixed(0)} ج</div>
+          </div>
+          ${parseFloat(cd.cashIn||0) > 0 ? `
+            <div>
+              <div style="color:var(--muted)">إيداعات</div>
+              <div style="font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(cd.cashIn).toFixed(0)} ج</div>
+            </div>
+          ` : ''}
+          ${parseFloat(cd.cashOut||0) > 0 ? `
+            <div>
+              <div style="color:var(--muted)">مسحوبات</div>
+              <div style="font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">-${parseFloat(cd.cashOut).toFixed(0)} ج</div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  modal.querySelector('div').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="margin:0;color:var(--gold);font-size:16px">📊 التصفية الحالية</h3>
+      <button onclick="document.getElementById('smgr-current-session-modal').remove()" style="background:transparent;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1">×</button>
+    </div>
+    
+    <!-- معلومات الشيفت -->
+    <div style="background:linear-gradient(135deg, #8b5cf620, #8b5cf610);border:1px solid #8b5cf640;border-radius:12px;padding:12px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:800;font-size:14px;color:var(--text)">👤 ${escapeHtml(cashierName)}</div>
+          ${sess.storeName ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(sess.storeName)}</div>` : ''}
+        </div>
+        <div style="background:#8b5cf6;color:#fff;font-size:10px;font-weight:800;padding:4px 10px;border-radius:99px">🟢 شغّال دلوقتي</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+        <div>
+          <div style="color:var(--muted)">بدأ الشيفت</div>
+          <div style="font-weight:700;color:var(--text)">${openedAt}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted)">مدة الشيفت</div>
+          <div style="font-weight:700;color:var(--text)">${durationText}</div>
+        </div>
+      </div>
+    </div>
+    
+    ${count === 0 ? `
+      <div style="text-align:center;padding:30px 20px;background:var(--elev);border-radius:10px;color:var(--muted)">
+        <div style="font-size:40px;opacity:.4;margin-bottom:8px">📭</div>
+        <div style="font-size:13px">لسه مفيش بيعات في الشيفت ده</div>
+      </div>
+    ` : `
+      <!-- الإجمالي -->
+      <div style="background:var(--gold);color:#000;border-radius:12px;padding:14px;margin-bottom:14px;text-align:center">
+        <div style="font-size:11px;font-weight:700;opacity:.7">إجمالي البيعات في الشيفت ده</div>
+        <div style="font-size:28px;font-weight:900;font-family:Roboto,sans-serif;margin:4px 0">${total.toFixed(0)} ج</div>
+        <div style="font-size:11px;font-weight:700">${count} بيعة · أول ${firstSale} · آخر ${lastSale}</div>
+      </div>
+      
+      <!-- التفصيل حسب طريقة الدفع -->
+      <div style="font-weight:800;font-size:12px;color:var(--muted);margin-bottom:8px">💰 التفصيل حسب طريقة الدفع</div>
+      ${methodsHtml}
+      
+      ${cashDrawerHtml}
+    `}
+    
+    <!-- 🆕 v68: زرار الإقفال الإجباري للمدير -->
+    <div style="margin-top:14px;padding:12px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px">
+      <div style="font-size:11px;color:#92400e;line-height:1.6;margin-bottom:8px">
+        <strong>⚠️ إقفال إجباري:</strong> استخدمه لما الكاشير ميقدرش يقفل شيفته بنفسه (مثلاً النت فصل، الجهاز عطل، الكاشير راح من غير قفل).
+      </div>
+      <button onclick="smgrForceCloseSession(${cashierId}, '${escapeHtml(cashierName).replace(/'/g, "\\'")}', ${data.session.id})" style="width:100%;padding:10px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:800;cursor:pointer">🔒 إقفال إجباري للشيفت</button>
+    </div>
+    
+    <button onclick="document.getElementById('smgr-current-session-modal').remove()" style="width:100%;margin-top:10px;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">إغلاق</button>
+  `;
+}
+
+// 🆕 v68: ─── الإقفال الإجباري للشيفت من المدير ───
+// لما الكاشير ميقدرش يقفل شيفته بنفسه، المدير يقفله بدلاً منه
+// بيدخّل: عدد الكاش/فيزا/إنستاباي المعدود فعلياً، سبب الإقفال، ولو يفتح شيفت جديد ولا لأ
+async function smgrForceCloseSession(cashierId, cashierName, sessionId){
+  // اقفل modal التصفية الحالية
+  document.getElementById('smgr-current-session-modal')?.remove();
+  
+  // افتح modal الإقفال الإجباري
+  const existingModal = document.getElementById('smgr-force-close-modal');
+  if(existingModal) existingModal.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'smgr-force-close-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)';
+  modal.innerHTML = `
+    <div style="background:var(--card);border-radius:14px;padding:20px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;border:2px solid #dc2626">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;color:#dc2626;font-size:17px;font-weight:900">🔒 إقفال إجباري للشيفت</h3>
+        <button onclick="document.getElementById('smgr-force-close-modal').remove()" style="background:transparent;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1">×</button>
+      </div>
+      
+      <!-- تنبيه -->
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:11px;margin-bottom:14px;font-size:11px;color:#991b1b;line-height:1.7">
+        <strong>تنبيه مهم:</strong><br>
+        إنت بتقفل شيفت <strong>${escapeHtml(cashierName)}</strong> بدلاً منه. لازم تعدّ <strong>بنفسك</strong> الفلوس والكروت اللي في الدرج وتدخّل المبالغ الحقيقية تحت. أي خطأ في العدّ هيظهر كعجز/زيادة في التصفية.
+      </div>
+      
+      <!-- المبالغ المعدودة -->
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px">
+        <div style="font-weight:800;font-size:12px;color:var(--gold);margin-bottom:10px">💰 المبالغ المعدودة فعلياً</div>
+        
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">💵 كاش في الدرج (ج)</label>
+          <input id="smgr-fc-cash" type="number" min="0" step="0.01" value="0" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Roboto,sans-serif;font-size:14px;font-weight:700;text-align:center">
+        </div>
+        
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">💳 فيزا (ج)</label>
+          <input id="smgr-fc-visa" type="number" min="0" step="0.01" value="0" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Roboto,sans-serif;font-size:14px;font-weight:700;text-align:center">
+        </div>
+        
+        <div>
+          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">📱 إنستاباي (ج)</label>
+          <input id="smgr-fc-insta" type="number" min="0" step="0.01" value="0" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Roboto,sans-serif;font-size:14px;font-weight:700;text-align:center">
+        </div>
+      </div>
+      
+      <!-- السبب -->
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;color:var(--text);margin-bottom:6px;font-weight:700">📝 سبب الإقفال الإجباري <span style="color:#dc2626">*</span></label>
+        <textarea id="smgr-fc-reason" placeholder="مثلاً: الكاشير راح من غير قفل، النت فصل والـ POS مكنش بيقدر يقفل، الجهاز عطل..." rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:12px;resize:vertical"></textarea>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">السبب هيتسجل دايماً مع الشيفت للـ audit</div>
+      </div>
+      
+      <!-- شيفت جديد؟ -->
+      <label style="display:flex;align-items:flex-start;gap:8px;background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:14px;cursor:pointer">
+        <input id="smgr-fc-newsession" type="checkbox" checked style="margin-top:2px;width:18px;height:18px;cursor:pointer">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:12px;color:var(--text)">🔄 افتح شيفت جديد تلقائياً</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5">
+            هيفتح شيفت جديد فوراً بنفس قيمة الكاش اللي عديتها (عشان مفيش gap في الوقت). شيلها لو الكاشير خلاص دوام النهارده ومش هيشتغل.
+          </div>
+        </div>
+      </label>
+      
+      <!-- أزرار التأكيد -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button onclick="document.getElementById('smgr-force-close-modal').remove()" style="padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">إلغاء</button>
+        <button id="smgr-fc-confirm" onclick="smgrConfirmForceClose(${cashierId}, '${escapeHtml(cashierName).replace(/'/g, "\\'")}')" style="padding:12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">🔒 تأكيد الإقفال</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  // focus على input الكاش
+  setTimeout(() => document.getElementById('smgr-fc-cash')?.focus(), 100);
+}
+
+async function smgrConfirmForceClose(cashierId, cashierName){
+  const cash = parseFloat(document.getElementById('smgr-fc-cash').value);
+  const visa = parseFloat(document.getElementById('smgr-fc-visa').value);
+  const insta = parseFloat(document.getElementById('smgr-fc-insta').value);
+  const reason = (document.getElementById('smgr-fc-reason').value || '').trim();
+  const openNewSession = document.getElementById('smgr-fc-newsession').checked;
+  
+  // validation
+  if(isNaN(cash) || cash < 0) return toast('❌ ادخل قيمة الكاش بشكل صحيح', 'error');
+  if(isNaN(visa) || visa < 0) return toast('❌ ادخل قيمة الفيزا بشكل صحيح', 'error');
+  if(isNaN(insta) || insta < 0) return toast('❌ ادخل قيمة الإنستاباي بشكل صحيح', 'error');
+  if(!reason) return toast('❌ السبب مطلوب', 'error');
+  if(reason.length < 5) return toast('❌ السبب لازم يكون 5 حروف على الأقل', 'error');
+  
+  // تأكيد نهائي
+  const total = cash + visa + insta;
+  const confirmMsg = `أنت على وشك إقفال شيفت ${cashierName} بشكل إجباري.\n\n` +
+    `💵 كاش: ${cash.toFixed(0)} ج\n` +
+    `💳 فيزا: ${visa.toFixed(0)} ج\n` +
+    `📱 إنستاباي: ${insta.toFixed(0)} ج\n` +
+    `الإجمالي: ${total.toFixed(0)} ج\n\n` +
+    `${openNewSession ? '✅ هيفتح شيفت جديد تلقائياً\n' : '⛔ مش هيفتح شيفت جديد\n'}\n` +
+    `متأكد؟`;
+  
+  if(!confirm(confirmMsg)) return;
+  
+  const btn = document.getElementById('smgr-fc-confirm');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري الإقفال...'; }
+  
+  try {
+    const r = await apiFetch('/api/store-mgr/force-close-session', 'POST', {
+      cashierId,
+      countedCash: cash,
+      countedVisa: visa,
+      countedInstapay: insta,
+      reason,
+      openNewSession
+    });
+    
+    document.getElementById('smgr-force-close-modal')?.remove();
+    
+    let successMsg = `✅ شيفت ${cashierName} اتقفل (${total.toFixed(0)} ج)`;
+    if(r.newSession) successMsg += ` + شيفت جديد ابتدأ`;
+    toast(successMsg, 'success');
+    
+    // refresh تاب الكاشييرز عشان يبان الـ pending
+    if(typeof smgrLoadCashiers === 'function') smgrLoadCashiers();
+    
+  } catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = '🔒 تأكيد الإقفال'; }
+    toast('❌ ' + (e.message || 'فشل الإقفال'), 'error');
+  }
 }
 
 // ─── Sales Tab ───
