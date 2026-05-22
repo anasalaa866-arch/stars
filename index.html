@@ -1,4 +1,34 @@
 <!DOCTYPE html>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  Stars v76 — ONLINE-PAID PICKUP IN SETTLEMENT (2026-05-22)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ طلبات Pickup المدفوعة أونلاين بقت تظهر في تصفية الكاشير
+     (للمراجعة فقط - مفيش فلوس)
+  
+  السيناريو:
+  - عميل دفع 1,725 ج أونلاين على Shopify لطلب pickup
+  - جه استلم الطلب من المحل، الكاشير سلّمه
+  - مفيش فلوس بيستلمها الكاشير (الفلوس دخلت Shopify قبل كده)
+  - لكن لازم يبقى في سجل: "الكاشير سلّم الطلب ده في الوقت ده"
+  
+  الإصلاح:
+  - شاشة التصفية بقت فيها قسم منفصل "📦 طلبات Pickup مدفوعة أونلاين"
+  - بيظهر بـ:
+    • عدد الطلبات + إجمالي قيمتها
+    • قائمة بكل طلب (رقم Shopify، العميل، الوقت)
+  - رسالة واضحة "مفيش فلوس بتدخل في التصفية - للمراجعة فقط"
+  
+  من v75 (محفوظ):
+  - 🆕 pickup COD مفصّل (POS كاش/فيزا/انستا + Pickup كاش/فيزا/انستا)
+  من v74 (محفوظ):
+  - 🆕 pickup COD بيدخل في حسبة درج الكاش
+  من v73 (محفوظ):
+  - 🆕 إجمالي كل بيعة في سجل اليوم
+  من v72 (محفوظ):
+  - 🐛 إصلاح force logout للـ admin في cashier mode
+  ═══════════════════════════════════════════════════════════════════
+-->
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -1778,7 +1808,21 @@ if(document.readyState === 'loading'){
   setTimeout(updateThemeToggleIcon, 0);
 }
 
-// ===== Stars v70 — BUG FIX: BIGINT ID COMPARISON =====
+// ===== Stars v71 — STOCKTAKE: QTY MAX LIMIT (10,000) =====
+// 2026-05-22: حماية من إدخال باركود بالغلط في خانة الكمية
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// السيناريو: الموظف يفتح المنتج، الـ focus بيبقى على خانة الكمية،
+// بيمسح الباركود التاني بالـ scanner → الباركود يتدخل كرقم في الكمية
+// (مثلاً 8003753158556 يتسجل ككمية!). ده غلط فادح وصعب اكتشافه.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1. ✅ HTML max="10000" + hint نصي تحت اللابل
+// 2. ✅ Live validation - الـ input يتلون أحمر فوراً لو الرقم > 10,000
+//    + تحذير "⚠️ الرقم كبير جداً — ده شكله باركود مش كمية!"
+// 3. ✅ في stkSaveEntry: rejection نهائي + select الـ input للتصحيح
+// 4. ✅ Backend (v239): نفس الحد في POST /entries كـ defense-in-depth
+//    عشان أي client تاني (موبايل، API) محدش يفلت
+// =================================
+// السابق: Stars v70 — BUG FIX: BIGINT ID COMPARISON =====
 // 2026-05-22: إصلاح "المنتج مش موجود" لما تدوس زرار التعديل في الجرد
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // السبب: stocktake_items.id نوعه BIGSERIAL في DB، فـ node-pg بيرجعه string
@@ -2138,9 +2182,24 @@ async function api(path, opts = {}){
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
   if(res.status === 401){
-    // token expired
-    logout();
-    throw new Error('انتهت صلاحية الجلسة');
+    // 🆕 v72: نعمل logout بس لو السيرفر قال صراحة إن الـ token باظ
+    // (مش لازم كل 401 = token expired — ممكن endpoint مش متاح للـ role ده)
+    const data = await res.json().catch(() => ({}));
+    const errMsg = (data.error || '').toLowerCase();
+    const realTokenIssue = 
+      errMsg.includes('token') || 
+      errMsg.includes('session') || 
+      errMsg.includes('expired') || 
+      errMsg.includes('invalid');
+    
+    if(realTokenIssue){
+      // token فعلاً باظ → اعمل logout
+      logout();
+      throw new Error('انتهت صلاحية الجلسة');
+    }
+    
+    // 401 من غير سبب واضح → خلي الـ caller يقرر، ميعملش logout
+    throw new Error(data.error || 'غير مصرح بهذا الإجراء');
   }
   const data = await res.json().catch(() => ({}));
   if(!res.ok) throw new Error(data.error || 'خطأ HTTP ' + res.status);
@@ -3058,8 +3117,9 @@ function stkOpenProductCard(scanResult){
         <div style="font-weight:700;font-size:14px;margin-bottom:12px;color:var(--gold)">${entries.length ? '➕ أضف عد من موقع تاني' : '✏️ أدخل الكمية'}</div>
         
         <div style="margin-bottom:10px">
-          <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">الكمية اللي عددتها:</label>
-          <input type="number" id="stk-card-qty" min="0" placeholder="0" style="width:100%;padding:14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:24px;text-align:center;font-weight:800">
+          <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">الكمية اللي عددتها: <span style="color:var(--muted);font-size:10px">(أقصى عدد 10,000)</span></label>
+          <input type="number" id="stk-card-qty" min="0" max="10000" placeholder="0" oninput="stkValidateQtyInput(this)" style="width:100%;padding:14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:24px;text-align:center;font-weight:800">
+          <div id="stk-qty-warning" style="display:none;font-size:11px;color:#dc2626;margin-top:6px;font-weight:700">⚠️ الرقم كبير جداً — ده شكله باركود مش كمية! الحد الأقصى 10,000</div>
         </div>
         
         <div style="margin-bottom:14px">
@@ -3107,6 +3167,22 @@ function stkClosseProductCard(){
   setTimeout(() => $('stk-manual-barcode')?.focus(), 100);
 }
 
+// 🆕 v71: التحقق المباشر من خانة الكمية - تظهر التحذير لو الرقم > 10000
+// عشان نمنع غلط شائع: الموظف يمسح باركود في خانة الكمية بدل خانة الباركود
+function stkValidateQtyInput(inputEl){
+  const warn = document.getElementById('stk-qty-warning');
+  const val = parseInt(inputEl.value);
+  if(!isNaN(val) && val > 10000){
+    if(warn) warn.style.display = 'block';
+    inputEl.style.borderColor = '#dc2626';
+    inputEl.style.background = '#fef2f2';
+  } else {
+    if(warn) warn.style.display = 'none';
+    inputEl.style.borderColor = 'var(--border)';
+    inputEl.style.background = 'var(--bg)';
+  }
+}
+
 // 🆕 v20: حفظ entry
 async function stkSaveEntry(){
   if(!_stkCurrentProduct || !_stkActiveSession) return;
@@ -3116,6 +3192,15 @@ async function stkSaveEntry(){
   
   if(isNaN(qty) || qty < 0){
     toast('❌ ادخل كمية صحيحة', 'error');
+    return;
+  }
+  
+  // 🆕 v71: منع إدخال أرقام كبيرة - شكلها باركود مش كمية
+  if(qty > 10000){
+    toast('❌ الرقم كبير جداً (' + qty + ') — أقصى كمية مسموحة 10,000. تأكد إنك مش بتدخل باركود!', 'error');
+    // ركّز على الـ input عشان يصلحه
+    $('stk-card-qty')?.focus();
+    $('stk-card-qty')?.select();
     return;
   }
   
@@ -6026,6 +6111,8 @@ function posRenderHistoryModal(sales, pendingSales){
   }
 
   // 🆕 v47: شيلنا الإجمالي - ضفنا بحث + عدد البيعات بس
+  // 🆕 v73: إجمالي كل بيعة بيظهر (معلومة الفاتورة). الإجمالي اليومي
+  //        مش بيظهر للكاشير (معلومة حساسة - الأدمن بس يشوفها).
   html += `
     <div style="margin-bottom:12px">
       <input id="pos-history-search" placeholder="🔍 ابحث (رقم البيعة / تليفون / Shopify)..." oninput="posFilterHistory(this.value)" style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;margin-bottom:8px">
@@ -6077,17 +6164,24 @@ function renderHistorySalesList(sales){
       return ico;
     }).join(' ');
 
-    // 🔧 v47: شيلنا الإجمالي من العرض - بس الكاشير يشوف التاريخ + الـ status + الـ buttons
+    // 🆕 v73: رجّعنا الإجمالي - بيظهر بحجم كبير وبارز
+    const total = parseFloat(s.total) || 0;
+    const totalFormatted = total.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    
     return `
       <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;position:relative">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-          <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
+          <div style="flex:1;min-width:0">
             <div style="font-weight:800;font-size:13px;font-family:monospace">${escapeHtml(s.sale_number)}</div>
             ${s.shopify_order_name ? `<div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px">🛍️ ${escapeHtml(s.shopify_order_name)}</div>` : ''}
             <div style="font-size:10px;color:var(--muted);margin-top:2px">${time} · ${pays || '—'} · ${s.items_count || 0} منتج</div>
             ${s.customer_name ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">👤 ${escapeHtml(s.customer_name)}</div>` : ''}
           </div>
-          <div>${sync}</div>
+          <div style="text-align:left;flex-shrink:0">
+            <!-- 🆕 v73: الإجمالي بحجم بارز -->
+            <div style="font-size:18px;font-weight:900;color:var(--gold);line-height:1;white-space:nowrap">${totalFormatted} <span style="font-size:12px;font-weight:700">ج</span></div>
+            <div style="margin-top:4px">${sync}</div>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px">
           <button onclick="posQuickPrintHistory(${s.id})" style="padding:8px 4px;background:var(--gold);color:#000;border:none;border-radius:7px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:11px">🖨️ طباعة</button>
@@ -9269,6 +9363,9 @@ function smgrRenderCashDrawer(cashierId, cashierName, data){
   const cashIn = summary?.cashIn || 0;
   const cashOut = summary?.cashOut || 0;
   const cashSales = summary?.sales?.cash || 0;
+  // 🆕 v74: breakdown للـ pickup collections (لو موجود)
+  const pickupCash = summary?.pickupTotals?.cash || 0;
+  const posCashOnly = Math.max(0, cashSales - pickupCash); // POS بس بدون pickup
   
   let html = `
     <!-- Cash Drawer Summary -->
@@ -9276,7 +9373,12 @@ function smgrRenderCashDrawer(cashierId, cashierName, data){
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px">💰 ملخّص الكاش الحالي</div>
       <table style="width:100%;font-size:12px;border-collapse:collapse">
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">رصيد الافتتاح</td><td style="text-align:left;font-weight:700;font-family:Roboto,sans-serif">${parseFloat(openingCash).toFixed(0)} ج</td></tr>
-        <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">+ مبيعات كاش</td><td style="text-align:left;font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(cashSales).toFixed(0)} ج</td></tr>
+        ${pickupCash > 0 ? `
+          <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">+ مبيعات POS كاش</td><td style="text-align:left;font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(posCashOnly).toFixed(0)} ج</td></tr>
+          <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">+ تسليم Pickup كاش</td><td style="text-align:left;font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(pickupCash).toFixed(0)} ج</td></tr>
+        ` : `
+          <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">+ مبيعات كاش</td><td style="text-align:left;font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(cashSales).toFixed(0)} ج</td></tr>
+        `}
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">+ إيداعات (Cash In)</td><td style="text-align:left;font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">+${parseFloat(cashIn).toFixed(0)} ج</td></tr>
         <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px 0;color:var(--muted)">- سحوبات (Cash Out)</td><td style="text-align:left;font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">-${parseFloat(cashOut).toFixed(0)} ج</td></tr>
         <tr><td style="padding:8px 0;font-weight:900;color:var(--gold)">= المفروض في الدرج</td><td style="text-align:left;font-weight:900;color:var(--gold);font-family:Roboto,sans-serif;font-size:16px">${parseFloat(expected.cash || 0).toFixed(0)} ج</td></tr>
@@ -9486,6 +9588,29 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
     const visaCount = byM.visa?.count || 0;
     const instapayCount = byM.instapay?.count || 0;
     
+    // 🆕 v75: pickup breakdown منفصل (لو موجود)
+    const pickup = r.pickupBreakdown || { count: 0, total: 0, byMethod: {} };
+    const pickupCash = pickup.byMethod?.cash?.total || 0;
+    const pickupVisa = pickup.byMethod?.visa?.total || 0;
+    const pickupInstapay = pickup.byMethod?.instapay?.total || 0;
+    const pickupCashCount = pickup.byMethod?.cash?.count || 0;
+    const pickupVisaCount = pickup.byMethod?.visa?.count || 0;
+    const pickupInstapayCount = pickup.byMethod?.instapay?.count || 0;
+    const hasPickup = pickup.count > 0;
+    
+    // POS فقط
+    const posCash = Math.max(0, cashSales - pickupCash);
+    const posVisa = Math.max(0, visa - pickupVisa);
+    const posInstapay = Math.max(0, instapay - pickupInstapay);
+    const posCashCount = Math.max(0, cashCount - pickupCashCount);
+    const posVisaCount = Math.max(0, visaCount - pickupVisaCount);
+    const posInstapayCount = Math.max(0, instapayCount - pickupInstapayCount);
+    
+    // 🆕 v76: pickup مدفوع أونلاين (للمراجعة فقط - مفيش فلوس)
+    const onlinePaidPickups = r.onlinePaidPickups || [];
+    const hasOnlinePaid = onlinePaidPickups.length > 0;
+    const onlinePaidTotalValue = onlinePaidPickups.reduce((s, p) => s + (parseFloat(p.order_total) || 0), 0);
+    
     // الـ cashDrawer + cashierCounted
     const drawer = r.cashDrawer || null;
     const openingCash = drawer?.openingCash || 0;
@@ -9549,23 +9674,113 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
       
       <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
         <div style="font-weight:800;font-size:13px;color:var(--gold);margin-bottom:10px">💰 توزيع المبيعات</div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
-          <span>💵 كاش <span style="font-size:10px;color:var(--muted)">(${cashCount})</span></span>
-          <span style="font-weight:800;color:#22c55e">${cashSales.toFixed(0)} ج</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
-          <span>💳 فيزا <span style="font-size:10px;color:var(--muted)">(${visaCount})</span></span>
-          <span style="font-weight:800;color:#3b82f6">${visa.toFixed(0)} ج</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
-          <span>📱 انستاباي <span style="font-size:10px;color:var(--muted)">(${instapayCount})</span></span>
-          <span style="font-weight:800;color:#a855f7">${instapay.toFixed(0)} ج</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:10px 0 0 0;font-weight:800;font-size:15px">
-          <span>الإجمالي</span>
+        ${hasPickup ? `
+          <!-- 🆕 v75: POS sales (separate from pickup) -->
+          <div style="margin-bottom:10px">
+            <div style="font-size:10px;color:#3b82f6;font-weight:700;margin-bottom:4px;padding-bottom:2px;border-bottom:1px solid rgba(59,130,246,.3)">🛒 مبيعات POS</div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px">
+              <span>💵 كاش <span style="font-size:10px;color:var(--muted)">(${posCashCount})</span></span>
+              <span style="font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">${posCash.toFixed(0)} ج</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px">
+              <span>💳 فيزا <span style="font-size:10px;color:var(--muted)">(${posVisaCount})</span></span>
+              <span style="font-weight:700;color:#3b82f6;font-family:Roboto,sans-serif">${posVisa.toFixed(0)} ج</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px">
+              <span>📱 انستاباي <span style="font-size:10px;color:var(--muted)">(${posInstapayCount})</span></span>
+              <span style="font-weight:700;color:#a855f7;font-family:Roboto,sans-serif">${posInstapay.toFixed(0)} ج</span>
+            </div>
+          </div>
+          
+          <!-- 🆕 v75: Pickup deliveries -->
+          <div style="margin-bottom:10px;padding-top:8px;border-top:1px dashed var(--border)">
+            <div style="font-size:10px;color:#f97316;font-weight:700;margin-bottom:4px;padding-bottom:2px;border-bottom:1px solid rgba(249,115,22,.3)">📦 تسليم طلبات Pickup <span style="background:#f97316;color:#fff;padding:1px 6px;border-radius:99px;font-size:9px;margin-right:4px">${pickup.count} طلب</span></div>
+            ${pickupCash > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px">
+              <span>💵 كاش <span style="font-size:10px;color:var(--muted)">(${pickupCashCount})</span></span>
+              <span style="font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">${pickupCash.toFixed(0)} ج</span>
+            </div>` : ''}
+            ${pickupVisa > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px">
+              <span>💳 فيزا <span style="font-size:10px;color:var(--muted)">(${pickupVisaCount})</span></span>
+              <span style="font-weight:700;color:#3b82f6;font-family:Roboto,sans-serif">${pickupVisa.toFixed(0)} ج</span>
+            </div>` : ''}
+            ${pickupInstapay > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px">
+              <span>📱 انستاباي <span style="font-size:10px;color:var(--muted)">(${pickupInstapayCount})</span></span>
+              <span style="font-weight:700;color:#a855f7;font-family:Roboto,sans-serif">${pickupInstapay.toFixed(0)} ج</span>
+            </div>` : ''}
+          </div>
+          
+          <!-- Combined totals -->
+          <div style="padding-top:8px;border-top:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px">📊 الإجمالي (POS + Pickup)</div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px">
+              <span>💵 كاش</span>
+              <span style="font-weight:700;color:#22c55e;font-family:Roboto,sans-serif">${cashSales.toFixed(0)} ج</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px">
+              <span>💳 فيزا</span>
+              <span style="font-weight:700;color:#3b82f6;font-family:Roboto,sans-serif">${visa.toFixed(0)} ج</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px">
+              <span>📱 انستاباي</span>
+              <span style="font-weight:700;color:#a855f7;font-family:Roboto,sans-serif">${instapay.toFixed(0)} ج</span>
+            </div>
+          </div>
+        ` : `
+          <!-- No pickups - same layout as before -->
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
+            <span>💵 كاش <span style="font-size:10px;color:var(--muted)">(${cashCount})</span></span>
+            <span style="font-weight:800;color:#22c55e">${cashSales.toFixed(0)} ج</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
+            <span>💳 فيزا <span style="font-size:10px;color:var(--muted)">(${visaCount})</span></span>
+            <span style="font-weight:800;color:#3b82f6">${visa.toFixed(0)} ج</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)">
+            <span>📱 انستاباي <span style="font-size:10px;color:var(--muted)">(${instapayCount})</span></span>
+            <span style="font-weight:800;color:#a855f7">${instapay.toFixed(0)} ج</span>
+          </div>
+        `}
+        <div style="display:flex;justify-content:space-between;padding:10px 0 0 0;font-weight:800;font-size:15px;border-top:2px solid var(--gold);margin-top:6px">
+          <span>الإجمالي الكلي</span>
           <span style="color:var(--gold)">${parseFloat(r.total).toFixed(0)} ج</span>
         </div>
       </div>
+      
+      <!-- 🆕 v76: Online-paid Pickup deliveries (للمراجعة فقط - مفيش فلوس) -->
+      ${hasOnlinePaid ? `
+        <div style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(34,197,94,.02));border:1px solid #22c55e;border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-weight:800;font-size:13px;color:#16a34a">
+              📦 طلبات Pickup مدفوعة أونلاين
+              <span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:99px;font-size:10px;margin-right:4px">${onlinePaidPickups.length} طلب</span>
+            </div>
+            <div style="font-size:11px;color:var(--muted)">قيمة الطلبات: <strong style="color:#16a34a">${onlinePaidTotalValue.toFixed(0)} ج</strong></div>
+          </div>
+          <div style="background:rgba(34,197,94,.1);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:#15803d;font-weight:600;line-height:1.5">
+            ℹ️ الطلبات دي اتدفعت أونلاين قبل التسليم — <strong>مفيش فلوس بتدخل في تصفية الكاشير</strong>.
+            بنعرضها هنا للمراجعة فقط (مين سلّم إيه ومتى).
+          </div>
+          <div style="max-height:200px;overflow-y:auto">
+            ${onlinePaidPickups.map(p => {
+              const time = new Date(p.collected_at).toLocaleString('ar-EG', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short' });
+              return `
+                <div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin-bottom:4px;font-size:11px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:700">
+                        <span style="font-family:monospace;color:#16a34a">SH-${escapeHtml(String(p.order_id))}</span>
+                        ${p.customer_name ? ` · ${escapeHtml(p.customer_name)}` : ''}
+                      </div>
+                      <div style="font-size:10px;color:var(--muted);margin-top:2px">${time}${p.customer_phone ? ' · ' + escapeHtml(p.customer_phone) : ''}</div>
+                    </div>
+                    <div style="font-weight:700;color:#16a34a;white-space:nowrap;font-family:Roboto,sans-serif">${parseFloat(p.order_total).toFixed(0)} ج</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
       
       <!-- 🆕 v60: counted من المدير (default = counted من الكاشير) -->
       <div style="background:rgba(212,175,55,.1);border:2px solid var(--gold);border-radius:10px;padding:14px;margin-bottom:14px">
