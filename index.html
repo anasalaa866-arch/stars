@@ -1,31 +1,28 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
-  Stars v76 — ONLINE-PAID PICKUP IN SETTLEMENT (2026-05-22)
+  Stars v77 — ADMIN PREPARER MODE (2026-05-22)
   ═══════════════════════════════════════════════════════════════════
-  ✨ طلبات Pickup المدفوعة أونلاين بقت تظهر في تصفية الكاشير
-     (للمراجعة فقط - مفيش فلوس)
+  ✨ الأدمن بقى يقدر يدخل وضع "محضّر طلبات"
   
-  السيناريو:
-  - عميل دفع 1,725 ج أونلاين على Shopify لطلب pickup
-  - جه استلم الطلب من المحل، الكاشير سلّمه
-  - مفيش فلوس بيستلمها الكاشير (الفلوس دخلت Shopify قبل كده)
-  - لكن لازم يبقى في سجل: "الكاشير سلّم الطلب ده في الوقت ده"
+  - زرار جديد "📦 محضّر طلبات" في admin mode chooser
+    (بجنب: مدير عام / كاشير / جرد)
+  - الأدمن يقدر يحضّر أي طلب (حتى لو محضّر تاني شغّال عليه)
+    يعتبر admin override
+  - كل الـ preparation calls (start/scan/complete/orders/find)
+    بتبعت اسم الأدمن بدل preparerId رقمي
+  - الـ Shopify tag بقى "prepared_by_<admin_username>" 
+  - في order_history بيتسجل الاسم الصح بدل "Preparer #null"
   
-  الإصلاح:
-  - شاشة التصفية بقت فيها قسم منفصل "📦 طلبات Pickup مدفوعة أونلاين"
-  - بيظهر بـ:
-    • عدد الطلبات + إجمالي قيمتها
-    • قائمة بكل طلب (رقم Shopify، العميل، الوقت)
-  - رسالة واضحة "مفيش فلوس بتدخل في التصفية - للمراجعة فقط"
+  محتاج: server v247 (preparation_started_by_name column)
   
+  من v76 (محفوظ):
+  - 🆕 online-paid pickups في تصفية الكاشير (للمراجعة)
   من v75 (محفوظ):
-  - 🆕 pickup COD مفصّل (POS كاش/فيزا/انستا + Pickup كاش/فيزا/انستا)
-  من v74 (محفوظ):
-  - 🆕 pickup COD بيدخل في حسبة درج الكاش
-  من v73 (محفوظ):
+  - 🆕 pickup COD مفصّل في شاشة التصفية
+  من v74/v73/v72 (محفوظ):
+  - 🆕 pickup COD في حسبة الكاش
   - 🆕 إجمالي كل بيعة في سجل اليوم
-  من v72 (محفوظ):
   - 🐛 إصلاح force logout للـ admin في cashier mode
   ═══════════════════════════════════════════════════════════════════
 -->
@@ -2551,6 +2548,30 @@ function showApp(){
       
       setTimeout(pickupCheckCount, 5000);
       setInterval(pickupCheckCount, 60 * 1000);
+      return;
+    }
+    
+    // 🆕 v77: Preparer mode للأدمن
+    if(adminMode === 'preparer'){
+      // اخفي كل nav items (نفس flow الـ preparer العادي)
+      document.querySelectorAll('.nav-item').forEach(el => { el.style.display = 'none'; });
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      
+      // اعمل صفحة تحضير (لو مش موجودة)
+      let prepPage = document.getElementById('page-prep');
+      if (!prepPage) {
+        prepPage = document.createElement('div');
+        prepPage.id = 'page-prep';
+        prepPage.className = 'page active';
+        prepPage.innerHTML = '<div id="app-prep" style="padding:16px;padding-bottom:80px"></div>';
+        $('app').appendChild(prepPage);
+      } else {
+        prepPage.classList.add('active');
+      }
+      
+      window._prepTarget = 'app-prep';
+      loadBarcodeLib().catch(() => {});
+      loadPrepOrders();
       return;
     }
     
@@ -7825,6 +7846,16 @@ function adminShowModeChooser(){
           <div style="font-size:18px;font-weight:900;margin-bottom:4px">جرد</div>
           <div style="font-size:11px;opacity:0.85;line-height:1.5">جلسات الجرد<br/>(يشوف كل القيم)</div>
         </button>
+        
+        <!-- 🆕 v77: Preparer mode -->
+        <button onclick="adminSwitchMode('preparer')" 
+                style="background:linear-gradient(135deg,#10b981,#059669);border:none;color:#fff;padding:28px 16px;border-radius:16px;cursor:pointer;font-family:Cairo,sans-serif;transition:transform 0.2s;box-shadow:0 8px 24px rgba(16,185,129,0.3)"
+                onmouseover="this.style.transform='translateY(-4px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+          <div style="font-size:48px;margin-bottom:10px">📦</div>
+          <div style="font-size:18px;font-weight:900;margin-bottom:4px">محضّر طلبات</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.5">تحضير وسكان باركود<br/>(مراجعة أو مساعدة)</div>
+        </button>
       </div>
       
       <div style="margin-top:24px;color:#64748b;font-size:12px;line-height:1.6">
@@ -7841,7 +7872,7 @@ function adminShowModeChooser(){
 }
 
 function adminSwitchMode(newMode){
-  if(!['manager', 'cashier', 'stocktaker'].includes(newMode)) return;
+  if(!['manager', 'cashier', 'stocktaker', 'preparer'].includes(newMode)) return;
   sessionStorage.setItem('adminMode', newMode);
   
   const modal = document.getElementById('admin-mode-chooser');
@@ -12768,6 +12799,32 @@ let CURRENT_PREP_ORDER = null;
 let SCANNED_CACHE = {};
 let CAMERA_ACTIVE = false;
 
+// 🆕 v77: helper بيرجع identification للـ preparation API
+// لو preparer عادي → { preparerId: USER.id, preparerName: USER.name }
+// لو admin (مفيش USER.id) → { preparerName: USER.username || USER.name }
+function _prepAuthPayload(){
+  const isAdmin = ROLE === 'admin' || USER?.isAdmin || !USER?.id;
+  if (isAdmin) {
+    return {
+      // مفيش preparerId رقمي للأدمن
+      preparerName: USER?.username || USER?.name || 'admin'
+    };
+  }
+  return {
+    preparerId: USER.id,
+    preparerName: USER.name
+  };
+}
+
+// 🆕 v77: query string version للـ GET endpoints
+function _prepAuthQuery(){
+  const isAdmin = ROLE === 'admin' || USER?.isAdmin || !USER?.id;
+  if (isAdmin) {
+    return ''; // الأدمن: مفيش preparerId - السيرفر هيفهم من الـ token
+  }
+  return 'preparerId=' + USER.id;
+}
+
 function loadBarcodeLib() {
   if (window.Html5Qrcode) return Promise.resolve();
   if (window._barcodeLibPromise) return window._barcodeLibPromise;
@@ -12803,7 +12860,9 @@ function playBeep(ok) {
 async function loadPrepOrders() {
   try {
     _prepRender('<div style="padding:20px;text-align:center;color:var(--muted)">⏳ جاري التحميل...</div>');
-    const r = await api(`/api/preparation/orders?preparerId=${USER.id}`);
+    // 🆕 v77: helper بيتأقلم مع admin
+    const qs = _prepAuthQuery();
+    const r = await api(`/api/preparation/orders${qs ? '?' + qs : ''}`);
     if (!r) {
       _prepRender('<div style="padding:20px;text-align:center;color:var(--danger)">❌ لا يوجد رد من السيرفر</div>');
       return;
@@ -12949,7 +13008,9 @@ async function onPrepSearchKey(e) {
       // الطلب مش في قائمة المحضر — جرّب نسأل السيرفر إيه حالته
       // ده مفيد للـ QR scan على فاتورة لطلب اتحضّر أو خرج للمندوب
       try {
-        const r = await api(`/api/preparation/find/${encodeURIComponent(raw)}?preparerId=${USER.id}`);
+        // 🆕 v77: query string بيتأقلم مع admin
+        const qs = _prepAuthQuery();
+        const r = await api(`/api/preparation/find/${encodeURIComponent(raw)}${qs ? '?' + qs : ''}`);
         if (r && r.found) {
           if (r.canPrepare) {
             // الطلب موجود وقابل للتحضير — نعمل refresh للقائمة ونفتحه
@@ -13056,12 +13117,14 @@ function prepCard(o, prog) {
 }
 
 async function startPrep(id) {
-  const r = await api('/api/preparation/start', { method: 'POST', body: { orderId: id, preparerId: USER.id } });
+  // 🆕 v77: payload بيتأقلم مع admin
+  const r = await api('/api/preparation/start', { method: 'POST', body: { orderId: id, ..._prepAuthPayload() } });
   if (r.ok) openScanner(id);
 }
 
 async function openScanner(id) {
-  const r = await api(`/api/preparation/orders?preparerId=${USER.id}`);
+  const qs = _prepAuthQuery();
+  const r = await api(`/api/preparation/orders${qs ? '?' + qs : ''}`);
   const o = r.orders.find(x => x.id === id);
   if (!o) return;
   CURRENT_PREP_ORDER = o;
@@ -13188,7 +13251,8 @@ function scanMan() {
 
 async function processScan(bc) {
   if (!CURRENT_PREP_ORDER) return;
-  const r = await api('/api/preparation/scan', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, barcode: bc, preparerId: USER.id } });
+  // 🆕 v77: payload بيتأقلم مع admin
+  const r = await api('/api/preparation/scan', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, barcode: bc, ..._prepAuthPayload() } });
   if (!r.matched) {
     playBeep(0);
     toast('❌ ' + (r.error || 'غير موجود'), 'error');
@@ -13221,7 +13285,7 @@ async function completePre() {
 
   if (!confirm(`إتمام تحضير #${CURRENT_PREP_ORDER.id}؟`)) return;
   try {
-    const r = await api('/api/preparation/complete', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, preparerId: USER.id, preparerName: USER.name } });
+    const r = await api('/api/preparation/complete', { method: 'POST', body: { orderId: CURRENT_PREP_ORDER.id, ..._prepAuthPayload() } });
     if (!r.ok) {
       toast(r.error || 'فشل', 'error');
       playBeep(0);
