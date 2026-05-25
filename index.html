@@ -1,29 +1,17 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
-  Stars v77 — ADMIN PREPARER MODE (2026-05-22)
+  Stars v80 — ONLINE PAID PICKUP VISIBILITY (2026-05-25)
   ═══════════════════════════════════════════════════════════════════
-  ✨ الأدمن بقى يقدر يدخل وضع "محضّر طلبات"
+  ✨ ظهور الـ pickup المدفوعة أونلاين في modal تفاصيل المدير:
+  - section خضراء بـ disclaimer "مفيش فلوس مع الكاشير"
+  - جدول الطلبات بـ: order_id + وقت التسليم + عميل + قيمة الطلب
+  - بـ يظهر فوق زرار طباعة الريسيت
   
-  - زرار جديد "📦 محضّر طلبات" في admin mode chooser
-    (بجنب: مدير عام / كاشير / جرد)
-  - الأدمن يقدر يحضّر أي طلب (حتى لو محضّر تاني شغّال عليه)
-    يعتبر admin override
-  - كل الـ preparation calls (start/scan/complete/orders/find)
-    بتبعت اسم الأدمن بدل preparerId رقمي
-  - الـ Shopify tag بقى "prepared_by_<admin_username>" 
-  - في order_history بيتسجل الاسم الصح بدل "Preparer #null"
+  محتاج: server v269
   
-  محتاج: server v247 (preparation_started_by_name column)
-  
-  من v76 (محفوظ):
-  - 🆕 online-paid pickups في تصفية الكاشير (للمراجعة)
-  من v75 (محفوظ):
-  - 🆕 pickup COD مفصّل في شاشة التصفية
-  من v74/v73/v72 (محفوظ):
-  - 🆕 pickup COD في حسبة الكاش
-  - 🆕 إجمالي كل بيعة في سجل اليوم
-  - 🐛 إصلاح force logout للـ admin في cashier mode
+  من v79:
+  - 🖨️ طباعة الريسيت 80mm للمدير
   ═══════════════════════════════════════════════════════════════════
 -->
 <html lang="ar" dir="rtl">
@@ -9861,6 +9849,12 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
       
       <textarea id="smgr-settlement-notes" placeholder="ملاحظات (اختياري)..." style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;margin-bottom:14px;resize:vertical;min-height:60px"></textarea>
       
+      <!-- 🆕 v78: زرار تفاصيل البيعات (نفس اللي في OrderPro) -->
+      <button onclick="smgrViewPendingSessionSales(${cashierId}, ${r.pendingSession.id})" 
+              style="width:100%;padding:12px;background:var(--bg);color:var(--gold);border:1px solid var(--gold);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;margin-bottom:10px;font-size:13px">
+        📋 تفاصيل البيعات (POS + Pickup)
+      </button>
+      
       <div style="display:flex;gap:8px">
         <button onclick="smgrCloseSettlement()" style="flex:1;padding:14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">إلغاء</button>
         <button onclick="smgrConfirmSettlement()" style="flex:2;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ تأكيد التصفية</button>
@@ -10190,6 +10184,443 @@ async function smgrLoadSettlements(){
 }
 
 // 🆕 v24: عرض تفاصيل تصفية (كل البيعات + طريقة دفع كل واحدة)
+// 🆕 v78: عرض تفاصيل البيعات لشيفت مستني التصفية (POS + Pickup)
+// نفس الـ modal اللي في OrderPro - بـ table مجمّع بـ payment method
+async function smgrViewPendingSessionSales(cashierId, sessionId){
+  if(!sessionId){ alert('❌ session id غير متوفر'); return; }
+  
+  $('smgr-sale-title').textContent = '📋 جاري التحميل...';
+  $('smgr-sale-content').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ جاري تحميل البيعات...</div>';
+  $('smgr-sale-modal').style.display = 'block';
+  
+  try {
+    const r = await apiFetch('/api/store-mgr/pending-session-sales/' + sessionId);
+    if(!r || !r.settlement){
+      $('smgr-sale-content').innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center">❌ فشل التحميل</div>';
+      return;
+    }
+    
+    const s = r.settlement;
+    $('smgr-sale-title').textContent = `📋 ${s.cashier_name || 'الكاشير'} - تفاصيل الشيفت`;
+    
+    const methodLabels = {
+      cash:     { icon: '💵', label: 'كاش',     color: '#22c55e', bg: '#22c55e' },
+      visa:     { icon: '💳', label: 'فيزا',    color: '#3b82f6', bg: '#3b82f6' },
+      instapay: { icon: '📱', label: 'انستاباي', color: '#a855f7', bg: '#a855f7' },
+      mixed:    { icon: '🔀', label: 'مدمج',    color: '#f59e0b', bg: '#f59e0b' },
+      other:    { icon: '📌', label: 'أخرى',    color: '#6b7280', bg: '#6b7280' }
+    };
+    
+    let html = `
+      <!-- Banner تنبيه -->
+      <div style="background:rgba(251,191,36,0.1);border:1px solid #fbbf24;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:#fbbf24;line-height:1.6">
+        🟡 <strong>شيفت مستني التصفية</strong> · الكاشير قفل وعد المبالغ. راجع البيعات قبل ما تأكد التصفية.
+      </div>
+      
+      <!-- إحصائيات سريعة -->
+      <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;text-align:center">
+          <div>
+            <div style="font-size:10px;color:var(--muted)">عدد البيعات</div>
+            <div style="font-size:16px;font-weight:800;color:var(--gold)">${s.sales_count || 0}</div>
+            ${s.pickup_count > 0 ? `<div style="font-size:9px;color:#f59e0b;margin-top:2px">+ ${s.pickup_count} pickup</div>` : ''}
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted)">الإجمالي</div>
+            <div style="font-size:16px;font-weight:800;color:var(--gold)">${parseFloat(s.total_amount).toFixed(0)}</div>
+            <div style="font-size:9px;color:var(--muted)">ج</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#22c55e">💵 كاش</div>
+            <div style="font-size:14px;font-weight:800;color:#22c55e">${parseFloat(s.cash_amount).toFixed(0)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#3b82f6">💳 فيزا</div>
+            <div style="font-size:14px;font-weight:800;color:#3b82f6">${parseFloat(s.visa_amount).toFixed(0)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#a855f7">📱 إنستا</div>
+            <div style="font-size:14px;font-weight:800;color:#a855f7">${parseFloat(s.instapay_amount).toFixed(0)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    if (!s.sales_count && !s.pickup_count) {
+      html += `
+        <div style="text-align:center;padding:30px;color:var(--muted)">
+          <div style="font-size:42px;opacity:0.4">🛒</div>
+          <div style="font-weight:700;margin-top:8px">الشيفت ما عملش بيعات</div>
+        </div>
+      `;
+      $('smgr-sale-content').innerHTML = html;
+      return;
+    }
+    
+    // اعرض كل group من الـ payment methods
+    const methodOrder = ['cash', 'visa', 'instapay', 'mixed', 'other'];
+    for(const methodKey of methodOrder){
+      const groupSales = r.byMethod[methodKey] || [];
+      if(!groupSales.length) continue;
+      
+      const m = methodLabels[methodKey];
+      const groupTotal = groupSales.reduce((t, sale) => t + parseFloat(sale.total || 0), 0);
+      
+      html += `
+        <div style="margin-bottom:14px;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
+          <div style="background:${m.bg};color:#fff;padding:8px 12px;font-weight:800;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+            <span>${m.icon} ${m.label} <span style="opacity:.85;font-weight:600;font-size:11px">(${groupSales.length} بيعة)</span></span>
+            <span style="font-family:Roboto,sans-serif">${groupTotal.toFixed(0)} ج</span>
+          </div>
+          <div style="background:var(--elev)">
+            ${groupSales.map(sale => {
+              const time = new Date(sale.created_at).toLocaleTimeString('ar-EG', {hour:'2-digit',minute:'2-digit'});
+              const isPickup = sale.is_pickup === true;
+              const paysStr = (sale.payments || []).filter(p => p && p.method).map(p => {
+                const mi = methodLabels[p.method]?.icon || '•';
+                return `${mi} ${parseFloat(p.amount).toFixed(0)}`;
+              }).join(' + ');
+              
+              return `
+                <div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 12px;border-top:1px solid var(--border);${isPickup ? 'background:rgba(245,158,11,0.08)' : ''}">
+                  <div>
+                    <div style="font-size:12px;font-weight:700;color:${isPickup ? '#f59e0b' : 'var(--text)'}">
+                      ${escapeHtml(sale.sale_number || '#' + sale.id)}
+                      ${isPickup ? '<span style="font-size:9px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-right:4px">pickup</span>' : ''}
+                    </div>
+                    <div style="font-size:10px;color:var(--muted);margin-top:2px">
+                      ⏱️ ${time} · 👤 ${escapeHtml(sale.customer_name || 'عميل عام')}
+                    </div>
+                    <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:Roboto,sans-serif">${paysStr}</div>
+                  </div>
+                  <div style="text-align:left;font-weight:800;font-size:14px;color:var(--gold);align-self:center;font-family:Roboto,sans-serif">
+                    ${parseFloat(sale.total).toFixed(0)} ج
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    html += `
+      <!-- 🆕 v80: section للـ pickup المدفوعة أونلاين (للمراجعة) -->
+      ${(Array.isArray(r.online_paid_pickups) && r.online_paid_pickups.length) ? `
+        <div style="margin-bottom:14px;border:1px dashed #16a34a;border-radius:10px;background:rgba(34,197,94,0.05);overflow:hidden">
+          <div style="background:#16a34a;color:#fff;padding:8px 12px;font-weight:800;font-size:12px;display:flex;justify-content:space-between;align-items:center">
+            <span>📦 Pickup مدفوعة أونلاين (${r.online_paid_pickups.length})</span>
+            <span style="font-size:10px;opacity:.9">${r.online_paid_pickups.reduce((s,p)=>s+(parseFloat(p.order_total)||0),0).toLocaleString()} ج</span>
+          </div>
+          <div style="padding:8px 12px;font-size:10px;color:#22c55e;border-bottom:1px solid rgba(34,197,94,0.2)">
+            💡 الطلبات دي اتدفعت أونلاين — مفيش فلوس مع الكاشير، للمراجعة فقط
+          </div>
+          ${r.online_paid_pickups.map(p => {
+            const time = new Date(p.created_at).toLocaleString('ar-EG', {dateStyle:'short',timeStyle:'short'});
+            return `
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 12px;border-top:1px solid rgba(34,197,94,0.15)">
+                <div>
+                  <div style="font-size:12px;font-weight:700;color:var(--text)">
+                    ${escapeHtml(p.order_id || ('#' + (p.pickup_id || '')))}
+                    <span style="font-size:9px;background:#16a34a;color:#fff;padding:1px 5px;border-radius:99px;margin-right:4px">paid online</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:2px">
+                    ⏱️ ${time} · 👤 ${escapeHtml(p.customer_name || 'عميل عام')}
+                  </div>
+                </div>
+                <div style="text-align:left;font-weight:700;font-size:13px;color:#16a34a;align-self:center;font-family:Roboto,sans-serif">
+                  ${parseFloat(p.order_total || 0).toFixed(0)} ج
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : ''}
+      
+      <!-- 🆕 v79: زرار طباعة على ريسيت -->
+      <div style="background:var(--elev);border-radius:10px;padding:12px;margin-top:8px;margin-bottom:8px;border:1px dashed var(--border)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:10px;font-size:12px">
+          <input type="checkbox" id="smgr-print-include-details" checked style="width:18px;height:18px;cursor:pointer">
+          <span style="font-weight:700">🧾 اطبع تفاصيل البيعات (لو unchecked = ملخص فقط)</span>
+        </label>
+        <button onclick="smgrPrintPendingReceipt()" style="width:100%;padding:12px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer;font-size:13px">
+          🖨️ طباعة على الريسيت (80mm)
+        </button>
+      </div>
+      
+      <button onclick="smgrCloseSale()" style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;margin-top:8px">
+        رجوع للتصفية
+      </button>
+    `;
+    
+    // 🆕 v79: خزّن البيانات للـ print function
+    window._smgrLastPendingDetails = r;
+    
+    $('smgr-sale-content').innerHTML = html;
+  } catch(e) {
+    $('smgr-sale-content').innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// 🆕 v79: طباعة ريسيت التصفية على printer 80mm
+// بيستخدم الـ data المحفوظة في window._smgrLastPendingDetails
+function smgrPrintPendingReceipt(){
+  const r = window._smgrLastPendingDetails;
+  if(!r || !r.settlement){
+    alert('❌ مفيش بيانات للطباعة - افتح التفاصيل تاني');
+    return;
+  }
+  
+  const s = r.settlement;
+  const includeDetails = document.getElementById('smgr-print-include-details')?.checked !== false;
+  const printedBy = (typeof USER !== 'undefined' && USER) ? (USER.name || USER.username || 'مستخدم') : 'مستخدم';
+  const printedAt = new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+  const openedAt = s.opened_at ? new Date(s.opened_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  const closedAt = s.cashier_closed_at ? new Date(s.cashier_closed_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  
+  const methodLabels = {
+    cash:     { icon: '$', label: 'كاش' },
+    visa:     { icon: 'V', label: 'فيزا' },
+    instapay: { icon: 'I', label: 'انستاباي' },
+    mixed:    { icon: 'M', label: 'مدمج' },
+    other:    { icon: '*', label: 'أخرى' }
+  };
+  
+  // كل البيعات مفلتنة من الـ byMethod
+  const allSales = [];
+  Object.values(r.byMethod || {}).forEach(arr => {
+    (arr || []).forEach(sale => allSales.push(sale));
+  });
+  allSales.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  
+  // الـ HTML للطباعة - حجم 80mm
+  const detailsHtml = includeDetails && allSales.length ? `
+    <div class="section">
+      <div class="section-title">📋 البيعات (${allSales.length})</div>
+      ${Object.entries(r.byMethod || {}).map(([key, sales]) => {
+        if(!sales || !sales.length) return '';
+        const m = methodLabels[key] || methodLabels.other;
+        const groupTotal = sales.reduce((t, x) => t + (parseFloat(x.total) || 0), 0);
+        return `
+          <div class="group">
+            <div class="group-hd">${m.label} (${sales.length}) — ${groupTotal.toFixed(0)} ج</div>
+            ${sales.map(sale => {
+              const time = new Date(sale.created_at).toLocaleTimeString('ar-EG', {hour:'2-digit',minute:'2-digit'});
+              const num = sale.sale_number || ('#' + sale.id);
+              const cust = sale.customer_name || 'عميل عام';
+              const isPickup = sale.is_pickup === true;
+              return `
+                <div class="sale-row ${isPickup ? 'pickup' : ''}">
+                  <div class="sr-top">
+                    <span class="sr-num">${escapeHtml(num)}</span>
+                    <span class="sr-amt">${parseFloat(sale.total).toFixed(0)} ج</span>
+                  </div>
+                  <div class="sr-bot">${time} · ${escapeHtml(cust).substring(0,20)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+  
+  const receiptHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>ريسيت تصفية - ${escapeHtml(s.cashier_name || '')}</title>
+<style>
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Courier New', monospace;
+    width: 76mm;
+    margin: 2mm;
+    padding: 0;
+    color: #000;
+    background: #fff;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .header {
+    text-align: center;
+    border-bottom: 2px dashed #000;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+  }
+  .brand {
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+  .subtitle {
+    font-size: 11px;
+    margin-top: 3px;
+    font-weight: 700;
+  }
+  .store {
+    font-size: 10px;
+    margin-top: 2px;
+    color: #444;
+  }
+  .info {
+    border-bottom: 1px dashed #000;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    font-size: 10px;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2px;
+  }
+  .info-row strong { font-weight: 700; }
+  .section {
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-weight: 900;
+    font-size: 11px;
+    border-bottom: 1px solid #000;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
+  }
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    font-size: 11px;
+  }
+  .summary-row.bold { font-weight: 900; font-size: 12px; }
+  .summary-row.divider { border-top: 1px dashed #000; padding-top: 4px; margin-top: 2px; }
+  .group { margin-bottom: 6px; }
+  .group-hd {
+    background: #000;
+    color: #fff;
+    padding: 2px 4px;
+    font-weight: 700;
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+  .sale-row {
+    border-bottom: 1px dotted #888;
+    padding: 3px 0;
+  }
+  .sale-row.pickup {
+    background: #f4f4f4;
+    padding: 3px 4px;
+    margin: 0 -2px 2px;
+  }
+  .sr-top {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 10px;
+  }
+  .sr-num { font-family: monospace; }
+  .sr-amt { font-weight: 800; }
+  .sr-bot {
+    font-size: 9px;
+    color: #444;
+    margin-top: 1px;
+  }
+  .footer {
+    border-top: 2px dashed #000;
+    padding-top: 8px;
+    margin-top: 8px;
+    text-align: center;
+    font-size: 9px;
+  }
+  .signature {
+    margin-top: 12px;
+    padding-top: 4px;
+  }
+  .signature-line {
+    border-bottom: 1px solid #000;
+    margin: 14px 0 2px;
+    height: 1px;
+  }
+  .printed-by {
+    margin-top: 6px;
+    font-style: italic;
+    font-size: 9px;
+  }
+  @media print {
+    body { width: 76mm; margin: 2mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">CAFELAX</div>
+    <div class="subtitle">تصفية شيفت كاشير</div>
+    <div class="store">${escapeHtml(s.store_name || '')}</div>
+  </div>
+  
+  <div class="info">
+    <div class="info-row"><span>الكاشير:</span><strong>${escapeHtml(s.cashier_name || '')}</strong></div>
+    <div class="info-row"><span>الشيفت:</span><strong>#${s.id || ''}</strong></div>
+    <div class="info-row"><span>فُتح:</span><span>${openedAt}</span></div>
+    <div class="info-row"><span>قُفل:</span><span>${closedAt}</span></div>
+    <div class="info-row"><span>الحالة:</span><strong>🟡 مستني التصفية</strong></div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">📊 الملخص</div>
+    <div class="summary-row"><span>عدد البيعات (POS):</span><strong>${s.sales_count || 0}</strong></div>
+    ${s.pickup_count > 0 ? `<div class="summary-row"><span>طلبات Pickup:</span><strong>${s.pickup_count}</strong></div>` : ''}
+    <div class="summary-row divider"><span>💵 كاش:</span><strong>${parseFloat(s.cash_amount || 0).toFixed(0)} ج</strong></div>
+    <div class="summary-row"><span>💳 فيزا:</span><strong>${parseFloat(s.visa_amount || 0).toFixed(0)} ج</strong></div>
+    <div class="summary-row"><span>📱 انستاباي:</span><strong>${parseFloat(s.instapay_amount || 0).toFixed(0)} ج</strong></div>
+    <div class="summary-row bold divider"><span>الإجمالي:</span><strong>${parseFloat(s.total_amount || 0).toFixed(0)} ج</strong></div>
+  </div>
+  
+  ${(s.counted_cash || s.counted_visa || s.counted_instapay) ? `
+    <div class="section">
+      <div class="section-title">📝 المعدود من الكاشير</div>
+      <div class="summary-row"><span>💵 كاش:</span><strong>${parseFloat(s.counted_cash || 0).toFixed(0)} ج</strong></div>
+      <div class="summary-row"><span>💳 فيزا:</span><strong>${parseFloat(s.counted_visa || 0).toFixed(0)} ج</strong></div>
+      <div class="summary-row"><span>📱 إنستا:</span><strong>${parseFloat(s.counted_instapay || 0).toFixed(0)} ج</strong></div>
+    </div>
+  ` : ''}
+  
+  ${detailsHtml}
+  
+  <div class="signature">
+    <div style="font-size:10px;margin-bottom:2px">توقيع المدير:</div>
+    <div class="signature-line"></div>
+    <div style="font-size:10px;margin-top:8px;margin-bottom:2px">توقيع الكاشير:</div>
+    <div class="signature-line"></div>
+  </div>
+  
+  <div class="footer">
+    <div>${printedAt}</div>
+    <div class="printed-by">Printed by: ${escapeHtml(printedBy)}</div>
+    <div style="margin-top:4px">CAFELAX · cafelax.com</div>
+  </div>
+  
+  <script>
+    window.addEventListener('load', function(){
+      setTimeout(function(){ window.print(); }, 300);
+    });
+  <\/script>
+</body>
+</html>`;
+  
+  // افتح نافذة الطباعة
+  const w = window.open('', '_blank', 'width=380,height=700');
+  if(!w){
+    alert('❌ المتصفح حجب النافذة. فعّل الـ pop-ups للموقع.');
+    return;
+  }
+  w.document.write(receiptHtml);
+  w.document.close();
+}
+
 async function smgrViewSettlement(settlementId){
   try {
     const r = await apiFetch('/api/store-mgr/settlements/' + settlementId);
