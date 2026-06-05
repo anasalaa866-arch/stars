@@ -1,39 +1,28 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
-  Stars v84 — REFUNDS DEDUCTED FROM SETTLEMENT (2026-05-28)
+  Stars v88 — STK RECENT LIST: MINE/ALL FILTER (2026-06-05)
   ═══════════════════════════════════════════════════════════════════
-  🐛 Fix: المرتجعات مش بتتخصم من تصفية الكاشير بعد تأكيد المدير
+  ✨ "آخر العمليات" دلوقتي بـ يعرض اللي إنت عددته فقط (default)
+     مع toggle للـ "الكل" لو حابب تشوف عمليات باقي المستخدمين
   
-  المشكلة:
-  - لما الكاشير يرجّع للعميل (cash refund)، الفلوس بتطلع من الدرج
-  - لكن التصفية كانت بتحسب: opening + sales + cashIn - cashOut
-    (بدون طرح المرتجعات)
-  - فالكاشير كان بيتحاسب على فلوس مش موجودة معاه
+  السلوك:
+  - Default = "👤 جردي" (mine):
+    • يعرض المنتجات اللي عندها entries منك فقط
+    • الكمية المعروضة = مساهمتك الفعلية (مش الإجمالي)
+    • "عملياتك" = عدد عملياتك على المنتج
+    • مرتبة بأحدث entry منك
   
-  السبب الجذري (في الـ backend v285):
-  1. الـ store-mgr review كان بـ يعمل smgr_reviewed=true بس
-     (مش approval_status='approved') فالمرتجع مكانش "مؤكد"
-  2. الـ settle-cashier كان بـ يحسب expected بدون طرح المرتجعات أصلاً
-  3. الـ _computeCashSummary كان بـ يقرأ من جدول pos_return_payments
-     اللي مش موجود (فالـ refunds دايماً = 0)
+  - Toggle "📊 الكل" (all):
+    • السلوك القديم - كل المنتجات بـ counted_at
+    • الكمية = الإجمالي
   
-  ✅ الحل (backend + frontend):
-  - الـ review دلوقتي بـ يعمل approval_status='approved' كمان
-  - الـ settle-cashier بـ يطرح المرتجعات المؤكدة من المتوقع
-  - الـ _computeCashSummary بـ يقرأ من pos_returns مباشرة (approved بس)
-  - المرتجع بـ يترط بالـ settlement (settlement_id) عشان مايتحسبش مرتين
+  - max 30 منتج (بدلاً من 8) للـ scrolling review
+  - color coded: الـ row في mine mode بـ يكون بـ purple border
   
-  Frontend (هنا):
-  - صف "− مرتجعات كاش" في ملخص الدرج (لو فيه مرتجعات)
-  - المدير بيشوف المرتجعات المخصومة قبل ما يصفّي
-  
-  محتاج: server v285
-  
-  من v83:
-  - الريسيت كله English
-  من v82:
-  - Logo + typography + professional receipt
+  من v87:
+  - Match fix لـ counted_by (USER.name vs username)
+  - Search by name
   ═══════════════════════════════════════════════════════════════════
 -->
 <html lang="ar" dir="rtl">
@@ -553,11 +542,20 @@ a{color:inherit;text-decoration:none}
           <button onclick="stkStopCamera()" style="position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif">✕ إغلاق</button>
           <div id="stk-cam-status" style="position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#fbbf24;font-size:12px;font-weight:700;text-shadow:0 0 4px #000">🔍 وجّه الكاميرا للباركود...</div>
         </div>
+        
+        <!-- 🆕 v86: Search by name -->
+        <div style="background:var(--elev);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--gold)">🔍 ابحث بالاسم</div>
+          <input type="text" id="stk-name-search" placeholder="مثلاً: lavazza, hafiz, monin..." oninput="stkSearchByName(this.value)" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:14px">
+          <div id="stk-name-results" style="margin-top:8px;max-height:300px;overflow-y:auto"></div>
+        </div>
       </div>
       
       <!-- Stats area -->
       <div id="stk-stats-area">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0" id="stk-stats-grid">
+        <!-- 🆕 v86: تقريرين - الجرد كله + جردك انت -->
+        <div style="font-weight:700;font-size:12px;margin:14px 0 6px;color:var(--muted)">📊 الجلسة كلها (كل المستخدمين)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px" id="stk-stats-grid">
           <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center">
             <div style="font-size:11px;color:var(--muted)">المعدود</div>
             <div style="font-size:18px;font-weight:800;color:var(--gold)" id="stk-stat-counted">0</div>
@@ -571,11 +569,37 @@ a{color:inherit;text-decoration:none}
             <div style="font-size:18px;font-weight:800;color:#fbbf24" id="stk-stat-diff">0</div>
           </div>
         </div>
+        
+        <!-- 🆕 v86: تقرير "إنت عددت" -->
+        <div style="font-weight:700;font-size:12px;margin:14px 0 6px;color:#7c3aed">👤 إنت عددت (<span id="stk-my-username">—</span>)</div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+          <div style="background:#7c3aed11;border:1px solid #7c3aed44;border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:var(--muted)">منتجات</div>
+            <div style="font-size:18px;font-weight:800;color:#7c3aed" id="stk-my-items">0</div>
+          </div>
+          <div style="background:#7c3aed11;border:1px solid #7c3aed44;border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:11px;color:var(--muted)">عمليات عد</div>
+            <div style="font-size:18px;font-weight:800;color:#7c3aed" id="stk-my-entries">0</div>
+          </div>
+        </div>
       </div>
       
       <!-- Recent scans area -->
       <div id="stk-recent-area">
-        <div style="font-weight:700;margin:14px 0 8px 0;font-size:13px">📋 آخر العمليات:</div>
+        <!-- 🆕 v88: toggle filter بين "إنت عددت" و "الكل" -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px 0;gap:8px">
+          <div style="font-weight:700;font-size:13px" id="stk-recent-label">📋 إنت عددت:</div>
+          <div style="display:flex;gap:4px;background:var(--elev);border:1px solid var(--border);border-radius:8px;padding:2px">
+            <button id="stk-filter-mine-btn" onclick="stkToggleRecentFilter('mine')" 
+              style="border:none;background:#7c3aed;color:#fff;padding:6px 10px;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+              👤 جردي
+            </button>
+            <button id="stk-filter-all-btn" onclick="stkToggleRecentFilter('all')" 
+              style="border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+              📊 الكل
+            </button>
+          </div>
+        </div>
         <div id="stk-recent-list"></div>
       </div>
     </div>
@@ -2799,6 +2823,111 @@ function stkBackToList(){
   loadStkSessions();
 }
 
+// 🆕 v86: Search by name داخل الـ session - يفلتر من _stkActiveItems
+function stkSearchByName(query){
+  const resultsEl = $('stk-name-results');
+  if(!resultsEl) return;
+  
+  query = (query || '').trim().toLowerCase();
+  if(query.length < 2){
+    resultsEl.innerHTML = '';
+    return;
+  }
+  
+  if(!_stkActiveItems || !_stkActiveItems.length){
+    resultsEl.innerHTML = '<div style="text-align:center;padding:10px;color:var(--muted);font-size:11px">مفيش منتجات في الجلسة</div>';
+    return;
+  }
+  
+  // فلتر بالـ title + variant_title + sku
+  const matches = _stkActiveItems.filter(it => {
+    const title = (it.product_title || '').toLowerCase();
+    const variant = (it.variant_title || '').toLowerCase();
+    const sku = (it.sku || '').toLowerCase();
+    const barcode = (it.barcode || '').toLowerCase();
+    return title.includes(query) || variant.includes(query) || sku.includes(query) || barcode.includes(query);
+  }).slice(0, 15);  // max 15 results
+  
+  if(!matches.length){
+    resultsEl.innerHTML = '<div style="text-align:center;padding:10px;color:var(--muted);font-size:11px">مفيش نتائج</div>';
+    return;
+  }
+  
+  const isBlind = _stkActiveSession?.show_system_qty !== true;
+  
+  resultsEl.innerHTML = matches.map(it => {
+    const countedSoFar = it.counted_qty ?? 0;
+    const entriesCount = (it.entries || []).length;
+    const hasCount = it.counted_qty != null;
+    const bgColor = hasCount ? '#16a34a11' : 'var(--bg)';
+    const borderColor = hasCount ? '#16a34a44' : 'var(--border)';
+    
+    return `
+      <div onclick="stkSelectFromSearch('${it.variant_id}')" style="background:${bgColor};border:1px solid ${borderColor};border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(it.product_title || '')}</div>
+          ${it.variant_title && it.variant_title !== 'Default Title' ? `<div style="font-size:10px;color:var(--muted)">${escapeHtml(it.variant_title)}</div>` : ''}
+          <div style="font-size:9px;color:var(--muted);font-family:Roboto,sans-serif">${escapeHtml(it.sku || '—')}</div>
+        </div>
+        ${hasCount ? `
+          <div style="text-align:center;flex-shrink:0">
+            <div style="font-size:10px;color:var(--muted)">مَعدود</div>
+            <div style="font-size:14px;font-weight:800;color:#16a34a">${countedSoFar}</div>
+            ${entriesCount > 1 ? `<div style="font-size:9px;color:var(--muted)">${entriesCount} عمليات</div>` : ''}
+          </div>
+        ` : `
+          <div style="background:#fbbf2422;color:#fbbf24;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:700">لسه</div>
+        `}
+        ${!isBlind ? `
+          <div style="text-align:center;flex-shrink:0;min-width:36px">
+            <div style="font-size:10px;color:var(--muted)">غدّ</div>
+            <div style="font-size:13px;font-weight:700">${it.system_qty ?? '—'}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// 🆕 v86: عند الضغط على نتيجة بحث، افتح الـ product card كأنه scan
+// 🆕 v86: عند الضغط على نتيجة بحث، افتح الـ product card مباشرة من الـ data المحلي
+//        (مش بـ نـ call backend عشان مفيش endpoint لـ scan بـ variant_id)
+async function stkSelectFromSearch(variantId){
+  if(!_stkActiveSession || !variantId) return;
+  
+  // امسح الـ search field
+  const searchInput = $('stk-name-search');
+  if(searchInput){ searchInput.value = ''; }
+  const resultsEl = $('stk-name-results');
+  if(resultsEl){ resultsEl.innerHTML = ''; }
+  
+  // لاقي الـ item في الـ data المحلي
+  const item = _stkActiveItems.find(it => String(it.variant_id) === String(variantId));
+  if(!item){
+    toast('❌ المنتج مش موجود في الجلسة', 'error');
+    return;
+  }
+  
+  // ابني scanResult بـ structure زي ما الـ /scan endpoint بـ يرجع
+  const showSystemQty = _stkActiveSession?.show_system_qty === true;
+  const scanResult = {
+    success: true,
+    product: {
+      variantId: String(item.variant_id),
+      title: item.product_title || '',
+      variant: item.variant_title || '',
+      sku: item.sku || '',
+      imageUrl: item.image_url || '',
+      systemQty: showSystemQty ? (item.system_qty ?? null) : null,
+      showSystemQty: showSystemQty
+    },
+    totalCountedSoFar: item.counted_qty ?? 0,
+    entries: item.entries || []
+  };
+  
+  stkOpenProductCard(scanResult);
+}
+
 function renderStkActiveSession(){
   const s = _stkActiveSession;
   const items = _stkActiveItems;
@@ -2815,10 +2944,52 @@ function renderStkActiveSession(){
     </div>
   `;
   
-  // Stats
+  // Stats - الـ session كله
   $('stk-stat-counted').textContent = counted;
   $('stk-stat-total').textContent = total;
   $('stk-stat-diff').textContent = differences;
+  
+  // 🆕 v86: Stats - اللي عددته الـ user الحالي
+  // 🔧 v87: matching مرن - الـ stocktaker counted_by بـ يبقى USER.name (مش username)
+  //         فبنـ collect كل الـ possible identifiers ونـ match لو counted_by يطابق أي منهم
+  const possibleNames = new Set();
+  if(typeof USER !== 'undefined' && USER){
+    if(USER.name) possibleNames.add(String(USER.name).trim());
+    if(USER.username) possibleNames.add(String(USER.username).trim());
+    if(USER.id) possibleNames.add(String(USER.id));
+    // case-insensitive variants
+    if(USER.name) possibleNames.add(String(USER.name).trim().toLowerCase());
+    if(USER.username) possibleNames.add(String(USER.username).trim().toLowerCase());
+  }
+  
+  const displayName = (typeof USER !== 'undefined' && USER) ? (USER.name || USER.username || 'مستخدم') : 'مستخدم';
+  $('stk-my-username').textContent = displayName;
+  
+  let myEntriesCount = 0;
+  const myItemsSet = new Set();
+  for(const item of items){
+    for(const entry of (item.entries || [])){
+      const cb = String(entry.counted_by || '').trim();
+      const cbLower = cb.toLowerCase();
+      if(cb && (possibleNames.has(cb) || possibleNames.has(cbLower))){
+        myEntriesCount++;
+        myItemsSet.add(item.id);
+      }
+    }
+  }
+  $('stk-my-items').textContent = myItemsSet.size;
+  $('stk-my-entries').textContent = myEntriesCount;
+  
+  // 🔧 v87: debug log عشان نعرف لو لسه في mismatch
+  if(myEntriesCount === 0 && items.length > 0){
+    const sampleEntry = items.find(it => (it.entries || []).length > 0)?.entries?.[0];
+    if(sampleEntry){
+      console.log('[stk-v87] My-stats mismatch debug:');
+      console.log('  USER:', { name: USER?.name, username: USER?.username, id: USER?.id });
+      console.log('  Sample entry counted_by:', JSON.stringify(sampleEntry.counted_by));
+      console.log('  Possible names:', [...possibleNames]);
+    }
+  }
   
   // 🆕 v65: blind mode - اخفي card الفروقات وخلي الـ grid 2 columns
   const isBlind = s.show_system_qty !== true;
@@ -2834,17 +3005,74 @@ function renderStkActiveSession(){
     }
   }
   
-  // Recent scans (آخر 8)
-  const recent = [...items]
-    .filter(i => i.counted_at)
-    .sort((a,b) => new Date(b.counted_at) - new Date(a.counted_at))
-    .slice(0, 8);
+  // 🆕 v88: Recent list - filter بـ mine/all
+  // الـ default = mine (الـ user يـ review اللي عمله هو)
+  // toggle لو حابب يشوف الكل
+  const recentLabel = $('stk-recent-label');
+  const filterMode = window._stkRecentFilter || 'mine';
+  
+  // update toggle buttons + label
+  const btnMine = $('stk-filter-mine-btn');
+  const btnAll = $('stk-filter-all-btn');
+  if(btnMine && btnAll){
+    if(filterMode === 'mine'){
+      btnMine.style.background = '#7c3aed';
+      btnMine.style.color = '#fff';
+      btnAll.style.background = 'transparent';
+      btnAll.style.color = 'var(--text)';
+      if(recentLabel) recentLabel.textContent = '📋 إنت عددت:';
+    } else {
+      btnAll.style.background = 'var(--gold)';
+      btnAll.style.color = '#000';
+      btnMine.style.background = 'transparent';
+      btnMine.style.color = 'var(--text)';
+      if(recentLabel) recentLabel.textContent = '📋 آخر العمليات (الكل):';
+    }
+  }
+  
+  // احسب my-contribution لكل item
+  const myContribByItem = {};
+  for(const item of items){
+    let myQty = 0;
+    let myLatestAt = null;
+    let myEntryCount = 0;
+    for(const entry of (item.entries || [])){
+      const cb = String(entry.counted_by || '').trim();
+      const cbLower = cb.toLowerCase();
+      if(cb && (possibleNames.has(cb) || possibleNames.has(cbLower))){
+        myQty += parseInt(entry.qty) || 0;
+        myEntryCount++;
+        const t = new Date(entry.counted_at);
+        if(!myLatestAt || t > myLatestAt) myLatestAt = t;
+      }
+    }
+    if(myEntryCount > 0){
+      myContribByItem[item.id] = { qty: myQty, latestAt: myLatestAt, count: myEntryCount };
+    }
+  }
+  
+  // الـ recent list حسب الـ filter
+  let recent;
+  if(filterMode === 'mine'){
+    recent = items
+      .filter(i => myContribByItem[i.id])
+      .sort((a,b) => myContribByItem[b.id].latestAt - myContribByItem[a.id].latestAt)
+      .slice(0, 30);  // 30 آخر للـ user review
+  } else {
+    recent = [...items]
+      .filter(i => i.counted_at)
+      .sort((a,b) => new Date(b.counted_at) - new Date(a.counted_at))
+      .slice(0, 30);
+  }
   
   const recentList = $('stk-recent-list');
   if(!recentList) return;
   
   if(!recent.length){
-    recentList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">لسه ما اتعملش scan لأي منتج</div>';
+    const emptyMsg = filterMode === 'mine'
+      ? 'لسه ما عددتش أي منتج. ابدأ بمسح أو بحث.'
+      : 'لسه ما اتعملش scan لأي منتج';
+    recentList.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">${emptyMsg}</div>`;
     return;
   }
   
@@ -2855,18 +3083,29 @@ function renderStkActiveSession(){
     const diffColor = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'var(--muted)';
     const diffStr = diff === 0 ? '✓' : (diff > 0 ? `+${diff}` : `${diff}`);
     
+    // 🆕 v88: في my-mode بنعرض مساهمة الـ user فقط
+    const myInfo = myContribByItem[i.id];
+    const showMyMode = filterMode === 'mine' && myInfo;
+    
     // 🆕 v69: عدد العمليات على المنتج ده
-    const entriesCount = (i.entries || []).length;
+    const totalEntriesCount = (i.entries || []).length;
+    const displayCount = showMyMode ? myInfo.count : totalEntriesCount;
+    const countLabel = showMyMode ? 'عملياتك' : 'عمليات';
+    
+    // الكمية المعروضة: my-qty لو mine، أو counted_qty لو all
+    const displayQty = showMyMode ? myInfo.qty : i.counted_qty;
+    const qtyLabel = showMyMode ? 'عددت' : 'إجمالي';
+    const qtyColor = showMyMode ? '#7c3aed' : 'var(--gold)';
     
     return `
-      <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="stkOpenEditEntries(${i.id})" title="اضغط لعرض/تعديل عمليات العدّ">
+      <div style="background:var(--elev);border:1px solid ${showMyMode ? '#7c3aed44' : 'var(--border)'};border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="stkOpenEditEntries(${i.id})" title="اضغط لعرض/تعديل عمليات العدّ">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(i.product_title || '')}</div>
-          <div style="font-size:10px;color:var(--muted)">${escapeHtml(i.sku || '—')}${entriesCount > 1 ? ` · <span style="color:var(--gold);font-weight:700">${entriesCount} عمليات</span>` : ''}</div>
+          <div style="font-size:10px;color:var(--muted)">${escapeHtml(i.sku || '—')}${displayCount > 1 ? ` · <span style="color:${qtyColor};font-weight:700">${displayCount} ${countLabel}</span>` : ''}</div>
         </div>
         <div style="text-align:center;flex-shrink:0">
-          <div style="font-size:11px;color:var(--muted)">عُدّ</div>
-          <div style="font-weight:800;font-size:16px;color:var(--gold)">${i.counted_qty}</div>
+          <div style="font-size:11px;color:var(--muted)">${qtyLabel}</div>
+          <div style="font-weight:800;font-size:16px;color:${qtyColor}">${displayQty}</div>
         </div>
         ${isBlind ? '' : `
           <div style="text-align:center;flex-shrink:0;min-width:40px">
@@ -2883,6 +3122,14 @@ function renderStkActiveSession(){
       </div>
     `;
   }).join('');
+}
+
+// 🆕 v88: toggle filter للـ recent list
+function stkToggleRecentFilter(mode){
+  window._stkRecentFilter = mode;
+  if(_stkActiveSession){
+    renderStkActiveSession();
+  }
 }
 
 // 🆕 v69: ─── تعديل/حذف عمليات العدّ ───
@@ -9705,6 +9952,11 @@ function smgrRenderCashDrawer(cashierId, cashierName, data){
         ` : ''}
         <tr><td style="padding:8px 0;font-weight:900;color:var(--gold)">= المفروض في الدرج</td><td style="text-align:left;font-weight:900;color:var(--gold);font-family:Roboto,sans-serif;font-size:16px">${parseFloat(expected.cash || 0).toFixed(0)} ج</td></tr>
       </table>
+      <!-- 🆕 v85: زرار تشخيص المرتجعات (لو فيه مشكلة في خصمها من التصفية) -->
+      <button onclick="diagnoseReturnsForCashier(${cashierId}, '${escapeHtml(cashierName).replace(/'/g, "\\'")}')" 
+              style="margin-top:8px;padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;color:#f59e0b;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer;width:100%">
+        🔍 لماذا المرتجعات مش بتتخصم؟ — تشخيص
+      </button>
     </div>
     
     <!-- Cash In/Out Actions -->
@@ -9744,6 +9996,97 @@ function smgrRenderCashDrawer(cashierId, cashierName, data){
   
   html += `</div>`;
   c.innerHTML = html;
+}
+
+// 🆕 v85: تشخيص المرتجعات للكاشير
+async function diagnoseReturnsForCashier(cashierId, cashierName){
+  toast('🔍 جاري الفحص...');
+  try {
+    const r = await apiFetch(`/api/store-mgr/returns/diagnose?cashierId=${cashierId}`);
+    if(!r){ toast('❌ فشل الفحص'); return; }
+    
+    if(!r.session){
+      alert(`👤 ${cashierName}\n\nمفيش session مفتوح أو منتظر مراجعة لهذا الكاشير.`);
+      return;
+    }
+    
+    const s = r.summary;
+    const sess = r.session;
+    const range = r.sessionRange;
+    
+    const startStr = new Date(range.start).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+    const endStr = range.end ? new Date(range.end).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : 'مفتوح';
+    
+    let msg = `🔍 تشخيص مرتجعات: ${cashierName}\n`;
+    msg += `${'─'.repeat(40)}\n\n`;
+    msg += `📅 الـ Session:\n`;
+    msg += `  من: ${startStr}\n`;
+    msg += `  إلى: ${endStr}\n`;
+    msg += `  حالة: ${sess.status}\n\n`;
+    
+    msg += `📊 المرتجعات في الفترة (${s.totalReturnsInRange} إجمالي):\n`;
+    msg += `${'─'.repeat(40)}\n`;
+    msg += `✅ مؤهلة للخصم: ${s.byStatus.eligible}  (${s.totalEligibleAmount.toFixed(0)} ج)\n`;
+    msg += `⏳ منتظرة الموافقة: ${s.byStatus.pendingApproval}\n`;
+    msg += `❌ ملغية: ${s.byStatus.voided}\n`;
+    msg += `🔗 مربوطة بتصفية قديمة: ${s.byStatus.alreadySettled}\n\n`;
+    
+    if(s.byStatus.eligible === 0 && s.totalReturnsInRange > 0){
+      msg += `⚠️ مفيش مرتجعات مؤهلة للخصم!\n\n`;
+      if(s.byStatus.pendingApproval > 0){
+        msg += `السبب: ${s.byStatus.pendingApproval} مرتجع منتظر مراجعتك\n`;
+        msg += `الحل: روح "سجل المرتجعات" وراجعهم\n`;
+      } else if(s.byStatus.alreadySettled > 0){
+        msg += `السبب: ${s.byStatus.alreadySettled} مرتجع مربوط بتصفية سابقة\n`;
+        msg += `الحل: اضغط OK ثم "تنظيف الربط"\n`;
+      }
+    } else if(s.byStatus.eligible > 0){
+      msg += `✅ المفروض ${s.totalEligibleAmount.toFixed(0)} ج يتخصم من التصفية\n`;
+      
+      // breakdown by method
+      const byMethod = {};
+      r.eligibleReturns.forEach(rt => {
+        byMethod[rt.refund_method] = (byMethod[rt.refund_method] || 0) + parseFloat(rt.refund_total || 0);
+      });
+      msg += `\nالطرق:\n`;
+      for(const [method, amt] of Object.entries(byMethod)){
+        msg += `  • ${method}: ${amt.toFixed(0)} ج\n`;
+      }
+    }
+    
+    if(r.returnsOutsideSession.length > 0){
+      msg += `\n📍 مرتجعات معتمدة برّا الفترة (آخر ${r.returnsOutsideSession.length}):\n`;
+      r.returnsOutsideSession.slice(0, 5).forEach(rt => {
+        const d = new Date(rt.created_at).toLocaleDateString('ar-EG');
+        const linked = rt.settlement_id ? '(مربوط بتصفية)' : '(غير مربوط)';
+        msg += `  • #${rt.return_number} - ${parseFloat(rt.refund_total).toFixed(0)} ج (${d}) ${linked}\n`;
+      });
+    }
+    
+    // لو فيه مرتجعات مربوطة بتصفية، اقترح cleanup
+    if(s.byStatus.alreadySettled > 0){
+      msg += `\n\nهل تريد إلغاء ربط الـ ${s.byStatus.alreadySettled} مرتجع من التصفية القديمة؟\n`;
+      msg += `(فقط لو متأكد إنها مش متربطة بـ settlement فعلي)`;
+      
+      if(confirm(msg)){
+        toast('🔄 جاري إلغاء الربط...');
+        const cleanupR = await apiFetch('/api/store-mgr/returns/unlink-from-settlement', 'POST', { cashierId });
+        if(cleanupR?.success){
+          alert(`✅ تم إلغاء ربط ${cleanupR.unlinked} مرتجع.\n\nاضغط 🔄 تحديث في التصفية.`);
+          // refresh الـ preview
+          if(typeof smgrLoadCashiers === 'function') smgrLoadCashiers();
+        } else {
+          toast('❌ فشل التنظيف', 'error');
+        }
+      }
+      return;
+    }
+    
+    alert(msg);
+    console.log('🔍 Returns diagnosis:', r);
+  } catch(e){
+    toast('❌ ' + e.message, 'error');
+  }
 }
 
 function smgrPromptCashMovement(cashierId, cashierName, direction){
