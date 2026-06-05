@@ -1,32 +1,32 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
-  Stars v89 — STK PAGINATION + SORT (2026-06-05)
+  Stars v91 — STK SUSPICIOUS AGGREGATOR + RECENT SEARCH (2026-06-05)
   ═══════════════════════════════════════════════════════════════════
-  ✨ تقسيم "آخر العمليات" لصفحات + خيارات ترتيب
+  ✨ تحسينات على واجهة الجرد - frontend فقط، آمن للجلسة الشغّالة
   
-  Pagination:
-  - 20 منتج لكل صفحة (بدل 30)
-  - أزرار navigation: « ‹ 1 2 3 ... › »
-  - الـ counter "N من المجموع" على اليسار
-  - scroll للأعلى عند تغيير الصفحة
-  - الـ page state يـ persist عبر الـ re-renders
+  1️⃣ ⚠️ Banner "عمليات مشبوهة" مجمّع:
+     - banner أحمر فوق "آخر العمليات" بـ count العمليات المكرّرة
+     - يظهر تلقائياً لو فيه duplicates، يختفي لو مفيش
+     - click → modal بكل الـ duplicates عبر كل items
+     - في الـ modal:
+       • زرار "🗑️ احذف كل الـ N دفعة واحدة"
+       • قائمة بكل منتج عنده duplicates + الكمية + المستخدم
+       • لكل منتج: زرار "👁️ راجع" (يفتح edit modal) + "🗑️ احذف"
   
-  Sort options (4 buttons):
-  - ⏱️ الأحدث (default) - بأحدث counted_at
-  - 🕰️ الأقدم - من البداية
-  - 📊 الأكثر فرقاً - بـ abs(diff) DESC (مخفي في blind mode)
-  - 🔤 الاسم - alphabetical (Arabic locale)
+  2️⃣ 🔍 Search في "آخر العمليات":
+     - input search تحت toggle (جردي/الكل) وفوق sort buttons
+     - فلتر live في: title, variant_title, sku, barcode
+     - يعمل reset لـ page 1 عند تغيير الـ search
+     - empty message مخصص لـ "مفيش نتائج للبحث"
+     - الـ search مستقل عن filter+sort (يـ stack-وا فوق بعض)
   
-  السلوك:
-  - تغيير filter أو sort → reset لـ page 1
-  - تغيير page → بـ يحافظ على الـ filter/sort
-  - blind mode → خيار "الأكثر فرقاً" مخفي + auto-fallback لـ latest
+  مفيش backend / DB changes - الجلسة الشغّالة آمنة.
   
-  من v88:
-  - Filter (mine/all) للـ recent list
-  - Match fix لـ counted_by
-  - Search by name
+  من v90:
+  - Anti-duplicate (3 طبقات حماية)
+  - Pagination + sort
+  - Filter mine/all
   ═══════════════════════════════════════════════════════════════════
 -->
 <html lang="ar" dir="rtl">
@@ -590,6 +590,18 @@ a{color:inherit;text-decoration:none}
       
       <!-- Recent scans area -->
       <div id="stk-recent-area">
+        <!-- 🆕 v91: زرار "عمليات مشبوهة" مجمّع للـ duplicates عبر كل الجلسة -->
+        <div id="stk-suspicious-banner" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:10px;margin:14px 0 8px;cursor:pointer" onclick="stkOpenSuspiciousModal()">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:20px">⚠️</span>
+            <div style="flex:1">
+              <div style="font-weight:800;color:#991b1b;font-size:13px" id="stk-suspicious-title">عمليات مشبوهة كـ مكرّرة</div>
+              <div style="font-size:10px;color:#7f1d1d">اضغط للمراجعة + احذف الزائد</div>
+            </div>
+            <span style="background:#dc2626;color:#fff;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:800" id="stk-suspicious-count">0</span>
+          </div>
+        </div>
+        
         <!-- 🆕 v88: toggle filter بين "إنت عددت" و "الكل" -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px 0;gap:8px">
           <div style="font-weight:700;font-size:13px" id="stk-recent-label">📋 إنت عددت:</div>
@@ -604,6 +616,11 @@ a{color:inherit;text-decoration:none}
             </button>
           </div>
         </div>
+        
+        <!-- 🆕 v91: search في الـ recent list -->
+        <input type="text" id="stk-recent-search" placeholder="🔍 ابحث في المنتجات المعدودة..." 
+          oninput="stkSetRecentSearch(this.value)" 
+          style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--elev);color:var(--text);font-family:Cairo,sans-serif;font-size:13px;margin-bottom:8px;box-sizing:border-box">
         
         <!-- 🆕 v89: sort options -->
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;background:var(--elev);border:1px solid var(--border);border-radius:8px;padding:4px" id="stk-sort-row">
@@ -3087,6 +3104,33 @@ function renderStkActiveSession(){
     recentBase = items.filter(i => i.counted_at);
   }
   
+  // 🆕 v91: apply search filter (لو في query)
+  const searchQuery = String(window._stkRecentSearch || '').trim().toLowerCase();
+  if(searchQuery){
+    recentBase = recentBase.filter(i => {
+      const t = (i.product_title || '').toLowerCase();
+      const v = (i.variant_title || '').toLowerCase();
+      const s = (i.sku || '').toLowerCase();
+      const b = (i.barcode || '').toLowerCase();
+      return t.includes(searchQuery) || v.includes(searchQuery) || s.includes(searchQuery) || b.includes(searchQuery);
+    });
+  }
+  
+  // 🆕 v91: حدّث الـ suspicious banner (count duplicates عبر كل items - مش الـ filtered list)
+  const { totalDuplicates: susCount } = stkComputeAllDuplicates();
+  const susBanner = $('stk-suspicious-banner');
+  const susCountEl = $('stk-suspicious-count');
+  const susTitleEl = $('stk-suspicious-title');
+  if(susBanner){
+    if(susCount > 0){
+      susBanner.style.display = 'block';
+      if(susCountEl) susCountEl.textContent = susCount;
+      if(susTitleEl) susTitleEl.textContent = `${susCount} عملية مشبوهة كـ مكرّرة`;
+    } else {
+      susBanner.style.display = 'none';
+    }
+  }
+  
   // 🆕 v89: apply sort
   const sortMode = window._stkRecentSort || 'latest';
   // isBlind already declared above at line ~3019
@@ -3146,9 +3190,14 @@ function renderStkActiveSession(){
   if(!recentList) return;
   
   if(!recent.length){
-    const emptyMsg = filterMode === 'mine'
-      ? 'لسه ما عددتش أي منتج. ابدأ بمسح أو بحث.'
-      : 'لسه ما اتعملش scan لأي منتج';
+    let emptyMsg;
+    if(searchQuery){
+      emptyMsg = `مفيش نتائج للبحث "${escapeHtml(searchQuery)}"`;
+    } else if(filterMode === 'mine'){
+      emptyMsg = 'لسه ما عددتش أي منتج. ابدأ بمسح أو بحث.';
+    } else {
+      emptyMsg = 'لسه ما اتعملش scan لأي منتج';
+    }
     recentList.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">${emptyMsg}</div>`;
     const pagEl = $('stk-pagination');
     if(pagEl) pagEl.style.display = 'none';
@@ -3264,6 +3313,161 @@ function stkSetPage(page){
   }
 }
 
+// 🆕 v91: search في الـ recent list (debounced via simple re-render)
+function stkSetRecentSearch(query){
+  window._stkRecentSearch = String(query || '').trim();
+  window._stkRecentPage = 1;  // reset لـ page 1 عند تغيير الـ search
+  if(_stkActiveSession){
+    renderStkActiveSession();
+  }
+}
+
+// 🆕 v91: تجميع كل الـ duplicates عبر كل الـ items في الجلسة + modal للمراجعة
+function stkComputeAllDuplicates(){
+  // returns: { totalDuplicates, byItem: [{ item, dupIds: [...] }] }
+  const items = _stkActiveItems || [];
+  let totalDuplicates = 0;
+  const byItem = [];
+  
+  for(const item of items){
+    const entries = item.entries || [];
+    if(entries.length < 2) continue;
+    
+    const dupIds = new Set();
+    for(let i = 0; i < entries.length; i++){
+      for(let j = i + 1; j < entries.length; j++){
+        const a = entries[i], b = entries[j];
+        if(a.qty === b.qty && 
+           a.counted_by === b.counted_by && 
+           Math.abs(new Date(a.counted_at) - new Date(b.counted_at)) < 10000){
+          const olderTs = new Date(a.counted_at) < new Date(b.counted_at) ? a.counted_at : b.counted_at;
+          const newerEntry = a.counted_at === olderTs ? b : a;
+          dupIds.add(newerEntry.id);
+        }
+      }
+    }
+    
+    if(dupIds.size > 0){
+      byItem.push({ item, dupIds: [...dupIds] });
+      totalDuplicates += dupIds.size;
+    }
+  }
+  
+  return { totalDuplicates, byItem };
+}
+
+function stkOpenSuspiciousModal(){
+  // امسح أي modal سابق
+  document.getElementById('stk-suspicious-modal')?.remove();
+  
+  const { totalDuplicates, byItem } = stkComputeAllDuplicates();
+  
+  if(totalDuplicates === 0){
+    toast('✅ مفيش عمليات مشبوهة في الجلسة', 'success');
+    return;
+  }
+  
+  const ov = document.createElement('div');
+  ov.id = 'stk-suspicious-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px';
+  ov.innerHTML = `
+    <div style="background:var(--card);border-radius:14px;padding:18px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px">
+        <div style="flex:1">
+          <h3 style="margin:0 0 4px 0;color:#dc2626;font-size:16px;font-weight:900">⚠️ عمليات مشبوهة كـ مكرّرة</h3>
+          <div style="font-size:11px;color:var(--muted)">${totalDuplicates} عملية مشبوهة عبر ${byItem.length} منتج</div>
+        </div>
+        <button onclick="document.getElementById('stk-suspicious-modal').remove()" 
+          style="background:transparent;border:none;color:var(--muted);font-size:26px;cursor:pointer;line-height:1;padding:0;flex-shrink:0">×</button>
+      </div>
+      
+      <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:10px;margin-bottom:14px;font-size:11px;color:#92400e">
+        💡 الـ "مشبوهة" = نفس الكمية + نفس المستخدم في غضون 10 ثواني.
+        غالباً double-submit. الأقدم بـ يبقى الأصلي، الأحدث = duplicate.
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <button onclick="stkBulkDeleteAllSuspicious()" 
+          style="width:100%;background:#dc2626;color:#fff;border:none;padding:12px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">
+          🗑️ احذف كل الـ ${totalDuplicates} عملية مكرّرة دفعة واحدة
+        </button>
+      </div>
+      
+      <div style="font-weight:800;font-size:11px;color:var(--muted);margin-bottom:8px">📋 التفاصيل:</div>
+      
+      ${byItem.map(({ item, dupIds }) => {
+        const sample = (item.entries || []).find(e => dupIds.includes(e.id));
+        return `
+          <div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(item.product_title || '')}</div>
+                <div style="font-size:10px;color:var(--muted)">${escapeHtml(item.sku || '—')}</div>
+                <div style="font-size:11px;color:#dc2626;margin-top:4px;font-weight:700">
+                  ${dupIds.length} عملية مكرّرة
+                  ${sample ? ` · بـ +${sample.qty} ${sample.counted_by ? `من ${escapeHtml(sample.counted_by)}` : ''}` : ''}
+                </div>
+              </div>
+              <div style="display:flex;gap:4px;flex-shrink:0">
+                <button onclick="stkOpenEditEntries(${item.id});document.getElementById('stk-suspicious-modal').remove()" 
+                  style="background:var(--bg);border:1px solid var(--border);color:var(--gold);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">
+                  👁️ راجع
+                </button>
+                <button onclick="stkBulkDeleteDuplicates(${item.id}, ${JSON.stringify(dupIds).replace(/"/g, '&quot;')})" 
+                  style="background:#dc2626;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer">
+                  🗑️ احذف
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+      
+      <button onclick="document.getElementById('stk-suspicious-modal').remove()" 
+        style="width:100%;background:var(--elev);border:1px solid var(--border);color:var(--text);padding:12px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;margin-top:8px">
+        إغلاق
+      </button>
+    </div>
+  `;
+  document.body.appendChild(ov);
+}
+
+// 🆕 v91: حذف كل الـ duplicates عبر كل items دفعة واحدة
+async function stkBulkDeleteAllSuspicious(){
+  const { totalDuplicates, byItem } = stkComputeAllDuplicates();
+  if(totalDuplicates === 0) return;
+  
+  if(!confirm(`متأكد عايز تحذف ${totalDuplicates} عملية مكرّرة عبر ${byItem.length} منتج؟\n\nالعملية ما تتراجعش.`)) return;
+  
+  // collect all entry ids
+  const allDupIds = [];
+  for(const { dupIds } of byItem){
+    allDupIds.push(...dupIds);
+  }
+  
+  let success = 0;
+  let failed = 0;
+  
+  // اقفل الـ modal أولاً + اعرض progress toast
+  document.getElementById('stk-suspicious-modal')?.remove();
+  toast(`⏳ جاري حذف ${allDupIds.length}...`, 'info');
+  
+  for(const entryId of allDupIds){
+    try {
+      await apiFetch('/api/stocktake/entries/' + entryId, 'DELETE');
+      success++;
+    } catch(e){
+      console.warn(`failed to delete entry ${entryId}:`, e.message);
+      failed++;
+    }
+  }
+  
+  toast(`✅ اتحذف ${success} عملية${failed > 0 ? ` (${failed} فشل)` : ''}`, success > 0 ? 'success' : 'error');
+  
+  // اعد تحميل الجلسة لتحديث الـ data
+  await reloadStkSession();
+}
+
 // 🆕 v69: ─── تعديل/حذف عمليات العدّ ───
 // لو الجرّاد عدّ غلط ممكن يفتح modal العمليات السابقة على المنتج ده ويحذف عملية معينة
 // 🛠️ v70: bug fix - الـ id كان bigint من DB فبيرجع string، فالـ === كان بيفشل
@@ -3307,6 +3511,24 @@ function stkRenderEditEntries(itemId){
   const total = entries.reduce((sum, e) => sum + (parseInt(e.qty) || 0), 0);
   const diff = total - (item.system_qty || 0);
   
+  // 🆕 v90: detect duplicates - entries بنفس qty + counted_by في غضون 10 ثواني
+  const duplicateIds = new Set();
+  for(let i = 0; i < entries.length; i++){
+    for(let j = i + 1; j < entries.length; j++){
+      const a = entries[i], b = entries[j];
+      if(a.qty === b.qty && 
+         a.counted_by === b.counted_by && 
+         Math.abs(new Date(a.counted_at) - new Date(b.counted_at)) < 10000){
+        // الأقدم بـ يبقى الـ "الأصلي"، الأحدث = duplicate
+        const olderTs = new Date(a.counted_at) < new Date(b.counted_at) ? a.counted_at : b.counted_at;
+        const olderEntry = a.counted_at === olderTs ? a : b;
+        const newerEntry = a.counted_at === olderTs ? b : a;
+        duplicateIds.add(newerEntry.id);
+      }
+    }
+  }
+  const hasDuplicates = duplicateIds.size > 0;
+  
   modal.innerHTML = `
     <div style="background:var(--card);border-radius:14px;padding:18px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;border:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px">
@@ -3338,6 +3560,23 @@ function stkRenderEditEntries(itemId){
         </div>
       </div>
       
+      <!-- 🆕 v90: تحذير لو في duplicates -->
+      ${hasDuplicates ? `
+        <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:10px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:18px">⚠️</span>
+            <div style="flex:1">
+              <div style="font-weight:800;color:#991b1b;font-size:12px">${duplicateIds.size} عملية مشبوهة كـ مكرّرة!</div>
+              <div style="font-size:10px;color:#7f1d1d">نفس الكمية + نفس المستخدم في غضون 10 ثواني</div>
+            </div>
+            <button onclick="stkBulkDeleteDuplicates(${item.id}, ${JSON.stringify([...duplicateIds]).replace(/"/g, '&quot;')})" 
+              style="background:#dc2626;color:#fff;border:none;padding:8px 12px;border-radius:6px;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap">
+              🗑️ احذف كلهم
+            </button>
+          </div>
+        </div>
+      ` : ''}
+      
       <!-- قائمة العمليات -->
       ${entries.length === 0 ? `
         <div style="text-align:center;padding:30px 20px;color:var(--muted)">
@@ -3350,12 +3589,17 @@ function stkRenderEditEntries(itemId){
           const dt = new Date(e.counted_at);
           const timeStr = dt.toLocaleString('ar-EG', {dateStyle:'short', timeStyle:'short'});
           const isLatest = idx === 0;
+          const isDup = duplicateIds.has(e.id);
+          // 🆕 v90: ألوان حسب الحالة
+          const bgColor = isDup ? '#fee2e2' : (isLatest ? 'var(--gold)10' : 'var(--elev)');
+          const borderColor = isDup ? '#fca5a5' : (isLatest ? 'var(--gold)40' : 'var(--border)');
           return `
-            <div style="background:${isLatest ? 'var(--gold)10' : 'var(--elev)'};border:1px solid ${isLatest ? 'var(--gold)40' : 'var(--border)'};border-radius:10px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+            <div style="background:${bgColor};border:1px solid ${borderColor};border-radius:10px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
               <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-                  <span style="font-weight:900;font-size:18px;color:var(--gold)">+${e.qty}</span>
-                  ${isLatest ? '<span style="background:var(--gold);color:#000;font-size:9px;font-weight:800;padding:2px 6px;border-radius:99px">الأحدث</span>' : ''}
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+                  <span style="font-weight:900;font-size:18px;color:${isDup ? '#dc2626' : 'var(--gold)'}">+${e.qty}</span>
+                  ${isLatest && !isDup ? '<span style="background:var(--gold);color:#000;font-size:9px;font-weight:800;padding:2px 6px;border-radius:99px">الأحدث</span>' : ''}
+                  ${isDup ? '<span style="background:#dc2626;color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:99px">⚠️ مكرّرة</span>' : ''}
                 </div>
                 <div style="font-size:10px;color:var(--muted)">
                   🕐 ${timeStr}
@@ -3363,7 +3607,7 @@ function stkRenderEditEntries(itemId){
                 </div>
                 ${e.location_note ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(e.location_note)}</div>` : ''}
               </div>
-              <button onclick="stkDeleteEntryFromList(${e.id}, ${item.id}, ${e.qty})" style="flex-shrink:0;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:16px" title="حذف هذه العملية">🗑️</button>
+              <button onclick="stkDeleteEntryFromList(${e.id}, ${item.id}, ${e.qty})" style="flex-shrink:0;background:${isDup ? '#dc2626' : '#fee2e2'};border:1px solid ${isDup ? '#dc2626' : '#fca5a5'};color:${isDup ? '#fff' : '#dc2626'};width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:16px" title="حذف هذه العملية">🗑️</button>
             </div>
           `;
         }).join('')}
@@ -3376,6 +3620,37 @@ function stkRenderEditEntries(itemId){
       <button onclick="document.getElementById('stk-edit-entries-modal').remove()" style="width:100%;margin-top:12px;padding:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">إغلاق</button>
     </div>
   `;
+}
+
+// 🆕 v90: bulk delete الـ duplicates - يحذف الكل في طلب-تلو-طلب مع progress
+async function stkBulkDeleteDuplicates(itemId, dupIds){
+  if(!Array.isArray(dupIds) || !dupIds.length) return;
+  if(!confirm(`متأكد عايز تحذف ${dupIds.length} عملية مكرّرة؟\n\nده هـ يصلح المجموع بشكل تلقائي.`)) return;
+  
+  let success = 0;
+  let failed = 0;
+  
+  for(const entryId of dupIds){
+    try {
+      await apiFetch('/api/stocktake/entries/' + entryId, 'DELETE');
+      success++;
+    } catch(e){
+      console.warn(`failed to delete entry ${entryId}:`, e.message);
+      failed++;
+    }
+  }
+  
+  toast(`✅ اتحذف ${success} عملية مكرّرة${failed > 0 ? ` (${failed} فشل)` : ''}`, success > 0 ? 'success' : 'error');
+  
+  // اعد تحميل الجلسة + ارسم الـ modal تاني
+  await reloadStkSession();
+  const target = String(itemId);
+  const updated = (_stkActiveItems || []).find(i => String(i.id) === target);
+  if(updated && (updated.entries || []).length > 0){
+    stkRenderEditEntries(itemId);
+  } else {
+    document.getElementById('stk-edit-entries-modal')?.remove();
+  }
 }
 
 async function stkDeleteEntryFromList(entryId, itemId, qty){
@@ -3594,8 +3869,18 @@ function stkValidateQtyInput(inputEl){
 }
 
 // 🆕 v20: حفظ entry
+// 🆕 v90: lock + recent-submits tracking لمنع double submit
+let _stkSaving = false;
+const _stkRecentSubmits = new Map();  // {variant_id: { qty, ts }}
+
 async function stkSaveEntry(){
   if(!_stkCurrentProduct || !_stkActiveSession) return;
+  
+  // 🆕 v90: layer 1 — lock عشان الـ user ما يقدرش يدوس مرتين سريع
+  if(_stkSaving){
+    console.warn('[stk-v90] ignoring duplicate submit - save in progress');
+    return;
+  }
   
   const qty = parseInt($('stk-card-qty').value);
   const location = $('stk-card-location').value.trim();
@@ -3608,20 +3893,43 @@ async function stkSaveEntry(){
   // 🆕 v71: منع إدخال أرقام كبيرة - شكلها باركود مش كمية
   if(qty > 10000){
     toast('❌ الرقم كبير جداً (' + qty + ') — أقصى كمية مسموحة 10,000. تأكد إنك مش بتدخل باركود!', 'error');
-    // ركّز على الـ input عشان يصلحه
     $('stk-card-qty')?.focus();
     $('stk-card-qty')?.select();
     return;
   }
   
+  // 🆕 v90: layer 2 — idempotency check محلي
+  // لو نفس الـ variant بنفس الـ qty اتـ submit في آخر 3 ثواني، اطلب تأكيد
+  const variantId = _stkCurrentProduct.product.variantId;
+  const recent = _stkRecentSubmits.get(String(variantId));
+  if(recent && recent.qty === qty && (Date.now() - recent.ts) < 3000){
+    if(!confirm(`⚠️ لسه عملت scan للمنتج ده بنفس الكمية (${qty}) من ${Math.floor((Date.now() - recent.ts)/1000)} ثواني.\n\nمتأكد عاوز تضيفها تاني؟`)){
+      return;
+    }
+  }
+  
+  // 🆕 v90: layer 1 — lock + disable save button
+  _stkSaving = true;
+  const saveBtn = document.querySelector('#stk-product-card button[onclick="stkSaveEntry()"]');
+  let savedBtnText = '';
+  if(saveBtn){
+    savedBtnText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '⏳ جاري الحفظ...';
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = '0.6';
+  }
+  
   try {
     const r = await apiFetch('/api/stocktake/sessions/' + _stkActiveSession.id + '/entries', 'POST', {
-      variantId: _stkCurrentProduct.product.variantId,
+      variantId,
       qty,
       locationNote: location
     });
     
     if(r && r.success){
+      // record submit للـ idempotency check
+      _stkRecentSubmits.set(String(variantId), { qty, ts: Date.now() });
+      
       try { if(navigator.vibrate) navigator.vibrate([50,30,50]); } catch(e){}
       toast(`✅ تم حفظ ${qty} - الإجمالي: ${r.totalCounted}`, 'success');
       
@@ -3632,6 +3940,14 @@ async function stkSaveEntry(){
     }
   } catch(e) {
     toast('❌ ' + e.message, 'error');
+  } finally {
+    // 🆕 v90: free الـ lock + restore الـ button
+    _stkSaving = false;
+    if(saveBtn){
+      saveBtn.innerHTML = savedBtnText;
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '';
+    }
   }
 }
 
