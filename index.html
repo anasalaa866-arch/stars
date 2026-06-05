@@ -1,32 +1,45 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
-  Stars v91 — STK SUSPICIOUS AGGREGATOR + RECENT SEARCH (2026-06-05)
+  Stars v92 — STK PENDING FILTER + STOCK STAT (2026-06-05)
   ═══════════════════════════════════════════════════════════════════
-  ✨ تحسينات على واجهة الجرد - frontend فقط، آمن للجلسة الشغّالة
+  ✨ 2 إضافات على واجهة الجرد - frontend فقط، آمن للجلسة الشغّالة
   
-  1️⃣ ⚠️ Banner "عمليات مشبوهة" مجمّع:
-     - banner أحمر فوق "آخر العمليات" بـ count العمليات المكرّرة
-     - يظهر تلقائياً لو فيه duplicates، يختفي لو مفيش
-     - click → modal بكل الـ duplicates عبر كل items
-     - في الـ modal:
-       • زرار "🗑️ احذف كل الـ N دفعة واحدة"
-       • قائمة بكل منتج عنده duplicates + الكمية + المستخدم
-       • لكل منتج: زرار "👁️ راجع" (يفتح edit modal) + "🗑️ احذف"
+  1️⃣ Stat جديد "فيه رصيد":
+     - في الـ "الجلسة كلها" grid، 4th card
+     - count = items.filter(system_qty > 0).length
+     - أخضر اللون - للتمييز
+     - blind mode: الـ grid يبقى 3 (المعدود+الإجمالي+فيه رصيد، بدون فروقات)
+     - normal mode: 4 (المعدود+الإجمالي+فروقات+فيه رصيد)
   
-  2️⃣ 🔍 Search في "آخر العمليات":
-     - input search تحت toggle (جردي/الكل) وفوق sort buttons
-     - فلتر live في: title, variant_title, sku, barcode
-     - يعمل reset لـ page 1 عند تغيير الـ search
-     - empty message مخصص لـ "مفيش نتائج للبحث"
-     - الـ search مستقل عن filter+sort (يـ stack-وا فوق بعض)
+  2️⃣ Filter "❌ محتاج جرد":
+     - زرار 3rd في toggle buttons
+     - يفلتر: system_qty > 0 AND (counted_at IS NULL OR counted_qty IS NULL)
+     - الـ items تظهر بـ:
+       • Red border + "⚠️ محتاج جرد" badge
+       • قيمة الكمية = "—" مع label "لسه" بـ red
+       • فرق = "-N" أحمر
+       • زرار ➕ بدل 📝
+     - Click → يفتح product card مباشرة للعدّ (stkSelectFromSearch)
+     - Sort في pending mode:
+       • latest/diff/title = أعلى رصيد أولاً (المهم في الأول)
+       • oldest = أقل رصيد
+     - Empty: "🎉 كل المنتجات اللي عندها رصيد اتعدّت!"
   
-  مفيش backend / DB changes - الجلسة الشغّالة آمنة.
+  السلوك لـ workflow الجرد:
+  - الـ stocktaker يفتح "محتاج جرد"
+  - يشوف المنتجات اللي لازم يجردها مرتّبة بأعلى رصيد
+  - يضغط على منتج → يتفتح product card → يدخل الكمية → يحفظ
+  - يرجع للـ list → الـ item اختفى من "محتاج جرد"
+  - يكرر حتى الـ list يفضى = الجرد كامل
   
-  من v90:
-  - Anti-duplicate (3 طبقات حماية)
+  مفيش backend / DB changes - آمن للجلسة الشغّالة.
+  
+  من v91:
+  - Suspicious aggregator + Recent search
   - Pagination + sort
   - Filter mine/all
+  - Anti-duplicate
   ═══════════════════════════════════════════════════════════════════
 -->
 <html lang="ar" dir="rtl">
@@ -559,7 +572,7 @@ a{color:inherit;text-decoration:none}
       <div id="stk-stats-area">
         <!-- 🆕 v86: تقريرين - الجرد كله + جردك انت -->
         <div style="font-weight:700;font-size:12px;margin:14px 0 6px;color:var(--muted)">📊 الجلسة كلها (كل المستخدمين)</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px" id="stk-stats-grid">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px" id="stk-stats-grid">
           <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center">
             <div style="font-size:11px;color:var(--muted)">المعدود</div>
             <div style="font-size:18px;font-weight:800;color:var(--gold)" id="stk-stat-counted">0</div>
@@ -571,6 +584,11 @@ a{color:inherit;text-decoration:none}
           <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center" id="stk-stat-diff-card">
             <div style="font-size:11px;color:var(--muted)">فروقات</div>
             <div style="font-size:18px;font-weight:800;color:#fbbf24" id="stk-stat-diff">0</div>
+          </div>
+          <!-- 🆕 v92: stat جديد "فيه رصيد" -->
+          <div style="background:var(--elev);border-radius:10px;padding:10px;text-align:center" id="stk-stat-stock-card">
+            <div style="font-size:11px;color:var(--muted)">فيه رصيد</div>
+            <div style="font-size:18px;font-weight:800;color:#16a34a" id="stk-stat-stock">0</div>
           </div>
         </div>
         
@@ -602,10 +620,10 @@ a{color:inherit;text-decoration:none}
           </div>
         </div>
         
-        <!-- 🆕 v88: toggle filter بين "إنت عددت" و "الكل" -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px 0;gap:8px">
+        <!-- 🆕 v88: toggle filter بين "إنت عددت" و "الكل" + 🆕 v92: "محتاج جرد" -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px 0;gap:8px;flex-wrap:wrap">
           <div style="font-weight:700;font-size:13px" id="stk-recent-label">📋 إنت عددت:</div>
-          <div style="display:flex;gap:4px;background:var(--elev);border:1px solid var(--border);border-radius:8px;padding:2px">
+          <div style="display:flex;gap:4px;background:var(--elev);border:1px solid var(--border);border-radius:8px;padding:2px;flex-wrap:wrap">
             <button id="stk-filter-mine-btn" onclick="stkToggleRecentFilter('mine')" 
               style="border:none;background:#7c3aed;color:#fff;padding:6px 10px;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
               👤 جردي
@@ -613,6 +631,10 @@ a{color:inherit;text-decoration:none}
             <button id="stk-filter-all-btn" onclick="stkToggleRecentFilter('all')" 
               style="border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
               📊 الكل
+            </button>
+            <button id="stk-filter-pending-btn" onclick="stkToggleRecentFilter('pending')" 
+              style="border:none;background:transparent;color:var(--text);padding:6px 10px;border-radius:6px;font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+              ❌ محتاج جرد
             </button>
           </div>
         </div>
@@ -2994,6 +3016,10 @@ function renderStkActiveSession(){
   $('stk-stat-total').textContent = total;
   $('stk-stat-diff').textContent = differences;
   
+  // 🆕 v92: stat "فيه رصيد" - عدد المنتجات اللي عندها system_qty > 0
+  const withStock = items.filter(i => (parseInt(i.system_qty) || 0) > 0).length;
+  $('stk-stat-stock').textContent = withStock;
+  
   // 🆕 v86: Stats - اللي عددته الـ user الحالي
   // 🔧 v87: matching مرن - الـ stocktaker counted_by بـ يبقى USER.name (مش username)
   //         فبنـ collect كل الـ possible identifiers ونـ match لو counted_by يطابق أي منهم
@@ -3036,43 +3062,52 @@ function renderStkActiveSession(){
     }
   }
   
-  // 🆕 v65: blind mode - اخفي card الفروقات وخلي الـ grid 2 columns
+  // 🆕 v65: blind mode - اخفي card الفروقات
+  // 🆕 v92: مع stat جديد، الـ grid بقى 4 columns - في blind بنخليها 3 (بدون فروقات)
   const isBlind = s.show_system_qty !== true;
   const diffCard = $('stk-stat-diff-card');
+  const stockCard = $('stk-stat-stock-card');
   const statsGrid = $('stk-stats-grid');
   if(diffCard && statsGrid){
     if(isBlind){
       diffCard.style.display = 'none';
-      statsGrid.style.gridTemplateColumns = 'repeat(2,1fr)';
+      // في blind: المعدود + الإجمالي + فيه رصيد = 3 columns
+      statsGrid.style.gridTemplateColumns = 'repeat(3,1fr)';
     } else {
       diffCard.style.display = '';
-      statsGrid.style.gridTemplateColumns = 'repeat(3,1fr)';
+      // كامل: المعدود + الإجمالي + فروقات + فيه رصيد = 4 columns
+      statsGrid.style.gridTemplateColumns = 'repeat(4,1fr)';
     }
   }
   
   // 🆕 v88: Recent list - filter بـ mine/all
-  // الـ default = mine (الـ user يـ review اللي عمله هو)
-  // toggle لو حابب يشوف الكل
+  // 🆕 v92: + filter "pending" - منتجات عندها رصيد ولسه ما اتعدّتش
   const recentLabel = $('stk-recent-label');
   const filterMode = window._stkRecentFilter || 'mine';
   
   // update toggle buttons + label
   const btnMine = $('stk-filter-mine-btn');
   const btnAll = $('stk-filter-all-btn');
-  if(btnMine && btnAll){
-    if(filterMode === 'mine'){
-      btnMine.style.background = '#7c3aed';
-      btnMine.style.color = '#fff';
-      btnAll.style.background = 'transparent';
-      btnAll.style.color = 'var(--text)';
-      if(recentLabel) recentLabel.textContent = '📋 إنت عددت:';
-    } else {
-      btnAll.style.background = 'var(--gold)';
-      btnAll.style.color = '#000';
-      btnMine.style.background = 'transparent';
-      btnMine.style.color = 'var(--text)';
-      if(recentLabel) recentLabel.textContent = '📋 آخر العمليات (الكل):';
-    }
+  const btnPending = $('stk-filter-pending-btn');
+  
+  // reset all to inactive
+  [btnMine, btnAll, btnPending].forEach(b => {
+    if(b){ b.style.background = 'transparent'; b.style.color = 'var(--text)'; }
+  });
+  
+  // activate the current mode + set label
+  if(filterMode === 'mine' && btnMine){
+    btnMine.style.background = '#7c3aed';
+    btnMine.style.color = '#fff';
+    if(recentLabel) recentLabel.textContent = '📋 إنت عددت:';
+  } else if(filterMode === 'all' && btnAll){
+    btnAll.style.background = 'var(--gold)';
+    btnAll.style.color = '#000';
+    if(recentLabel) recentLabel.textContent = '📋 آخر العمليات (الكل):';
+  } else if(filterMode === 'pending' && btnPending){
+    btnPending.style.background = '#dc2626';
+    btnPending.style.color = '#fff';
+    if(recentLabel) recentLabel.textContent = '❌ محتاج جرد (فيه رصيد):';
   }
   
   // احسب my-contribution لكل item
@@ -3100,6 +3135,12 @@ function renderStkActiveSession(){
   let recentBase;
   if(filterMode === 'mine'){
     recentBase = items.filter(i => myContribByItem[i.id]);
+  } else if(filterMode === 'pending'){
+    // 🆕 v92: منتجات عندها رصيد + ما اتعدّتش لسه
+    recentBase = items.filter(i => 
+      (parseInt(i.system_qty) || 0) > 0 && 
+      (i.counted_at == null || i.counted_qty == null)
+    );
   } else {
     recentBase = items.filter(i => i.counted_at);
   }
@@ -3153,6 +3194,20 @@ function renderStkActiveSession(){
   
   const sorted = [...recentBase].sort((a, b) => {
     const sortBy = window._stkRecentSort || 'latest';
+    
+    // 🆕 v92: في pending mode، الـ sort بـ system_qty (لأن مفيش counted_at)
+    if(filterMode === 'pending'){
+      if(sortBy === 'title'){
+        return (a.product_title || '').localeCompare(b.product_title || '', 'ar');
+      }
+      // default للـ pending: أعلى رصيد أولاً (المهم في الأول)
+      // 'oldest' = أقل رصيد
+      const aStk = parseInt(a.system_qty) || 0;
+      const bStk = parseInt(b.system_qty) || 0;
+      if(sortBy === 'oldest') return aStk - bStk;
+      return bStk - aStk;  // latest + diff + default
+    }
+    
     if(sortBy === 'latest'){
       const aTime = filterMode === 'mine' ? myContribByItem[a.id]?.latestAt : new Date(a.counted_at);
       const bTime = filterMode === 'mine' ? myContribByItem[b.id]?.latestAt : new Date(b.counted_at);
@@ -3195,6 +3250,8 @@ function renderStkActiveSession(){
       emptyMsg = `مفيش نتائج للبحث "${escapeHtml(searchQuery)}"`;
     } else if(filterMode === 'mine'){
       emptyMsg = 'لسه ما عددتش أي منتج. ابدأ بمسح أو بحث.';
+    } else if(filterMode === 'pending'){
+      emptyMsg = '🎉 كل المنتجات اللي عندها رصيد اتعدّت!';
     } else {
       emptyMsg = 'لسه ما اتعملش scan لأي منتج';
     }
@@ -3213,21 +3270,38 @@ function renderStkActiveSession(){
     const myInfo = myContribByItem[i.id];
     const showMyMode = filterMode === 'mine' && myInfo;
     
+    // 🆕 v92: pending mode - منتج عنده رصيد ولسه ما اتعدّش
+    const isPending = filterMode === 'pending' && (i.counted_at == null || i.counted_qty == null);
+    
     // 🆕 v69: عدد العمليات على المنتج ده
     const totalEntriesCount = (i.entries || []).length;
     const displayCount = showMyMode ? myInfo.count : totalEntriesCount;
     const countLabel = showMyMode ? 'عملياتك' : 'عمليات';
     
-    // الكمية المعروضة: my-qty لو mine، أو counted_qty لو all
-    const displayQty = showMyMode ? myInfo.qty : i.counted_qty;
-    const qtyLabel = showMyMode ? 'عددت' : 'إجمالي';
-    const qtyColor = showMyMode ? '#7c3aed' : 'var(--gold)';
+    // الكمية المعروضة + label + color
+    let displayQty, qtyLabel, qtyColor, borderColor;
+    if(isPending){
+      displayQty = '—';
+      qtyLabel = 'لسه';
+      qtyColor = '#dc2626';
+      borderColor = '#fca5a544';  // red border للـ pending
+    } else if(showMyMode){
+      displayQty = myInfo.qty;
+      qtyLabel = 'عددت';
+      qtyColor = '#7c3aed';
+      borderColor = '#7c3aed44';
+    } else {
+      displayQty = i.counted_qty;
+      qtyLabel = 'إجمالي';
+      qtyColor = 'var(--gold)';
+      borderColor = 'var(--border)';
+    }
     
     return `
-      <div style="background:var(--elev);border:1px solid ${showMyMode ? '#7c3aed44' : 'var(--border)'};border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="stkOpenEditEntries(${i.id})" title="اضغط لعرض/تعديل عمليات العدّ">
+      <div style="background:var(--elev);border:1px solid ${borderColor};border-radius:10px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="${isPending ? `stkSelectFromSearch('${i.variant_id}')` : `stkOpenEditEntries(${i.id})`}" title="${isPending ? 'اضغط لتسجيل العدّ' : 'اضغط لعرض/تعديل عمليات العدّ'}">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(i.product_title || '')}</div>
-          <div style="font-size:10px;color:var(--muted)">${escapeHtml(i.sku || '—')}${displayCount > 1 ? ` · <span style="color:${qtyColor};font-weight:700">${displayCount} ${countLabel}</span>` : ''}</div>
+          <div style="font-size:10px;color:var(--muted)">${escapeHtml(i.sku || '—')}${displayCount > 1 ? ` · <span style="color:${qtyColor};font-weight:700">${displayCount} ${countLabel}</span>` : ''}${isPending ? ` · <span style="color:#dc2626;font-weight:700">⚠️ محتاج جرد</span>` : ''}</div>
         </div>
         <div style="text-align:center;flex-shrink:0">
           <div style="font-size:11px;color:var(--muted)">${qtyLabel}</div>
@@ -3240,11 +3314,11 @@ function renderStkActiveSession(){
           </div>
           <div style="text-align:center;flex-shrink:0;min-width:40px">
             <div style="font-size:11px;color:var(--muted)">فرق</div>
-            <div style="font-weight:800;font-size:14px;color:${diffColor}">${diffStr}</div>
+            <div style="font-weight:800;font-size:14px;color:${isPending ? '#dc2626' : diffColor}">${isPending ? `-${i.system_qty || 0}` : diffStr}</div>
           </div>
         `}
         <!-- 🆕 v69: زرار تعديل -->
-        <button onclick="event.stopPropagation();stkOpenEditEntries(${i.id})" style="flex-shrink:0;background:var(--bg);border:1px solid var(--border);color:var(--gold);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px" title="تعديل العمليات">📝</button>
+        <button onclick="event.stopPropagation();${isPending ? `stkSelectFromSearch('${i.variant_id}')` : `stkOpenEditEntries(${i.id})`}" style="flex-shrink:0;background:${isPending ? '#dc262611' : 'var(--bg)'};border:1px solid ${isPending ? '#dc262644' : 'var(--border)'};color:${isPending ? '#dc2626' : 'var(--gold)'};width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px" title="${isPending ? 'سجل العدّ' : 'تعديل العمليات'}">${isPending ? '➕' : '📝'}</button>
       </div>
     `;
   }).join('');
