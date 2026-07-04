@@ -1,6 +1,31 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v95 — CUSTOMER SOURCE Q (final wording) (2026-07-04)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ صيغة السؤال النهائية: «نوّرتنا 🙏 سؤال سريع — حضرتك قصدت كافيلاكس،
+     ولا لقيتنا وإنت بتلف في المول؟» + أزرار «🎯 قصدت كافيلاكس /
+     👀 لقيتكم وأنا بلف في المول». قيم النوت ثابتة (مخصوص/ماشي في المول).
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v94 — CUSTOMER SOURCE Q + PAYMENT IN NOTES (2026-07-04)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ في نهاية أي طلب (بعد تأكيد الدفع) بيظهر سؤال للكاشير يسأله للعميل:
+     «جيت مخصوص لكافيلاكس ولا بتتفسّح في المول؟» (زرّين + تخطّي).
+     الرد + طريقة الدفع بيتحطّوا في نوتس الطلب (sale.notes) اللي بيروح
+     لنوت الطلب في Shopify (الـ backend بيدمجه أصلاً — line note).
+     frontend فقط، آمن للجلسة الشغّالة. مبني على v93.
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v93 — CART COUNTS: أصناف + قطع (2026-07-04)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ عدّاد السلة بقى يوضّح إجمالي الأصناف + إجمالي القطع:
+     - في عنوان السلة: "— N صنف · M قطعة" بدل "(N)"
+     - وملخّص تحت السلة (تحت آخر منتج): كارت فيه إجمالي الأصناف
+       وإجمالي القطع.
+     - frontend فقط، آمن للجلسة الشغّالة. مبني على v92 اللي اترفع.
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v92 — STK PENDING FILTER + STOCK STAT (2026-06-05)
   ═══════════════════════════════════════════════════════════════════
   ✨ 2 إضافات على واجهة الجرد - frontend فقط، آمن للجلسة الشغّالة
@@ -5233,7 +5258,8 @@ function posRenderCart(){
   
   // update count
   if(countEl){
-    countEl.textContent = _posCart.length ? `(${_posCart.length})` : '';
+    const _pieces = _posCart.reduce((s,i)=>s + (parseInt(i.qty)||0), 0);
+    countEl.textContent = _posCart.length ? `— ${_posCart.length} صنف · ${_pieces} قطعة` : '';
   }
   
   // Mobile FAB update
@@ -5262,7 +5288,7 @@ function posRenderCart(){
     return;
   }
   
-  container.innerHTML = _posCart.map((item, idx) => {
+  const _cartItemsHtml = _posCart.map((item, idx) => {
     const hasOffer = item.originalPrice && item.originalPrice > item.unitPrice;
     const lineTotal = item.unitPrice * item.qty;
     
@@ -5315,7 +5341,16 @@ function posRenderCart(){
       </div>
     </div>
   `;}).join('');
-  
+
+  // 🆕 v93: ملخّص تحت السلة — إجمالي الأصناف والقطع
+  const _piecesTotal = _posCart.reduce((s,i)=>s + (parseInt(i.qty)||0), 0);
+  container.innerHTML = _cartItemsHtml + `
+    <div style="display:flex;justify-content:space-around;gap:10px;padding:12px;margin-top:8px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px">
+      <div style="text-align:center"><div style="color:#6b7280;font-size:11px">إجمالي الأصناف</div><div style="font-weight:800;font-size:18px;color:#111827">${_posCart.length}</div></div>
+      <div style="width:1px;background:#e5e7eb"></div>
+      <div style="text-align:center"><div style="color:#6b7280;font-size:11px">إجمالي القطع</div><div style="font-weight:800;font-size:18px;color:#111827">${_piecesTotal}</div></div>
+    </div>`;
+
   // 🆕 v34: امسح الـ flash بعد الـ animation
   if(_posLastAddedVariantId){
     setTimeout(() => {
@@ -6098,6 +6133,29 @@ function posCancelPin(){
 }
 
 // 🆕 v24: shared completion logic
+// 🆕 v94: سؤال مصدر العميل — الكاشير يسأله في نهاية الطلب، والرد يتحط في النوتس
+function posAskCustomerSource(){
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:22px;text-align:center;box-shadow:0 12px 50px rgba(0,0,0,.3)">
+      <div style="font-size:34px">🙏</div>
+      <div style="font-size:17px;font-weight:800;margin:10px 0 4px;color:#111827">مصدر العميل</div>
+      <div style="font-size:14px;color:#374151;margin-bottom:18px;line-height:1.7">اسأل العميل:<br><b>«نوّرتنا 🙏 سؤال سريع — حضرتك قصدت كافيلاكس، ولا لقيتنا وإنت بتلف في المول؟»</b></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button id="pcs-dedicated" style="padding:15px;border:none;border-radius:12px;background:#16a34a;color:#fff;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">🎯 قصدت كافيلاكس</button>
+        <button id="pcs-walkin" style="padding:15px;border:none;border-radius:12px;background:#f59e0b;color:#fff;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">👀 لقيتكم وأنا بلف في المول</button>
+        <button id="pcs-skip" style="padding:10px;border:none;border-radius:10px;background:transparent;color:#9ca3af;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer">تخطّي</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    const done = v => { try{ ov.remove(); }catch(e){} resolve(v); };
+    ov.querySelector('#pcs-dedicated').onclick = () => done('جاي مخصوص لكافيلاكس 🎯');
+    ov.querySelector('#pcs-walkin').onclick = () => done('ماشي في المول 🚶');
+    ov.querySelector('#pcs-skip').onclick = () => done(null);
+  });
+}
+
 async function posCompleteSale({ payments, total, subtotal, discount }){
   const methodNames = { cash: '💵 كاش', visa: '💳 فيزا', instapay: '📱 انستاباي' };
   
@@ -6112,6 +6170,12 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
   const confirmMsg = `💰 تأكيد البيع؟\n\nالإجمالي: ${total.toFixed(0)} ج\n${payMsg}${_posCustomer ? '\n\nالعميل: ' + _posCustomer.name : ''}${!_posIsOnline ? '\n\n🔴 Offline - هيتحفظ محلياً ويترفع لما النت يرجع' : ''}`;
   
   if(!confirm(confirmMsg)) return;
+
+  // 🆕 v94: سؤال مصدر العميل (الكاشير يسأله للعميل) + بناء النوتس (طريقة الدفع + المصدر)
+  const _custSource = await posAskCustomerSource();
+  const _noteParts = [payMsg]; // payMsg = "طريقة الدفع: ..."
+  if(_custSource) _noteParts.push(`مصدر العميل: ${_custSource}`);
+  const _saleNotes = _noteParts.join('\n');
   
   // ولّد client UUID
   const clientUuid = 'pos-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
@@ -6142,6 +6206,7 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     total,
     clientUuid,
     createdAt,
+    notes: _saleNotes, // 🆕 v94: طريقة الدفع + مصدر العميل → نوت الطلب في Shopify
     offlineCreated: !_posIsOnline
   };
   
