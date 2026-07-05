@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v96 — PARTIAL PICKUP (استلام جزئي) (2026-07-05)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ استلام جزئي لطلبات الاستلام من المحل: الكاشير يحدد الكمية المستلمة
+     لكل صنف (stepper)، الإجمالي المستلم بيتحدّث live، وبيوضّح كام قطعة
+     هترجع لترفيوم. التصفية بتحسب المستلم بس، والباقي بيترجّع لمخزن ترفيوم
+     تلقائياً (backend v337). الدفع (COD) = قيمة المستلم فقط.
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v95 — CUSTOMER SOURCE Q (final wording) (2026-07-04)
   ═══════════════════════════════════════════════════════════════════
   ✨ صيغة السؤال النهائية: «نوّرتنا 🙏 سؤال سريع — حضرتك قصدت كافيلاكس،
@@ -8697,20 +8705,29 @@ function pickupOpenDeliverModal(orderId){
     ? '<span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-right:6px">✅ مدفوع أونلاين</span>'
     : '<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;margin-right:6px">💰 الدفع عند الاستلام</span>';
   
-  // Items list
+  // Items list — 🆕 v96: استلام جزئي (stepper لكل صنف)
   let itemsHtml = '';
   try {
     let items = order.line_items;
     if(typeof items === 'string') items = JSON.parse(items);
     if(Array.isArray(items) && items.length){
-      itemsHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);max-height:160px;overflow-y:auto">' +
-        items.slice(0, 20).map(it => {
+      itemsHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);max-height:230px;overflow-y:auto">' +
+        items.map(it => {
+          const lid = String(it.id || it.line_item_id || '');
           const title = it.title || it.name || '—';
-          const qty = it.quantity || it.qty || 1;
+          const qty = parseInt(it.quantity || it.qty || 1) || 1;
+          const price = parseFloat(it.price || 0) || 0;
           const variant = it.variant_title || '';
-          return `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-            <div>${escapeHtml(title)}${variant ? ' · ' + escapeHtml(variant) : ''}</div>
-            <div style="color:var(--gold);font-family:Roboto,sans-serif">×${qty}</div>
+          return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;margin-bottom:8px">
+            <div style="flex:1;min-width:0">
+              <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(title)}${variant ? ' · ' + escapeHtml(variant) : ''}</div>
+              <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${price.toLocaleString()} ج × ${qty}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <span style="font-size:10px;color:var(--muted)">استلم</span>
+              <input type="number" class="pickup-qty" data-lid="${escapeHtml(lid)}" data-price="${price}" data-orig="${qty}" value="${qty}" min="0" max="${qty}" oninput="pickupRecalc()" style="width:52px;padding:5px;border:1px solid var(--border);border-radius:8px;text-align:center;background:var(--elev);color:var(--text);font-family:Roboto,sans-serif">
+              <span style="font-size:10px;color:var(--muted)">/${qty}</span>
+            </div>
           </div>`;
         }).join('') +
         '</div>';
@@ -8723,9 +8740,10 @@ function pickupOpenDeliverModal(orderId){
     <div style="font-size:12px;color:var(--muted);font-family:Roboto,sans-serif">📱 ${escapeHtml(order.phone || '—')}</div>
     <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
       <div>${paidLabel}</div>
-      <div style="font-weight:800;font-size:18px;color:var(--gold);font-family:Roboto,sans-serif">${(parseFloat(order.total) || 0).toLocaleString()} ج</div>
+      <div style="font-weight:800;font-size:18px;color:var(--gold);font-family:Roboto,sans-serif"><span id="pickup-picked-total">${(parseFloat(order.total) || 0).toLocaleString()}</span> ج</div>
     </div>
     ${itemsHtml}
+    <div id="pickup-return-note" style="display:none;margin-top:8px;font-size:11px;color:var(--warn);background:rgba(245,158,11,.12);border-radius:8px;padding:8px">↩️ هيترجع لمخزن ترفيوم: <span id="pickup-return-count" style="font-family:Roboto,sans-serif">0</span> قطعة</div>
   `;
   
   // Show payment section لو COD
@@ -8744,6 +8762,21 @@ function pickupOpenDeliverModal(orderId){
   // Show modal
   const modal = $('pickup-deliver-modal');
   modal.style.display = 'flex';
+}
+
+// 🆕 v96: إعادة حساب المستلم + المرتجع لترفيوم عند تغيير الكميات
+function pickupRecalc(){
+  let total = 0, returned = 0;
+  document.querySelectorAll('.pickup-qty').forEach(inp => {
+    const orig = parseInt(inp.dataset.orig) || 0;
+    let taken = parseInt(inp.value); if(isNaN(taken) || taken < 0) taken = 0; if(taken > orig) taken = orig;
+    const price = parseFloat(inp.dataset.price) || 0;
+    total += price * taken;
+    returned += (orig - taken);
+  });
+  const tEl = $('pickup-picked-total'); if(tEl) tEl.textContent = Math.round(total).toLocaleString();
+  const rn = $('pickup-return-note'), rc = $('pickup-return-count');
+  if(rn && rc){ rc.textContent = returned; rn.style.display = returned > 0 ? 'block' : 'none'; }
 }
 
 function pickupSetMethod(method){
@@ -8778,9 +8811,28 @@ async function pickupConfirmDeliver(){
   const order = _pickupSelectedOrder;
   const isPaid = order.paid === true;
   const notes = $('pickup-notes-input').value.trim();
-  
+
+  // 🆕 v96: اجمع الكميات المستلمة (استلام جزئي)
+  const pickedItems = []; let pickedTotal = 0; let returnedCount = 0;
+  document.querySelectorAll('.pickup-qty').forEach(inp => {
+    const orig = parseInt(inp.dataset.orig) || 0;
+    let taken = parseInt(inp.value); if(isNaN(taken) || taken < 0) taken = 0; if(taken > orig) taken = orig;
+    const price = parseFloat(inp.dataset.price) || 0;
+    pickedItems.push({ lineItemId: inp.dataset.lid, quantity: taken });
+    pickedTotal += price * taken;
+    returnedCount += (orig - taken);
+  });
+  const hasItems = pickedItems.length > 0;
+  const isPartial = returnedCount > 0;
+  if(hasItems && pickedTotal <= 0){
+    toast('❗ مفيش أصناف مستلمة — لو العميل مش هياخد حاجة الغِ الطلب', 'warning');
+    return;
+  }
+  if(isPartial && !confirm(`استلام جزئي: العميل هياخد بـ ${Math.round(pickedTotal).toLocaleString()} ج، و${returnedCount} قطعة هترجع لمخزن ترفيوم. تأكيد؟`)) return;
+
   const body = { notes: notes || null };
-  
+  if(hasItems) body.pickedItems = pickedItems; // 🆕 v96
+
   if(!isPaid){
     if(!_pickupSelectedMethod){
       toast('❗ اختار طريقة الدفع', 'warning');
@@ -8794,7 +8846,7 @@ async function pickupConfirmDeliver(){
     
     body.payments = [{
       method: _pickupSelectedMethod,
-      amount: parseFloat(order.total) || 0,
+      amount: hasItems ? Math.round(pickedTotal) : (parseFloat(order.total) || 0), // 🆕 v96: المستلم بس
       ref_number: refNumber || null
     }];
   }
