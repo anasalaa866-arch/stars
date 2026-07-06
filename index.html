@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v98 — TALABAT toggle label (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  🔧 v98: زرار وضع طلبات نصه بيتغيّر لـ "↩️ رجوع للوضع العادي" لما يكون
+     مفعّل، منعاً للّغبطة.
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v97 — TALABAT MODE (وضع طلبات) (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ زرار "🛵 وضع طلبات" في التوب بار: يفعّل تسعير بأسعار طلبات (المثبّت
+     أو سعر الموقع×1.15) لكل السلة + بانر واضح. المنتج المش مربوط يتسعّر
+     ×1.15 مع تنبيه. وقت الدفع اختيار: كاش من المندوب / آجل على طلبات.
+     الآجل بيتبعت بطريقة 'talabat_deferred' (مابيتحسبش في الدرج). الطلب
+     أوردر Shopify بمصدر طلبات (backend v346) ويخصم المخزون عادي.
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v96 — PARTIAL PICKUP (استلام جزئي) (2026-07-05)
   ═══════════════════════════════════════════════════════════════════
   ✨ استلام جزئي لطلبات الاستلام من المحل: الكاشير يحدد الكمية المستلمة
@@ -892,6 +907,7 @@ a{color:inherit;text-decoration:none}
         <span class="pos-online-pill online" id="pos-online-indicator">🟢 Online</span>
         <button class="pos-tb-btn" onclick="posOpenSalesHistory()" title="سجل البيعات">📋 السجل</button>
         <button class="pos-tb-btn" onclick="posOpenReturnsSearch()" title="إنشاء مرتجع" style="background:#fed7aa;color:#9a3412;border-color:#fdba74">↩️ مرتجع</button>
+        <button class="pos-tb-btn" id="pos-talabat-toggle" onclick="posToggleTalabat()" title="وضع طلبات — تسعير بأسعار طلبات">🛵 وضع طلبات</button>
         <button class="pos-tb-btn" onclick="posShowCloseShiftModal()" title="اقفل الشيفت" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🔒 قفل الشيفت</button>
         <button class="pos-tb-btn icon-only" onclick="posForceRefresh()" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
         <button class="pos-tb-btn icon-only" onclick="posOpenPrinterSettings()" id="pos-printer-btn" title="إعداد الطابعة">🖨️</button>
@@ -1010,6 +1026,7 @@ a{color:inherit;text-decoration:none}
         </div>
         
         <!-- Checkout buttons -->
+        <div id="pos-talabat-banner" style="display:none;margin:0 0 8px;padding:8px 12px;background:#f5a623;color:#fff;border-radius:10px;font-weight:800;font-size:13px;text-align:center">🛵 وضع طلبات مُفعّل — التسعير بأسعار طلبات</div>
         <div class="pos-cart-checkout">
           <button class="pos-pay-btn cash" id="pos-pay-cash" onclick="posCheckout('cash')">
             💵 كاش
@@ -4623,9 +4640,28 @@ function posUpdateOnlineIndicator(){
   }
 }
 
+// 🆕 v97: وضع طلبات (Talabat) — أسعار + تفعيل
+let _posTalabatMode = false;
+let _talabatPrices = {};       // variant_id -> سعر طلبات
+let _posTalabatDeferred = false;
+async function posLoadTalabatPrices(){
+  try {
+    const cached = await posDBGet('meta', 'talabatPrices');
+    if(cached?.value) _talabatPrices = cached.value;
+  } catch(e){}
+  if(_posIsOnline){
+    try {
+      const r = await apiFetch('/api/pos/talabat-prices');
+      _talabatPrices = (r && r.prices) || {};
+      await posDBPut('meta', { key:'talabatPrices', value:_talabatPrices, savedAt: Date.now() });
+    } catch(e){ console.warn('talabat prices:', e.message); }
+  }
+}
+
 // 🆕 v29: load active store offers
 async function posLoadOffers(){
   if(!_posStore || !_posStore.id) return;
+  posLoadTalabatPrices(); // 🆕 v97 (بالتوازي)
   
   // جرب من cache أولاً (لو offline)
   try {
@@ -5175,14 +5211,90 @@ function setupPosScanInput(){
   };
 }
 
+// 🆕 v97: احسب سعر المنتج حسب الوضع (طلبات / عادي) → {price, talabatUnlinked}
+function posComputeUnitPrice(product){
+  const orig = parseFloat(product.price) || 0;
+  if(_posTalabatMode){
+    const vid = String(product.variant_id);
+    if(_talabatPrices[vid] != null) return { price: _talabatPrices[vid], talabatUnlinked:false };
+    return { price: Math.ceil(orig * 1.15), talabatUnlinked:true }; // مش مربوط → ×1.15
+  }
+  const offer = posGetOfferForProduct(product.product_id, product.variant_id);
+  return { price: offer ? parseFloat(offer.offerPrice) : orig, offer, talabatUnlinked:false };
+}
+
+function posToggleTalabat(){
+  posSetTalabatMode(!_posTalabatMode);
+}
+function posSetTalabatMode(on){
+  _posTalabatMode = on;
+  // أعد تسعير السلة
+  _posCart.forEach(c => {
+    const p = _posCatalog.find(x => x.variant_id === c.variantId);
+    const orig = p ? (parseFloat(p.price)||0) : (c.originalPrice || c.unitPrice);
+    if(on){
+      const vid = String(c.variantId);
+      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : Math.ceil(orig*1.15);
+      c.offerId = null; c.offerName = null; c.originalPrice = null; // وضع طلبات يلغي العروض
+    } else {
+      const offer = p ? posGetOfferForProduct(p.product_id, p.variant_id) : null;
+      c.unitPrice = offer ? parseFloat(offer.offerPrice) : orig;
+      c.offerId = offer ? offer.offerId : null;
+      c.offerName = offer ? offer.offerName : null;
+      c.originalPrice = offer ? orig : null;
+    }
+  });
+  // UI
+  const btn = $('pos-talabat-toggle');
+  if(btn){
+    btn.style.background = on ? '#f5a623' : ''; btn.style.color = on ? '#fff' : ''; btn.style.borderColor = on ? '#f5a623' : '';
+    btn.textContent = on ? '↩️ رجوع للوضع العادي' : '🛵 وضع طلبات';   // 🆕 v98: النص يتغيّر منعاً للّغبطة
+    btn.title = on ? 'اضغط للرجوع لأسعار المحل العادية' : 'وضع طلبات — تسعير بأسعار طلبات';
+  }
+  const banner = $('pos-talabat-banner'); if(banner) banner.style.display = on ? 'block' : 'none';
+  posRenderCart();
+  if(typeof posRenderProducts === 'function') posRenderProducts();
+  toast(on ? '🛵 وضع طلبات مُفعّل' : '↩️ رجع للوضع العادي', on ? 'warning' : 'info');
+}
+
+// 🆕 v97: اختيار طريقة دفع طلب طلبات (كاش مندوب / آجل)
+function posOpenTalabatPay(){
+  const subtotal = posCalcSubtotal();
+  const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
+  const total = subtotal - discount;
+  const ov = document.createElement('div');
+  ov.id = '_talpay-ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;width:340px;max-width:92vw;text-align:center;font-family:Cairo,sans-serif">
+    <div style="font-size:18px;font-weight:800;margin-bottom:4px">🛵 طلب طلبات</div>
+    <div style="color:#6b7280;font-size:13px;margin-bottom:16px">الإجمالي: <b style="font-family:Roboto,sans-serif">${total.toLocaleString()}</b> ج</div>
+    <button onclick="posTalabatComplete('cash')" style="width:100%;padding:14px;margin-bottom:10px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">💵 كاش من المندوب</button>
+    <button onclick="posTalabatComplete('talabat_deferred')" style="width:100%;padding:14px;margin-bottom:10px;background:#f5a623;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">📆 آجل على طلبات</button>
+    <button onclick="document.getElementById('_talpay-ov').remove()" style="width:100%;padding:10px;background:transparent;color:#6b7280;border:none;font-family:inherit;font-size:13px;cursor:pointer">إلغاء</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+async function posTalabatComplete(payMethod){
+  const ov = $('_talpay-ov'); if(ov) ov.remove();
+  if(!_posCustomer) posSelectCustomer({ ...POS_DEFAULT_CUSTOMER }); // طلبات مش محتاج عميل حقيقي
+  _posTalabatDeferred = (payMethod === 'talabat_deferred');
+  const subtotal = posCalcSubtotal();
+  const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
+  const total = subtotal - discount;
+  await posCompleteSale({ payments: [{ method: payMethod, amount: total }], total, subtotal, discount });
+  _posTalabatDeferred = false;
+}
+
 function posAddToCart(variantId){
   const product = _posCatalog.find(p => p.variant_id === variantId);
   if(!product) return;
   
-  // 🆕 v29: شوف لو في offer للمنتج
-  const offer = posGetOfferForProduct(product.product_id, product.variant_id);
+  // 🆕 v97: تسعير حسب الوضع (طلبات / عادي)
+  const _pr = posComputeUnitPrice(product);
+  const offer = _posTalabatMode ? null : (_pr.offer || null);
   const originalPrice = parseFloat(product.price) || 0;
-  const finalPrice = offer ? parseFloat(offer.offerPrice) : originalPrice;
+  const finalPrice = _pr.price;
+  if(_pr.talabatUnlinked){ toast('⚠️ المنتج ده مش مضاف على طلبات — اتسعّر ×1.15', 'warning'); }
   
   // 🆕 v38: audit - track cart total قبل التعديل
   const cartTotalBefore = _auditCalcCartTotal();
@@ -5756,6 +5868,9 @@ async function posCheckout(method){
   if(!_posCart.length){ toast('❌ السلة فاضية'); return; }
   if(!_posStore){ toast('❌ مفيش محل محدد'); return; }
 
+  // 🆕 v97: وضع طلبات → اختيار كاش مندوب / آجل (بغض النظر عن الزرار المضغوط)
+  if(_posTalabatMode){ posOpenTalabatPay(); return; }
+
   // 🆕 v53: لو مفيش عميل، اطلب من الكاشير يحدد
   if(!_posCustomer){
     posOpenNoCustomerPrompt(method);
@@ -6165,7 +6280,7 @@ function posAskCustomerSource(){
 }
 
 async function posCompleteSale({ payments, total, subtotal, discount }){
-  const methodNames = { cash: '💵 كاش', visa: '💳 فيزا', instapay: '📱 انستاباي' };
+  const methodNames = { cash: '💵 كاش', visa: '💳 فيزا', instapay: '📱 انستاباي', talabat_deferred: '📆 آجل طلبات' };
   
   // build confirmation message
   let payMsg = '';
@@ -6180,8 +6295,10 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
   if(!confirm(confirmMsg)) return;
 
   // 🆕 v94: سؤال مصدر العميل (الكاشير يسأله للعميل) + بناء النوتس (طريقة الدفع + المصدر)
-  const _custSource = await posAskCustomerSource();
+  // 🆕 v97: في وضع طلبات مفيش سؤال مصدر (مفيش عميل walk-in)
+  const _custSource = _posTalabatMode ? null : await posAskCustomerSource();
   const _noteParts = [payMsg]; // payMsg = "طريقة الدفع: ..."
+  if(_posTalabatMode) _noteParts.unshift('🛵 طلب طلبات' + (_posTalabatDeferred ? ' (آجل — على حساب طلبات)' : ' (كاش من المندوب)'));
   if(_custSource) _noteParts.push(`مصدر العميل: ${_custSource}`);
   const _saleNotes = _noteParts.join('\n');
   
@@ -6215,6 +6332,8 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     clientUuid,
     createdAt,
     notes: _saleNotes, // 🆕 v94: طريقة الدفع + مصدر العميل → نوت الطلب في Shopify
+    talabat: _posTalabatMode || false,            // 🆕 v97: طلب طلبات
+    talabatDeferred: (_posTalabatMode && _posTalabatDeferred) || false,
     offlineCreated: !_posIsOnline
   };
   
