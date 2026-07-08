@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v99 — TALABAT order code (mandatory) (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ في وضع طلبات، لما الكاشير يضغط دفع لازم يدخّل "كود طلبات" (إجباري —
+     كاش وآجل). الكود بيظهر في نوت الأوردر: "كود طلبات: 12345".
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v98 — TALABAT toggle label (2026-07-07)
   ═══════════════════════════════════════════════════════════════════
   🔧 v98: زرار وضع طلبات نصه بيتغيّر لـ "↩️ رجوع للوضع العادي" لما يكون
@@ -4644,6 +4650,7 @@ function posUpdateOnlineIndicator(){
 let _posTalabatMode = false;
 let _talabatPrices = {};       // variant_id -> سعر طلبات
 let _posTalabatDeferred = false;
+let _posTalabatCode = '';   // 🆕 v99: كود الطلب على تطبيق طلبات
 async function posLoadTalabatPrices(){
   try {
     const cached = await posDBGet('meta', 'talabatPrices');
@@ -5267,14 +5274,28 @@ function posOpenTalabatPay(){
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center';
   ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;width:340px;max-width:92vw;text-align:center;font-family:Cairo,sans-serif">
     <div style="font-size:18px;font-weight:800;margin-bottom:4px">🛵 طلب طلبات</div>
-    <div style="color:#6b7280;font-size:13px;margin-bottom:16px">الإجمالي: <b style="font-family:Roboto,sans-serif">${total.toLocaleString()}</b> ج</div>
+    <div style="color:#6b7280;font-size:13px;margin-bottom:14px">الإجمالي: <b style="font-family:Roboto,sans-serif">${total.toLocaleString()}</b> ج</div>
+    <div style="text-align:right;font-size:12px;font-weight:700;color:#b45309;margin-bottom:4px">كود طلبات (إجباري)</div>
+    <input id="tal-order-code" type="text" inputmode="numeric" placeholder="رقم الطلب على تطبيق طلبات" oninput="$('tal-code-err').style.display='none'" style="width:100%;padding:12px;margin-bottom:4px;border:2px solid #f5a623;border-radius:12px;text-align:center;font-family:Roboto,sans-serif;font-size:16px;box-sizing:border-box">
+    <div id="tal-code-err" style="display:none;color:#dc2626;font-size:12px;margin-bottom:8px">⚠️ لازم تدخل كود طلبات</div>
+    <div style="height:8px"></div>
     <button onclick="posTalabatComplete('cash')" style="width:100%;padding:14px;margin-bottom:10px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">💵 كاش من المندوب</button>
     <button onclick="posTalabatComplete('talabat_deferred')" style="width:100%;padding:14px;margin-bottom:10px;background:#f5a623;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">📆 آجل على طلبات</button>
     <button onclick="document.getElementById('_talpay-ov').remove()" style="width:100%;padding:10px;background:transparent;color:#6b7280;border:none;font-family:inherit;font-size:13px;cursor:pointer">إلغاء</button>
   </div>`;
   document.body.appendChild(ov);
+  setTimeout(()=>{ const i=$('tal-order-code'); if(i) i.focus(); }, 100);
 }
 async function posTalabatComplete(payMethod){
+  // 🆕 v99: كود طلبات إجباري (كاش وآجل)
+  const codeInput = $('tal-order-code');
+  const code = codeInput ? codeInput.value.trim() : '';
+  if(!code){
+    const err = $('tal-code-err'); if(err) err.style.display='block';
+    if(codeInput) codeInput.focus();
+    return; // مايكملش من غير كود
+  }
+  _posTalabatCode = code;
   const ov = $('_talpay-ov'); if(ov) ov.remove();
   if(!_posCustomer) posSelectCustomer({ ...POS_DEFAULT_CUSTOMER }); // طلبات مش محتاج عميل حقيقي
   _posTalabatDeferred = (payMethod === 'talabat_deferred');
@@ -5283,6 +5304,7 @@ async function posTalabatComplete(payMethod){
   const total = subtotal - discount;
   await posCompleteSale({ payments: [{ method: payMethod, amount: total }], total, subtotal, discount });
   _posTalabatDeferred = false;
+  _posTalabatCode = '';
 }
 
 function posAddToCart(variantId){
@@ -6299,6 +6321,7 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
   const _custSource = _posTalabatMode ? null : await posAskCustomerSource();
   const _noteParts = [payMsg]; // payMsg = "طريقة الدفع: ..."
   if(_posTalabatMode) _noteParts.unshift('🛵 طلب طلبات' + (_posTalabatDeferred ? ' (آجل — على حساب طلبات)' : ' (كاش من المندوب)'));
+  if(_posTalabatMode && _posTalabatCode) _noteParts.unshift(`كود طلبات: ${_posTalabatCode}`); // 🆕 v99
   if(_custSource) _noteParts.push(`مصدر العميل: ${_custSource}`);
   const _saleNotes = _noteParts.join('\n');
   
