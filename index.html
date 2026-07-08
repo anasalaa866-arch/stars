@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v100 — TALABAT: mandatory customer before pay (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ في وضع طلبات، ضغط دفع بيجبر الكاشير يسجّل/يختار عميل الأول (نفس فلو
+     البحث/الإضافة الموجود) — طلبات بيدي اسم ورقم العميل. بعد اختيار العميل
+     بتفتح نافذة كود طلبات + الدفع. لو قفل بدون اختيار، الدفع بيتلغي.
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v99 — TALABAT order code (mandatory) (2026-07-07)
   ═══════════════════════════════════════════════════════════════════
   ✨ في وضع طلبات، لما الكاشير يضغط دفع لازم يدخّل "كود طلبات" (إجباري —
@@ -4651,6 +4658,7 @@ let _posTalabatMode = false;
 let _talabatPrices = {};       // variant_id -> سعر طلبات
 let _posTalabatDeferred = false;
 let _posTalabatCode = '';   // 🆕 v99: كود الطلب على تطبيق طلبات
+let _talabatPendingPay = false; // 🆕 v100: تسجيل العميل إجباري قبل دفع طلبات
 async function posLoadTalabatPrices(){
   try {
     const cached = await posDBGet('meta', 'talabatPrices');
@@ -5297,7 +5305,7 @@ async function posTalabatComplete(payMethod){
   }
   _posTalabatCode = code;
   const ov = $('_talpay-ov'); if(ov) ov.remove();
-  if(!_posCustomer) posSelectCustomer({ ...POS_DEFAULT_CUSTOMER }); // طلبات مش محتاج عميل حقيقي
+  // 🆕 v100: العميل اتسجّل إجبارياً قبل النافذة دي (مفيش fallback لعميل عام)
   _posTalabatDeferred = (payMethod === 'talabat_deferred');
   const subtotal = posCalcSubtotal();
   const discount = _posPromo ? parseFloat(_posPromo.discount) : 0;
@@ -5640,6 +5648,7 @@ function posOpenCustomer(){
 
 function posCloseCustomer(){
   $('pos-customer-modal').style.display = 'none';
+  _talabatPendingPay = false; // 🆕 v100: لو قفل من غير اختيار، الغِ دفع طلبات المعلّق
 }
 
 function posDebounceSearchCustomer(){
@@ -5735,12 +5744,17 @@ async function posSearchCustomer(){
 }
 
 function posSelectCustomer(customer){
+  const wasPending = _talabatPendingPay; // 🆕 v100: امسكه قبل ما posCloseCustomer يصفّره
   _posCustomer = customer;
   $('pos-customer-display').style.display = 'block';
   $('pos-customer-name').textContent = customer.name;
   $('pos-customer-phone').textContent = customer.phone;
   posCloseCustomer();
   toast('✅ تم اختيار العميل', 'success');
+  // 🆕 v100: لو كان تسجيل عميل قبل دفع طلبات → كمّل لنافذة الدفع
+  if(wasPending){
+    setTimeout(() => posOpenTalabatPay(), 200);
+  }
 }
 
 function posClearCustomer(){
@@ -5891,7 +5905,18 @@ async function posCheckout(method){
   if(!_posStore){ toast('❌ مفيش محل محدد'); return; }
 
   // 🆕 v97: وضع طلبات → اختيار كاش مندوب / آجل (بغض النظر عن الزرار المضغوط)
-  if(_posTalabatMode){ posOpenTalabatPay(); return; }
+  // 🆕 v100: تسجيل العميل إجباري الأول (طلبات بيدي اسم ورقم العميل)
+  if(_posTalabatMode){
+    const isReal = _posCustomer && _posCustomer.phone && _posCustomer.phone !== POS_DEFAULT_CUSTOMER.phone;
+    if(!isReal){
+      _talabatPendingPay = true;
+      toast('🛵 طلب طلبات — سجّل بيانات العميل (اسم ورقم من طلبات) الأول', 'warning');
+      posOpenCustomer();
+      return;
+    }
+    posOpenTalabatPay();
+    return;
+  }
 
   // 🆕 v53: لو مفيش عميل، اطلب من الكاشير يحدد
   if(!_posCustomer){
