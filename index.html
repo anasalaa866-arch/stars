@@ -1,6 +1,35 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v105 — TALABAT official orange #FF5A00 (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  🎨 v105: ثيم وضع طلبات بقى باللون الرسمي لطلبات #FF5A00 (بدل #f5a623).
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v104 — STOCKTAKE: open new session from Stars (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ حسابات الجرد تقدر تفتح جلسة جرد جديدة من ستارز (زرار "➕ فتح جرد جديد")
+     بأي نوع (كامل/جزئي/عشوائي/Template/Scan) + اختيار المخزن. blind دايماً.
+     الاعتماد والرفع لسه من OrderPro بس. backend v356.
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v103 — TALABAT orange theme (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ في وضع طلبات، الثيم كله بيتحول برتقالي (#FF5A00) + إطار برتقالي حوالين
+     الشاشة عشان يبقى ملحوظ جداً. أول ما يرجع للوضع العادي، يرجع طبيعي.
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v102 — TALABAT: auto-print 2 receipts (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ أوردرات طلبات (وضع طلبات) بتطبع نسختين متطابقتين تلقائياً — بنفس آلية
+     الطباعة الحالية (الحرارية أو المتصفح). الأوردرات العادية نسخة واحدة زي ما هي.
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v101 — TALABAT price = web/0.85 (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  🔧 v101: سعر طلبات للمنتج غير المربوط بقى ceil(السعر ÷ 0.85) بدل ×1.15.
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v100 — TALABAT: mandatory customer before pay (2026-07-07)
   ═══════════════════════════════════════════════════════════════════
   ✨ في وضع طلبات، ضغط دفع بيجبر الكاشير يسجّل/يختار عميل الأول (نفس فلو
@@ -158,6 +187,25 @@
   --shadow-card:0 2px 6px rgba(0,0,0,.06);
   --shadow-modal:0 8px 32px rgba(0,0,0,.18);
 }
+
+/* 🆕 v103: وضع طلبات — ثيم برتقالي واضح (يرجع طبيعي أول ما يطفّي) */
+body.talabat-active{
+  --bg:#FFEDE3;
+  --card:#FFF6F1;
+  --elev:#FFE6D9;
+  --border:#FFB48C;
+  --gold:#FF5A00;
+  --gold-dim:#CC4800;
+  --accent:#FF5A00;
+  --topbar-bg:rgba(255,237,213,.97);
+  --pos-bg:#FFF6F1;
+  --pos-border:#FFB48C;
+  --pos-input-bg:#FFF6F1;
+  --pos-tile-bg:#FFF6F1;
+  --pos-tile-text:#8A3100;
+  box-shadow: inset 0 0 0 4px #FF5A00;   /* إطار برتقالي حوالين الشاشة */
+}
+body.talabat-active .topbar{ border-bottom:2px solid #FF5A00; }
 
 /* 🆕 v36: Dark theme */
 :root.dark{
@@ -1039,7 +1087,7 @@ a{color:inherit;text-decoration:none}
         </div>
         
         <!-- Checkout buttons -->
-        <div id="pos-talabat-banner" style="display:none;margin:0 0 8px;padding:8px 12px;background:#f5a623;color:#fff;border-radius:10px;font-weight:800;font-size:13px;text-align:center">🛵 وضع طلبات مُفعّل — التسعير بأسعار طلبات</div>
+        <div id="pos-talabat-banner" style="display:none;margin:0 0 8px;padding:8px 12px;background:#FF5A00;color:#fff;border-radius:10px;font-weight:800;font-size:13px;text-align:center">🛵 وضع طلبات مُفعّل — التسعير بأسعار طلبات</div>
         <div class="pos-cart-checkout">
           <button class="pos-pay-btn cash" id="pos-pay-cash" onclick="posCheckout('cash')">
             💵 كاش
@@ -2859,6 +2907,154 @@ let _stkActiveItems = [];
 let _stkScanner = null;
 let _stkScanStream = null;
 
+// 🆕 v104: فتح جلسة جرد جديدة من ستارز (blind دايماً)
+function _stkNewBtnHtml(){
+  return `<button onclick="stkOpenNewModal()" style="width:100%;padding:14px;margin-bottom:14px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">➕ فتح جرد جديد</button>`;
+}
+let _stkNew = { mode:'full', warehouseId:'', count:50, templateId:'', products:[] };
+let _stkNewSearchTimer = null;
+async function stkOpenNewModal(){
+  _stkNew = { mode:'full', warehouseId:'', count:50, templateId:'', products:[] };
+  let whs = [];
+  try { const r = await apiFetch('/api/stocktake/warehouses'); whs = (r?.warehouses)||[]; } catch(e){}
+  const ov = document.createElement('div');
+  ov.id = '_stknew-ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px';
+  ov.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:16px;padding:20px;width:420px;max-width:94vw;font-family:Cairo,sans-serif;margin:auto">
+    <div style="font-size:18px;font-weight:800;margin-bottom:2px;color:var(--gold)">🔍 فتح جرد جديد</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px">الجرد دايماً <b>blind</b> (مش هتشوف الرصيد). الاعتماد والرفع من النظام (OrderPro).</div>
+
+    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">المخزن</label>
+    <select id="stknew-wh" onchange="_stkNew.warehouseId=this.value" style="width:100%;padding:11px;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Cairo,sans-serif">
+      <option value="">— اختار المخزن —</option>
+      ${whs.map(w=>`<option value="${w.id}">${escapeHtml(w.name)}</option>`).join('')}
+    </select>
+
+    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px">نوع الجرد</label>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px">
+      ${[['full','📦','كامل'],['partial','📋','جزئي'],['random','🎲','عشوائي'],['template','📑','Template'],['scan','📷','Scan']].map(([m,ic,lbl])=>
+        `<button id="stknew-mode-${m}" onclick="stkNewSetMode('${m}')" style="padding:8px 4px;border:2px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+          <div style="font-size:18px">${ic}</div>${lbl}</button>`).join('')}
+    </div>
+
+    <div id="stknew-extra" style="margin-bottom:12px"></div>
+
+    <div style="display:flex;gap:8px">
+      <button onclick="stkNewStart(this)" style="flex:1;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;cursor:pointer">✅ ابدأ الجرد</button>
+      <button onclick="document.getElementById('_stknew-ov').remove()" style="padding:13px 18px;background:var(--elev);color:var(--muted);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;cursor:pointer">إلغاء</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  stkNewSetMode('full');
+}
+function stkNewSetMode(m){
+  _stkNew.mode = m;
+  ['full','partial','random','template','scan'].forEach(x=>{
+    const b = $('stknew-mode-'+x); if(!b) return;
+    const on = x===m;
+    b.style.borderColor = on ? 'var(--gold)' : 'var(--border)';
+    b.style.background = on ? 'var(--gold)' : 'var(--elev)';
+    b.style.color = on ? '#000' : 'var(--text)';
+  });
+  const ex = $('stknew-extra'); if(!ex) return;
+  if(m==='random'){
+    ex.innerHTML = `<label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">عدد الأصناف العشوائية</label>
+      <input type="number" min="1" max="500" value="${_stkNew.count}" oninput="_stkNew.count=parseInt(this.value)||50" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Roboto,sans-serif;text-align:center">`;
+  } else if(m==='template'){
+    ex.innerHTML = `<div style="font-size:12px;color:var(--muted)">⏳ جاري تحميل القوالب...</div>`;
+    stkNewLoadTemplates();
+  } else if(m==='partial'){
+    ex.innerHTML = `<label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">اختار المنتجات</label>
+      <input type="text" id="stknew-psearch" placeholder="🔍 دوّر بالاسم/الباركود..." oninput="stkNewSearchProducts()" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Cairo,sans-serif;margin-bottom:6px">
+      <div id="stknew-presults" style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;display:none"></div>
+      <div id="stknew-pselected" style="margin-top:8px"></div>`;
+    stkNewRenderSelected();
+  } else {
+    ex.innerHTML = m==='scan'
+      ? `<div style="font-size:12px;color:var(--muted);background:var(--elev);border-radius:8px;padding:10px">📷 جلسة فاضية — هتضيف الأصناف بالـ scan.</div>`
+      : `<div style="font-size:12px;color:var(--muted);background:var(--elev);border-radius:8px;padding:10px">📦 هيتجرد كل أصناف المخزن.</div>`;
+  }
+}
+async function stkNewLoadTemplates(){
+  const ex = $('stknew-extra');
+  try {
+    const r = await apiFetch('/api/stocktake/templates');
+    const tpls = (r?.templates)||[];
+    if(!tpls.length){ ex.innerHTML = `<div style="font-size:12px;color:var(--muted)">مفيش قوالب — استخدم نوع تاني</div>`; return; }
+    ex.innerHTML = `<label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">القالب</label>
+      <select id="stknew-tpl" onchange="_stkNew.templateId=this.value" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Cairo,sans-serif">
+        <option value="">— اختار القالب —</option>
+        ${tpls.map(t=>`<option value="${t.id}">${escapeHtml(t.name)} (${t.items_count||0} صنف)</option>`).join('')}
+      </select>`;
+  } catch(e){ ex.innerHTML = `<div style="color:var(--danger);font-size:12px">❌ ${escapeHtml(e.message)}</div>`; }
+}
+function stkNewSearchProducts(){
+  clearTimeout(_stkNewSearchTimer);
+  const q = ($('stknew-psearch')?.value||'').trim();
+  const box = $('stknew-presults');
+  if(!_stkNew.warehouseId){ toast('اختار المخزن الأول','warning'); return; }
+  if(q.length<2){ if(box){ box.style.display='none'; } return; }
+  _stkNewSearchTimer = setTimeout(async ()=>{
+    try {
+      const r = await apiFetch(`/api/stocktake/product-search?warehouseId=${_stkNew.warehouseId}&q=${encodeURIComponent(q)}`);
+      const res = (r?.results)||[];
+      if(!box) return;
+      box.style.display = 'block';
+      box.innerHTML = res.length ? res.map(p=>`<div onclick='stkNewAddProduct(${JSON.stringify(p).replace(/'/g,"&#39;")})' style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px">
+        ${escapeHtml(p.product_title)}${p.variant_title&&p.variant_title!=='Default Title'?' · '+escapeHtml(p.variant_title):''}
+        <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${escapeHtml(p.barcode||p.sku||'')}</div>
+      </div>`).join('') : `<div style="padding:10px;color:var(--muted);font-size:11px">مفيش نتايج</div>`;
+    } catch(e){ if(box){ box.innerHTML=`<div style="padding:10px;color:var(--danger);font-size:11px">❌ ${escapeHtml(e.message)}</div>`; } }
+  }, 300);
+}
+function stkNewAddProduct(p){
+  if(!_stkNew.products.find(x=>x.variant_id===p.variant_id)) _stkNew.products.push(p);
+  const s=$('stknew-psearch'); if(s) s.value='';
+  const box=$('stknew-presults'); if(box) box.style.display='none';
+  stkNewRenderSelected();
+}
+function stkNewRemoveProduct(vid){ _stkNew.products=_stkNew.products.filter(x=>x.variant_id!==vid); stkNewRenderSelected(); }
+function stkNewRenderSelected(){
+  const el=$('stknew-pselected'); if(!el) return;
+  if(!_stkNew.products.length){ el.innerHTML=`<div style="font-size:11px;color:var(--muted)">لسه ماخترتش منتجات</div>`; return; }
+  el.innerHTML = `<div style="font-size:11px;font-weight:700;margin-bottom:4px">المختار (${_stkNew.products.length}):</div>` +
+    _stkNew.products.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;background:var(--elev);border-radius:8px;padding:6px 8px;margin-bottom:4px;font-size:12px">
+      <span>${escapeHtml(p.product_title)}</span>
+      <span onclick="stkNewRemoveProduct('${p.variant_id}')" style="color:var(--danger);cursor:pointer;font-weight:800">✕</span></div>`).join('');
+}
+async function stkNewStart(btn){
+  if(!_stkNew.warehouseId){ toast('اختار المخزن الأول','warning'); return; }
+  const m = _stkNew.mode;
+  if(m==='template' && !_stkNew.templateId){ toast('اختار القالب','warning'); return; }
+  if(m==='partial' && !_stkNew.products.length){ toast('اختار منتج واحد على الأقل','warning'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='⏳ جاري الفتح...'; }
+  try {
+    let newId = null;
+    if(m==='template'){
+      const r = await apiFetch('/api/stocktake/start-from-template','POST',{ templateId: _stkNew.templateId });
+      newId = r?.sessionId || r?.id;
+    } else if(m==='random'){
+      const pv = await apiFetch('/api/stocktake/random-preview','POST',{ warehouseId:_stkNew.warehouseId, count:_stkNew.count });
+      const vids = (pv?.items||[]).map(x=>x.variant_id).filter(Boolean);
+      if(!vids.length){ toast('مفيش أصناف عشوائية','warning'); throw new Error('no random items'); }
+      const r = await apiFetch('/api/stocktake/start','POST',{ warehouseId:_stkNew.warehouseId, mode:'partial', variantIds:vids });
+      newId = r?.sessionId || r?.id;
+    } else if(m==='partial'){
+      const r = await apiFetch('/api/stocktake/start','POST',{ warehouseId:_stkNew.warehouseId, mode:'partial', variantIds:_stkNew.products.map(p=>p.variant_id) });
+      newId = r?.sessionId || r?.id;
+    } else { // full / scan
+      const r = await apiFetch('/api/stocktake/start','POST',{ warehouseId:_stkNew.warehouseId, mode:m });
+      newId = r?.sessionId || r?.id;
+    }
+    document.getElementById('_stknew-ov')?.remove();
+    toast('✅ اتفتحت جلسة الجرد','success');
+    if(newId) openStkSession(newId); else loadStkSessions();
+  } catch(e){
+    toast('❌ '+e.message,'error');
+    if(btn){ btn.disabled=false; btn.textContent='✅ ابدأ الجرد'; }
+  }
+}
+
 async function loadStkSessions(){
   const container = $('stk-sessions-view');
   if(!container) return;
@@ -2878,16 +3074,17 @@ async function loadStkSessions(){
     
     if(!sessions.length){
       container.innerHTML = `
+        ${_stkNewBtnHtml()}
         <div style="text-align:center;padding:40px 20px;color:var(--muted)">
           <div style="font-size:64px;margin-bottom:14px;opacity:.4">🔍</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:6px">مفيش جلسات جرد نشطة</div>
-          <div style="font-size:12px">المدير لازم يبدأ جلسة جرد من النظام أولاً</div>
+          <div style="font-size:12px">اضغط "➕ فتح جرد جديد" فوق عشان تبدأ</div>
         </div>
       `;
       return;
     }
     
-    container.innerHTML = sessions.map(s => {
+    container.innerHTML = _stkNewBtnHtml() + sessions.map(s => {
       const total = parseInt(s.items_total) || 0;
       const counted = parseInt(s.items_counted) || 0;
       const progress = total > 0 ? Math.round(counted * 100 / total) : 0;
@@ -5232,7 +5429,7 @@ function posComputeUnitPrice(product){
   if(_posTalabatMode){
     const vid = String(product.variant_id);
     if(_talabatPrices[vid] != null) return { price: _talabatPrices[vid], talabatUnlinked:false };
-    return { price: Math.ceil(orig * 1.15), talabatUnlinked:true }; // مش مربوط → ×1.15
+    return { price: Math.ceil(orig / 0.85), talabatUnlinked:true }; // مش مربوط → ÷0.85
   }
   const offer = posGetOfferForProduct(product.product_id, product.variant_id);
   return { price: offer ? parseFloat(offer.offerPrice) : orig, offer, talabatUnlinked:false };
@@ -5249,7 +5446,7 @@ function posSetTalabatMode(on){
     const orig = p ? (parseFloat(p.price)||0) : (c.originalPrice || c.unitPrice);
     if(on){
       const vid = String(c.variantId);
-      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : Math.ceil(orig*1.15);
+      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : Math.ceil(orig/0.85);
       c.offerId = null; c.offerName = null; c.originalPrice = null; // وضع طلبات يلغي العروض
     } else {
       const offer = p ? posGetOfferForProduct(p.product_id, p.variant_id) : null;
@@ -5262,11 +5459,12 @@ function posSetTalabatMode(on){
   // UI
   const btn = $('pos-talabat-toggle');
   if(btn){
-    btn.style.background = on ? '#f5a623' : ''; btn.style.color = on ? '#fff' : ''; btn.style.borderColor = on ? '#f5a623' : '';
+    btn.style.background = on ? '#FF5A00' : ''; btn.style.color = on ? '#fff' : ''; btn.style.borderColor = on ? '#FF5A00' : '';
     btn.textContent = on ? '↩️ رجوع للوضع العادي' : '🛵 وضع طلبات';   // 🆕 v98: النص يتغيّر منعاً للّغبطة
     btn.title = on ? 'اضغط للرجوع لأسعار المحل العادية' : 'وضع طلبات — تسعير بأسعار طلبات';
   }
   const banner = $('pos-talabat-banner'); if(banner) banner.style.display = on ? 'block' : 'none';
+  document.body.classList.toggle('talabat-active', on); // 🆕 v103: ثيم برتقالي
   posRenderCart();
   if(typeof posRenderProducts === 'function') posRenderProducts();
   toast(on ? '🛵 وضع طلبات مُفعّل' : '↩️ رجع للوضع العادي', on ? 'warning' : 'info');
@@ -5284,11 +5482,11 @@ function posOpenTalabatPay(){
     <div style="font-size:18px;font-weight:800;margin-bottom:4px">🛵 طلب طلبات</div>
     <div style="color:#6b7280;font-size:13px;margin-bottom:14px">الإجمالي: <b style="font-family:Roboto,sans-serif">${total.toLocaleString()}</b> ج</div>
     <div style="text-align:right;font-size:12px;font-weight:700;color:#b45309;margin-bottom:4px">كود طلبات (إجباري)</div>
-    <input id="tal-order-code" type="text" inputmode="numeric" placeholder="رقم الطلب على تطبيق طلبات" oninput="$('tal-code-err').style.display='none'" style="width:100%;padding:12px;margin-bottom:4px;border:2px solid #f5a623;border-radius:12px;text-align:center;font-family:Roboto,sans-serif;font-size:16px;box-sizing:border-box">
+    <input id="tal-order-code" type="text" inputmode="numeric" placeholder="رقم الطلب على تطبيق طلبات" oninput="$('tal-code-err').style.display='none'" style="width:100%;padding:12px;margin-bottom:4px;border:2px solid #FF5A00;border-radius:12px;text-align:center;font-family:Roboto,sans-serif;font-size:16px;box-sizing:border-box">
     <div id="tal-code-err" style="display:none;color:#dc2626;font-size:12px;margin-bottom:8px">⚠️ لازم تدخل كود طلبات</div>
     <div style="height:8px"></div>
     <button onclick="posTalabatComplete('cash')" style="width:100%;padding:14px;margin-bottom:10px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">💵 كاش من المندوب</button>
-    <button onclick="posTalabatComplete('talabat_deferred')" style="width:100%;padding:14px;margin-bottom:10px;background:#f5a623;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">📆 آجل على طلبات</button>
+    <button onclick="posTalabatComplete('talabat_deferred')" style="width:100%;padding:14px;margin-bottom:10px;background:#FF5A00;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">📆 آجل على طلبات</button>
     <button onclick="document.getElementById('_talpay-ov').remove()" style="width:100%;padding:10px;background:transparent;color:#6b7280;border:none;font-family:inherit;font-size:13px;cursor:pointer">إلغاء</button>
   </div>`;
   document.body.appendChild(ov);
@@ -5324,7 +5522,7 @@ function posAddToCart(variantId){
   const offer = _posTalabatMode ? null : (_pr.offer || null);
   const originalPrice = parseFloat(product.price) || 0;
   const finalPrice = _pr.price;
-  if(_pr.talabatUnlinked){ toast('⚠️ المنتج ده مش مضاف على طلبات — اتسعّر ×1.15', 'warning'); }
+  if(_pr.talabatUnlinked){ toast('⚠️ المنتج ده مش مضاف على طلبات — اتسعّر ÷0.85', 'warning'); }
   
   // 🆕 v38: audit - track cart total قبل التعديل
   const cartTotalBefore = _auditCalcCartTotal();
@@ -6399,7 +6597,8 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     subtotal, discount, total, payments,
     customer: _posCustomer,
     promo: _posPromo,
-    isOffline: !_posIsOnline
+    isOffline: !_posIsOnline,
+    talabat: _posTalabatMode   // 🆕 v102: طلب طلبات → نسختين ريسيت
   });
   
   // 🆕 v38: audit log - بيع تم
@@ -7155,17 +7354,23 @@ async function posPrintReceipt(){
   const sale = window._posLastSale;
   if(!sale){ toast('❌ مفيش بيعة', 'error'); return; }
 
-  // 🆕 v35: Universal Printer - يجرب الـ active driver، fallback لمتصفح
-  toast('🖨️ جاري الطباعة...', 'info');
+  // 🆕 v102: طلب طلبات → نسختين متطابقتين
+  const _copies = sale.talabat ? 2 : 1;
+  toast(_copies>1 ? '🖨️ جاري طباعة نسختين...' : '🖨️ جاري الطباعة...', 'info');
 
   // جهز HTML للـ browser fallback
   const content = $('pos-receipt-content').innerHTML;
 
   try {
     if(typeof uprPrintReceipt === 'function'){
-      const ok = await uprPrintReceipt(sale, content);
+      let ok = false;
+      for(let c = 0; c < _copies; c++){
+        ok = await uprPrintReceipt(sale, content);
+        if(!ok) break;
+        if(c < _copies - 1) await new Promise(r => setTimeout(r, 900)); // فاصل بين النسختين
+      }
       if(ok){
-        toast('✅ تمت الطباعة', 'success');
+        toast(_copies>1 ? '✅ تمت الطباعة (نسختين)' : '✅ تمت الطباعة', 'success');
         if(sale.customer?.phone && _posIsOnline){
           setTimeout(() => posSendWhatsApp(), 2000);
         }
@@ -7192,7 +7397,7 @@ async function posPrintReceipt(){
       </style>
     </head>
     <body>
-      ${content}
+      ${_copies>1 ? (content + '<div style="page-break-before:always"></div>' + content) : content}
       <script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)}<\/script>
     </body>
     </html>
