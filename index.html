@@ -1,6 +1,33 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v109 — smart token search (any order) (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v109: البحث عن المنتجات بقى بمطابقة الكلمات بأي ترتيب (helper matchTokens)
+     في: بحث الكاشير + بحث الجرد + قايمة الجرد. "illy Intenso" تلاقي
+     "illy Espresso Intenso".
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v108 — settlement: show talabat deferred (record) (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v108: تصفية الكاشير بتعرض سطر "آجل طلبات (تدوين فقط)" — مبلغ آجل طلبات
+     مسجّل ومرئي بس مش داخل الدرج. كاش طلبات بيتحسب في الدرج عادي. backend v360.
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v107 — stocktake: show items to count (random/partial) (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  🔧 v107: في الجرد المحدّد (عشوائي/جزئي/template) اللي بيجرد كان مش شايف
+     الأصناف المطلوب عدّها. دلوقتي بيفتح على فلتر "لسه" اللي بيعرض كل
+     الأصناف المطلوبة غير المعدودة (بغض النظر عن الرصيد — blind).
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v106 — pickup split payment + WhatsApp ready msg (2026-07-07)
+  ═══════════════════════════════════════════════════════════════════
+  ✨ (1) استلام المحل بقى يقبل دفع مقسّم (كاش/فيزا/إنستاباي، المجموع=المطلوب)
+     زي الكاشير. (2) زرار واتساب على كل طلب pickup يبعت رسالة "الطلب جاهز"
+     عبر wa.me برقم العميل والرسالة جاهزة (رقم الطلب + قيمته).
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v105 — TALABAT official orange #FF5A00 (2026-07-07)
   ═══════════════════════════════════════════════════════════════════
   🎨 v105: ثيم وضع طلبات بقى باللون الرسمي لطلبات #FF5A00 (بدل #f5a623).
@@ -1517,28 +1544,37 @@ a{color:inherit;text-decoration:none}
         
         <!-- Payment section (لو COD) -->
         <div id="pickup-payment-section" style="display:none;margin-bottom:14px">
-          <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--gold)">💰 تسجيل الدفع</div>
-          
-          <!-- Payment method selector -->
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">
-            <button id="pickup-pm-cash" onclick="pickupSetMethod('cash')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-              💵 كاش
-            </button>
-            <button id="pickup-pm-visa" onclick="pickupSetMethod('visa')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-              💳 فيزا
-            </button>
-            <button id="pickup-pm-instapay" onclick="pickupSetMethod('instapay')" class="pickup-pm-btn" style="padding:14px 8px;background:var(--elev);color:var(--text);border:2px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-              📱 InstaPay
-            </button>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-weight:700;font-size:14px;color:var(--gold)">💰 تسجيل الدفع</div>
+            <div style="font-size:12px;color:var(--muted)">المطلوب: <b id="pickup-pay-target" style="color:var(--text);font-family:Roboto,sans-serif">0</b> ج</div>
           </div>
-          
-          <!-- Reference number (لـ visa/instapay) -->
-          <div id="pickup-ref-wrap" style="display:none;margin-bottom:10px">
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">رقم المرجع</label>
-            <input type="text" id="pickup-ref-input" placeholder="آخر 4 أرقام أو الرقم الكامل" 
-                   style="width:100%;padding:12px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;font-size:14px">
+
+          <!-- 🆕 v106: دفع مقسّم (زي الكاشير) -->
+          <div style="display:grid;gap:8px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:90px;font-size:13px;font-weight:700">💵 كاش</span>
+              <input type="number" id="pickup-amt-cash" min="0" step="any" placeholder="0" oninput="pickupRecalcSplit()" style="flex:1;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;text-align:center">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="width:90px;font-size:13px;font-weight:700">💳 فيزا</span>
+              <input type="number" id="pickup-amt-visa" min="0" step="any" placeholder="0" oninput="pickupRecalcSplit()" style="flex:1;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;text-align:center">
+              <input type="text" id="pickup-ref-visa" placeholder="مرجع فيزا" style="width:100%;padding:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;font-size:12px">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="width:90px;font-size:13px;font-weight:700">📱 InstaPay</span>
+              <input type="number" id="pickup-amt-instapay" min="0" step="any" placeholder="0" oninput="pickupRecalcSplit()" style="flex:1;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;text-align:center">
+              <input type="text" id="pickup-ref-instapay" placeholder="مرجع إنستاباي" style="width:100%;padding:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Roboto,sans-serif;font-size:12px">
+            </div>
           </div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <button type="button" onclick="pickupFillRemaining('cash')" style="flex:1;padding:8px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer">باقي كاش</button>
+            <button type="button" onclick="pickupFillRemaining('visa')" style="flex:1;padding:8px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer">باقي فيزا</button>
+            <button type="button" onclick="pickupFillRemaining('instapay')" style="flex:1;padding:8px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;cursor:pointer">باقي إنستا</button>
+          </div>
+          <div id="pickup-split-status" style="text-align:center;font-size:13px;font-weight:700;padding:8px;border-radius:8px;background:var(--elev)">المدفوع: 0 — متبقّي: 0</div>
         </div>
+        <!-- legacy hidden inputs (compat) -->
+        <input type="hidden" id="pickup-ref-input"><span id="pickup-ref-wrap" style="display:none"></span>
         
         <!-- Notes -->
         <div style="margin-bottom:14px">
@@ -2248,6 +2284,16 @@ let _activeFilter = 'all'; // 'all' | 'express' | 'late' | 'cod' | 'zone:الم�
 let _ordersSearchQuery = ''; // 🆕 v12: search query عام لكل tabs
 
 // 🆕 v12: normalize عربي/إنجليزي عشان البحث الـ accent-tolerant
+// 🆕 v109: بحث بمطابقة الكلمات بأي ترتيب — كل كلمة في البحث لازم تكون موجودة
+// (illy Intenso تلاقي "illy Espresso Intenso"). يتجاهل التشكيل/المسافات الزيادة.
+function matchTokens(haystack, query){
+  const h = String(haystack || '').toLowerCase();
+  if(!h) return false;
+  const toks = String(query || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if(!toks.length) return false;
+  return toks.every(t => h.includes(t));
+}
+
 function _normalizeText(s){
   if(!s) return '';
   return String(s)
@@ -3130,6 +3176,9 @@ async function openStkSession(sessionId){
     
     _stkActiveSession = r.session;
     _stkActiveItems = r.items || [];
+    // 🆕 v107: الجرد المحدّد (عشوائي/جزئي/template) → افتح على فلتر "لسه"
+    //          عشان اللي بيجرد يشوف قايمة الأصناف المطلوب عدّها فوراً
+    if((_stkActiveItems.length || 0) <= 300) window._stkRecentFilter = 'pending';
     
     $('stk-page-subtitle').textContent = r.session.title || '';
     
@@ -3168,11 +3217,8 @@ function stkSearchByName(query){
   
   // فلتر بالـ title + variant_title + sku
   const matches = _stkActiveItems.filter(it => {
-    const title = (it.product_title || '').toLowerCase();
-    const variant = (it.variant_title || '').toLowerCase();
-    const sku = (it.sku || '').toLowerCase();
-    const barcode = (it.barcode || '').toLowerCase();
-    return title.includes(query) || variant.includes(query) || sku.includes(query) || barcode.includes(query);
+    // 🆕 v109: مطابقة الكلمات بأي ترتيب
+    return matchTokens([it.product_title, it.variant_title, it.sku, it.barcode].join(' '), query);
   }).slice(0, 15);  // max 15 results
   
   if(!matches.length){
@@ -3396,9 +3442,11 @@ function renderStkActiveSession(){
   if(filterMode === 'mine'){
     recentBase = items.filter(i => myContribByItem[i.id]);
   } else if(filterMode === 'pending'){
-    // 🆕 v92: منتجات عندها رصيد + ما اتعدّتش لسه
+    // 🔧 v107: في الجرد المحدّد (عشوائي/جزئي/template — عدد صغير) اعرض كل غير المعدود
+    //          بغض النظر عن الرصيد؛ في الجرد الكامل اكتفِ باللي عنده رصيد.
+    const selective = items.length <= 300;
     recentBase = items.filter(i => 
-      (parseInt(i.system_qty) || 0) > 0 && 
+      (selective || (parseInt(i.system_qty) || 0) > 0) && 
       (i.counted_at == null || i.counted_qty == null)
     );
   } else {
@@ -3409,11 +3457,8 @@ function renderStkActiveSession(){
   const searchQuery = String(window._stkRecentSearch || '').trim().toLowerCase();
   if(searchQuery){
     recentBase = recentBase.filter(i => {
-      const t = (i.product_title || '').toLowerCase();
-      const v = (i.variant_title || '').toLowerCase();
-      const s = (i.sku || '').toLowerCase();
-      const b = (i.barcode || '').toLowerCase();
-      return t.includes(searchQuery) || v.includes(searchQuery) || s.includes(searchQuery) || b.includes(searchQuery);
+      // 🆕 v109: مطابقة الكلمات بأي ترتيب
+      return matchTokens([i.product_title, i.variant_title, i.sku, i.barcode].join(' '), searchQuery);
     });
   }
   
@@ -3511,7 +3556,7 @@ function renderStkActiveSession(){
     } else if(filterMode === 'mine'){
       emptyMsg = 'لسه ما عددتش أي منتج. ابدأ بمسح أو بحث.';
     } else if(filterMode === 'pending'){
-      emptyMsg = '🎉 كل المنتجات اللي عندها رصيد اتعدّت!';
+      emptyMsg = '🎉 كل الأصناف المطلوبة اتعدّت!';
     } else {
       emptyMsg = 'لسه ما اتعملش scan لأي منتج';
     }
@@ -5254,13 +5299,10 @@ function posRenderProducts(filter = ''){
   
   if(filter){
     isFiltered = true;
-    const f = filter.toLowerCase();
-    items = items.filter(p => 
-      (p.product_title||'').toLowerCase().includes(f) ||
-      (p.variant_title||'').toLowerCase().includes(f) ||
-      (p.sku||'').toLowerCase().includes(f) ||
-      (p.barcode||'').toLowerCase().includes(f)
-    );
+    // 🆕 v109: بحث بمطابقة الكلمات بأي ترتيب (illy Intenso تلاقي illy Espresso Intenso)
+    items = items.filter(p => matchTokens(
+      [p.product_title, p.variant_title, p.sku, p.barcode].join(' '), filter
+    ));
     if(sectionTitle) sectionTitle.textContent = `نتائج البحث (${items.length})`;
   } else {
     if(sectionTitle) sectionTitle.textContent = 'كل المنتجات';
@@ -9060,8 +9102,33 @@ function pickupRender(){
         <div style="font-size:11px;color:var(--muted)">${date}${itemsCount ? ' · ' + itemsCount + ' منتج' : ''}</div>
         <div style="font-weight:800;font-size:16px;color:var(--gold);font-family:Roboto,sans-serif">${(parseFloat(o.total) || 0).toLocaleString()} ج</div>
       </div>
+      <button onclick="event.stopPropagation();pickupSendWhatsApp(${JSON.stringify(o.id).replace(/"/g,'&quot;')})" ${o.phone ? '' : 'disabled'}
+              style="width:100%;margin-top:10px;padding:10px;background:${o.phone?'#25D366':'var(--border)'};color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;font-size:13px;cursor:${o.phone?'pointer':'not-allowed'};opacity:${o.phone?'1':'.5'}">
+        💬 إرسال "الطلب جاهز" واتساب
+      </button>
     </div>`;
   }).join('');
+}
+
+// 🆕 v106: رسالة "الطلب جاهز في المحل" عبر wa.me
+function pickupSendWhatsApp(orderId){
+  const o = _pickupOrdersCache.find(x => String(x.id) === String(orderId));
+  if(!o){ toast('❌ الطلب مش موجود'); return; }
+  let phone = String(o.phone||'').replace(/\D/g,'');
+  if(!phone){ toast('❗ الطلب مفيهوش رقم تليفون', 'warning'); return; }
+  if(phone.startsWith('0')) phone = '20' + phone.slice(1);        // 01xxxxxxxxx → 201xxxxxxxxx
+  else if(!phone.startsWith('20') && phone.length === 10) phone = '20' + phone; // 1xxxxxxxxx
+  const total = (parseFloat(o.total)||0).toLocaleString();
+  const msg = `السلام عليكم
+طلب حضرتك جاهز للاستلام في الفرع
+📍 فرع القاهرة الجديدة " افتتاح تجريبي"
+مول تريفيوم سكوير - الدور الارضي - محل LG20 - بجوار تاي هاوس
+مواعيد العمل : من 10 صباحا حتي 11 مساءً
+استلام الاوردر خلال 3 ايام فقط
+رقم الطلب: #${o.id}
+قيمة الطلب: ${total} ج
+اللوكيشن : https://maps.app.goo.gl/NzisfeFJCGSRtjsP9?g_st=ic`;
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function pickupOpenDeliverModal(orderId){
@@ -9120,9 +9187,8 @@ function pickupOpenDeliverModal(orderId){
   
   // Show payment section لو COD
   $('pickup-payment-section').style.display = isPaid ? 'none' : 'block';
-  $('pickup-ref-wrap').style.display = 'none';
-  $('pickup-ref-input').value = '';
   $('pickup-notes-input').value = '';
+  if(typeof pickupResetSplit === 'function') pickupResetSplit(); // 🆕 v106: صفّر الدفع المقسّم + اضبط الهدف
   
   // Reset payment buttons
   document.querySelectorAll('.pickup-pm-btn').forEach(b => {
@@ -9149,6 +9215,43 @@ function pickupRecalc(){
   const tEl = $('pickup-picked-total'); if(tEl) tEl.textContent = Math.round(total).toLocaleString();
   const rn = $('pickup-return-note'), rc = $('pickup-return-count');
   if(rn && rc){ rc.textContent = returned; rn.style.display = returned > 0 ? 'block' : 'none'; }
+  if(typeof pickupRecalcSplit === 'function') pickupRecalcSplit(); // 🆕 v106: حدّث هدف الدفع المقسّم
+}
+
+// 🆕 v106: دفع مقسّم لاستلام المحل (زي الكاشير)
+function pickupPayTarget(){
+  const order = _pickupSelectedOrder; if(!order) return 0;
+  let t = 0, hasQty = false;
+  document.querySelectorAll('.pickup-qty').forEach(inp => {
+    hasQty = true;
+    const orig = parseInt(inp.dataset.orig)||0;
+    let taken = parseInt(inp.value); if(isNaN(taken)||taken<0) taken=0; if(taken>orig) taken=orig;
+    t += (parseFloat(inp.dataset.price)||0) * taken;
+  });
+  return hasQty ? Math.round(t) : (parseFloat(order.total)||0);
+}
+function _pickupAmt(id){ const v = parseFloat(($(id)?.value)||''); return isNaN(v)?0:v; }
+function pickupSplitSum(){ return _pickupAmt('pickup-amt-cash') + _pickupAmt('pickup-amt-visa') + _pickupAmt('pickup-amt-instapay'); }
+function pickupRecalcSplit(){
+  const target = pickupPayTarget();
+  const sum = pickupSplitSum();
+  const remain = Math.round((target - sum)*100)/100;
+  const tEl = $('pickup-pay-target'); if(tEl) tEl.textContent = target.toLocaleString();
+  const st = $('pickup-split-status'); if(!st) return;
+  if(Math.abs(remain) < 0.01){ st.textContent = `✅ مظبوط: ${sum.toLocaleString()} ج`; st.style.background='rgba(22,163,74,.15)'; st.style.color='#16a34a'; }
+  else if(remain > 0){ st.textContent = `المدفوع: ${sum.toLocaleString()} — متبقّي: ${remain.toLocaleString()} ج`; st.style.background='var(--elev)'; st.style.color='var(--text)'; }
+  else { st.textContent = `⚠️ زيادة ${Math.abs(remain).toLocaleString()} ج`; st.style.background='rgba(220,38,38,.15)'; st.style.color='#dc2626'; }
+}
+function pickupFillRemaining(method){
+  const target = pickupPayTarget();
+  const others = pickupSplitSum() - _pickupAmt('pickup-amt-'+method);
+  const remain = Math.round((target - others)*100)/100;
+  const el = $('pickup-amt-'+method); if(el){ el.value = remain > 0 ? remain : 0; pickupRecalcSplit(); }
+}
+function pickupResetSplit(){
+  ['cash','visa','instapay'].forEach(m => { const a=$('pickup-amt-'+m); if(a) a.value=''; });
+  ['visa','instapay'].forEach(m => { const r=$('pickup-ref-'+m); if(r) r.value=''; });
+  pickupRecalcSplit();
 }
 
 function pickupSetMethod(method){
@@ -9206,21 +9309,25 @@ async function pickupConfirmDeliver(){
   if(hasItems) body.pickedItems = pickedItems; // 🆕 v96
 
   if(!isPaid){
-    if(!_pickupSelectedMethod){
-      toast('❗ اختار طريقة الدفع', 'warning');
+    // 🆕 v106: دفع مقسّم — اجمع الدفعات من الحقول الثلاثة
+    const target = hasItems ? Math.round(pickedTotal) : (parseFloat(order.total) || 0);
+    const parts = [
+      { method:'cash',     amount:_pickupAmt('pickup-amt-cash'),     ref:null },
+      { method:'visa',     amount:_pickupAmt('pickup-amt-visa'),     ref:($('pickup-ref-visa')?.value||'').trim()||null },
+      { method:'instapay', amount:_pickupAmt('pickup-amt-instapay'), ref:($('pickup-ref-instapay')?.value||'').trim()||null },
+    ].filter(p => p.amount > 0);
+    if(!parts.length){ toast('❗ سجّل الدفع الأول', 'warning'); return; }
+    const sum = parts.reduce((s,p)=>s+p.amount, 0);
+    if(Math.abs(sum - target) > 0.5){
+      toast(`❗ المدفوع (${sum.toLocaleString()}) لازم يساوي المطلوب (${target.toLocaleString()})`, 'warning');
       return;
     }
-    
-    const refNumber = $('pickup-ref-input').value.trim();
-    if((_pickupSelectedMethod === 'visa' || _pickupSelectedMethod === 'instapay') && !refNumber){
-      if(!confirm('مدخلتش رقم مرجع - متأكد؟')) return;
+    for(const p of parts){
+      if((p.method==='visa' || p.method==='instapay') && !p.ref){
+        if(!confirm(`مدخلتش رقم مرجع لـ ${p.method==='visa'?'فيزا':'إنستاباي'} — متأكد؟`)) return;
+      }
     }
-    
-    body.payments = [{
-      method: _pickupSelectedMethod,
-      amount: hasItems ? Math.round(pickedTotal) : (parseFloat(order.total) || 0), // 🆕 v96: المستلم بس
-      ref_number: refNumber || null
-    }];
+    body.payments = parts.map(p => ({ method:p.method, amount:p.amount, ref_number:p.ref }));
   }
   
   // Disable button
@@ -11311,6 +11418,7 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
           <tr><td style="padding:3px 0;color:var(--muted)">- سحوبات</td><td style="text-align:left;color:#ef4444;font-family:Roboto,sans-serif">-${cashOut.toFixed(0)} ج</td></tr>
           <tr style="border-top:1px solid var(--border)"><td style="padding:6px 0;font-weight:800;color:var(--gold)">= المفروض في الدرج</td><td style="text-align:left;font-weight:900;color:var(--gold);font-family:Roboto,sans-serif">${expectedCash.toFixed(0)} ج</td></tr>
         </table>
+        ${(drawer?.talabatDeferred?.total || 0) > 0 ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(255,90,0,.08);border:1px dashed #FF5A00;border-radius:8px;font-size:11px;color:#FF5A00">🛵 آجل طلبات (تدوين فقط — مش داخل الدرج): <b style="font-family:Roboto,sans-serif">${(drawer.talabatDeferred.total).toFixed(0)} ج</b>${drawer.talabatDeferred.count ? ` · ${drawer.talabatDeferred.count} طلب` : ''}</div>` : ''}
       </div>
     `;
     
