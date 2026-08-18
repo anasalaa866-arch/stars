@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v112 — 🧾 إيصال ESC/POS محسّن (2026-08-06)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v112: الإيصال الحراري اتساوى بتصميم receipt-preview: ترويسة
+     WE BRING YOU HAPPINESS + اسم الفرع، أعمدة مرتبة للبيع/الكاشير/
+     العميل، ITEMS، TOTAL مضاعف، Payment Methods بالمبالغ + Tendered/
+     Change، فوتر كامل (شكر + موقع + سوشيال) + QR أصلي بأمر الطابعة
+     (GS(k) على لينك التطبيق share.shopney.co. الكاشير إنجليزي بس —
+     العربي بيتفلتر (كان بيطلع رموز متكسرة).
+
+  ═══════════════════════════════════════════════════════════════════
+  Stars v111 — stocktake: "أصناف طلبات" mode (2026-07-11)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v111: نوع جرد جديد "🛵 أصناف طلبات" — بيجرد الأصناف المربوطة بطلبات
+     اللي مخزونها في المخزن > 0 (بيعرض العدد قبل البدء). blind زي المعتاد.
+     backend v364.
+
+  ═══════════════════════════════════════════════════════════════════
   Stars v110 — receipt: slogan + social + app QR + EN cashier (2026-07-11)
   ═══════════════════════════════════════════════════════════════════
   🎨 v110: (متبني على v109 الشغّالة — تعديلات دقيقة على الريسيت بس)
@@ -19,6 +36,12 @@
      "illy Espresso Intenso".
 
   ═══════════════════════════════════════════════════════════════════
+  Stars v113 — 🛵 نسبة طلبات من السيرفر + تحديث عند التفعيل (2026-08-18)
+  🆕 v113: (أ) شيل 0.85 المتحططة بالإيد من مكانين — المقسوم عليه بقى
+     بيجي مع /api/pos/talabat-prices (backend v437) ومتكيّش مع الأسعار.
+     (ب) تفعيل "وضع طلبات" بقى بيحدّث الأسعار من السيرفر الأول، وبينبّه
+     الكاشير لو النسبة اتغيّرت. قبل كده الأسعار كانت بتتحمّل مرة واحدة
+     وقت فتح الكاشير بس.
   Stars v108 — settlement: show talabat deferred (record) (2026-07-07)
   ═══════════════════════════════════════════════════════════════════
   🆕 v108: تصفية الكاشير بتعرض سطر "آجل طلبات (تدوين فقط)" — مبلغ آجل طلبات
@@ -2970,10 +2993,10 @@ let _stkScanStream = null;
 function _stkNewBtnHtml(){
   return `<button onclick="stkOpenNewModal()" style="width:100%;padding:14px;margin-bottom:14px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">➕ فتح جرد جديد</button>`;
 }
-let _stkNew = { mode:'full', warehouseId:'', count:50, templateId:'', products:[] };
+let _stkNew = { mode:'full', warehouseId:'', count:50, templateId:'', products:[], talabatIds:[] };
 let _stkNewSearchTimer = null;
 async function stkOpenNewModal(){
-  _stkNew = { mode:'full', warehouseId:'', count:50, templateId:'', products:[] };
+  _stkNew = { mode:'full', warehouseId:'', count:50, templateId:'', products:[], talabatIds:[] };
   let whs = [];
   try { const r = await apiFetch('/api/stocktake/warehouses'); whs = (r?.warehouses)||[]; } catch(e){}
   const ov = document.createElement('div');
@@ -2984,14 +3007,14 @@ async function stkOpenNewModal(){
     <div style="font-size:11px;color:var(--muted);margin-bottom:14px">الجرد دايماً <b>blind</b> (مش هتشوف الرصيد). الاعتماد والرفع من النظام (OrderPro).</div>
 
     <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">المخزن</label>
-    <select id="stknew-wh" onchange="_stkNew.warehouseId=this.value" style="width:100%;padding:11px;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Cairo,sans-serif">
+    <select id="stknew-wh" onchange="_stkNew.warehouseId=this.value; if(_stkNew.mode==='talabat') stkNewSetMode('talabat');" style="width:100%;padding:11px;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Cairo,sans-serif">
       <option value="">— اختار المخزن —</option>
       ${whs.map(w=>`<option value="${w.id}">${escapeHtml(w.name)}</option>`).join('')}
     </select>
 
     <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px">نوع الجرد</label>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px">
-      ${[['full','📦','كامل'],['partial','📋','جزئي'],['random','🎲','عشوائي'],['template','📑','Template'],['scan','📷','Scan']].map(([m,ic,lbl])=>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px">
+      ${[['full','📦','كامل'],['talabat','🛵','أصناف طلبات'],['partial','📋','جزئي'],['random','🎲','عشوائي'],['template','📑','Template'],['scan','📷','Scan']].map(([m,ic,lbl])=>
         `<button id="stknew-mode-${m}" onclick="stkNewSetMode('${m}')" style="padding:8px 4px;border:2px solid var(--border);border-radius:10px;background:var(--elev);color:var(--text);font-family:Cairo,sans-serif;font-size:11px;font-weight:700;cursor:pointer">
           <div style="font-size:18px">${ic}</div>${lbl}</button>`).join('')}
     </div>
@@ -3008,7 +3031,7 @@ async function stkOpenNewModal(){
 }
 function stkNewSetMode(m){
   _stkNew.mode = m;
-  ['full','partial','random','template','scan'].forEach(x=>{
+  ['full','talabat','partial','random','template','scan'].forEach(x=>{
     const b = $('stknew-mode-'+x); if(!b) return;
     const on = x===m;
     b.style.borderColor = on ? 'var(--gold)' : 'var(--border)';
@@ -3028,6 +3051,10 @@ function stkNewSetMode(m){
       <div id="stknew-presults" style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;display:none"></div>
       <div id="stknew-pselected" style="margin-top:8px"></div>`;
     stkNewRenderSelected();
+  } else if(m==='talabat'){
+    // 🆕 v111: أصناف طلبات النشطة (مربوطة بطلبات + مخزون > 0)
+    ex.innerHTML = `<div id="stknew-tal-info" style="font-size:12px;color:var(--muted);background:var(--elev);border-radius:8px;padding:10px">🛵 هيتجرد الأصناف المربوطة بطلبات اللي مخزونها في المخزن ده أكبر من صفر.<div style="margin-top:6px;font-weight:700;color:var(--text)">${_stkNew.warehouseId ? '⏳ جاري العد...' : 'اختار المخزن الأول'}</div></div>`;
+    if(_stkNew.warehouseId) stkNewCountTalabat();
   } else {
     ex.innerHTML = m==='scan'
       ? `<div style="font-size:12px;color:var(--muted);background:var(--elev);border-radius:8px;padding:10px">📷 جلسة فاضية — هتضيف الأصناف بالـ scan.</div>`
@@ -3081,11 +3108,25 @@ function stkNewRenderSelected(){
       <span>${escapeHtml(p.product_title)}</span>
       <span onclick="stkNewRemoveProduct('${p.variant_id}')" style="color:var(--danger);cursor:pointer;font-weight:800">✕</span></div>`).join('');
 }
+// 🆕 v111: عدّ أصناف طلبات النشطة قبل البدء
+async function stkNewCountTalabat(){
+  const box = $('stknew-tal-info'); if(!box) return;
+  try{
+    const r = await apiFetch(`/api/stocktake/talabat-items?warehouseId=${_stkNew.warehouseId}`);
+    const n = (r && r.count) || 0;
+    _stkNew.talabatIds = (r && r.variantIds) || [];
+    box.innerHTML = `🛵 الأصناف المربوطة بطلبات ومخزونها > 0 في المخزن ده:<div style="margin-top:6px;font-weight:800;color:var(--gold);font-size:15px">${n} صنف</div>`;
+  }catch(e){
+    box.innerHTML = `<span style="color:var(--danger)">❌ ${escapeHtml(e.message)}</span>`;
+  }
+}
+
 async function stkNewStart(btn){
   if(!_stkNew.warehouseId){ toast('اختار المخزن الأول','warning'); return; }
   const m = _stkNew.mode;
   if(m==='template' && !_stkNew.templateId){ toast('اختار القالب','warning'); return; }
   if(m==='partial' && !_stkNew.products.length){ toast('اختار منتج واحد على الأقل','warning'); return; }
+  if(m==='talabat' && !(_stkNew.talabatIds && _stkNew.talabatIds.length)){ toast('مفيش أصناف طلبات نشطة في المخزن ده','warning'); return; }
   if(btn){ btn.disabled=true; btn.textContent='⏳ جاري الفتح...'; }
   try {
     let newId = null;
@@ -3097,6 +3138,14 @@ async function stkNewStart(btn){
       const vids = (pv?.items||[]).map(x=>x.variant_id).filter(Boolean);
       if(!vids.length){ toast('مفيش أصناف عشوائية','warning'); throw new Error('no random items'); }
       const r = await apiFetch('/api/stocktake/start','POST',{ warehouseId:_stkNew.warehouseId, mode:'partial', variantIds:vids });
+      newId = r?.sessionId || r?.id;
+    } else if(m==='talabat'){
+      // 🆕 v111: جرد أصناف طلبات النشطة (partial بالـ variantIds بتوعها)
+      const r = await apiFetch('/api/stocktake/start','POST',{
+        warehouseId:_stkNew.warehouseId, mode:'partial',
+        variantIds:_stkNew.talabatIds,
+        title:'جرد أصناف طلبات - ' + new Date().toLocaleDateString('ar-EG')
+      });
       newId = r?.sessionId || r?.id;
     } else if(m==='partial'){
       const r = await apiFetch('/api/stocktake/start','POST',{ warehouseId:_stkNew.warehouseId, mode:'partial', variantIds:_stkNew.products.map(p=>p.variant_id) });
@@ -4913,6 +4962,11 @@ function posUpdateOnlineIndicator(){
 // 🆕 v97: وضع طلبات (Talabat) — أسعار + تفعيل
 let _posTalabatMode = false;
 let _talabatPrices = {};       // variant_id -> سعر طلبات
+// 🆕 v113: المقسوم عليه بيجي من السيرفر مش متحطّط بالإيد. كان 0.85 ثابتة
+//   في مكانين، فلو أنس غيّر النسبة في OrderPro كان المربوط يتحرّك والغير
+//   مربوط يفضل مكانه = أسعار متضاربة على نفس الشاشة.
+let _talDivisor = 0.85;
+function _posTalAuto(orig){ return Math.ceil((Number(orig)||0) / (_talDivisor || 0.85)); }
 let _posTalabatDeferred = false;
 let _posTalabatCode = '';   // 🆕 v99: كود الطلب على تطبيق طلبات
 let _talabatPendingPay = false; // 🆕 v100: تسجيل العميل إجباري قبل دفع طلبات
@@ -4920,14 +4974,18 @@ async function posLoadTalabatPrices(){
   try {
     const cached = await posDBGet('meta', 'talabatPrices');
     if(cached?.value) _talabatPrices = cached.value;
+    if(cached?.divisor) _talDivisor = Number(cached.divisor) || 0.85;
   } catch(e){}
   if(_posIsOnline){
     try {
       const r = await apiFetch('/api/pos/talabat-prices');
       _talabatPrices = (r && r.prices) || {};
-      await posDBPut('meta', { key:'talabatPrices', value:_talabatPrices, savedAt: Date.now() });
+      if(r && r.divisor) _talDivisor = Number(r.divisor) || 0.85;   // 🆕 v113
+      await posDBPut('meta', { key:'talabatPrices', value:_talabatPrices, divisor:_talDivisor, savedAt: Date.now() });
+      return true;
     } catch(e){ console.warn('talabat prices:', e.message); }
   }
+  return false;
 }
 
 // 🆕 v29: load active store offers
@@ -5486,14 +5544,31 @@ function posComputeUnitPrice(product){
   if(_posTalabatMode){
     const vid = String(product.variant_id);
     if(_talabatPrices[vid] != null) return { price: _talabatPrices[vid], talabatUnlinked:false };
-    return { price: Math.ceil(orig / 0.85), talabatUnlinked:true }; // مش مربوط → ÷0.85
+    return { price: _posTalAuto(orig), talabatUnlinked:true }; // 🔧 v113: بنسبة السيرفر
   }
   const offer = posGetOfferForProduct(product.product_id, product.variant_id);
   return { price: offer ? parseFloat(offer.offerPrice) : orig, offer, talabatUnlinked:false };
 }
 
-function posToggleTalabat(){
-  posSetTalabatMode(!_posTalabatMode);
+// 🆕 v113: قبل ما نفعّل وضع طلبات، هات آخر أسعار من السيرفر.
+//   الأسعار مكيّشة في IndexedDB وكانت بتتحمّل مرة واحدة بس وقت فتح
+//   الكاشير — يعني لو أنس غيّر النسبة والجهاز فاتح من الصبح، الكاشير
+//   يفضل بايع بالسعر القديم في صمت. الكاشير بيدوس الزرار ده قبل كل
+//   أوردر طلبات، فده أنسب وقت للتحديث.
+async function posToggleTalabat(){
+  const turningOn = !_posTalabatMode;
+  if(turningOn && _posIsOnline){
+    const btn = $('pos-talabat-toggle');
+    const label0 = btn ? btn.innerHTML : '';
+    if(btn){ btn.innerHTML = '⏳ بحدّث الأسعار...'; btn.disabled = true; }
+    const before = _talDivisor;
+    try{ await posLoadTalabatPrices(); }catch(e){}
+    if(btn){ btn.innerHTML = label0; btn.disabled = false; }
+    if(before !== _talDivisor){
+      try{ toast(`🛵 النسبة اتغيّرت — الأسعار دلوقتي بـ ${Math.round((1-_talDivisor)*100)}%`, 'warning'); }catch(e){}
+    }
+  }
+  posSetTalabatMode(turningOn);
 }
 function posSetTalabatMode(on){
   _posTalabatMode = on;
@@ -5503,7 +5578,7 @@ function posSetTalabatMode(on){
     const orig = p ? (parseFloat(p.price)||0) : (c.originalPrice || c.unitPrice);
     if(on){
       const vid = String(c.variantId);
-      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : Math.ceil(orig/0.85);
+      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : _posTalAuto(orig);  // 🔧 v113
       c.offerId = null; c.offerName = null; c.originalPrice = null; // وضع طلبات يلغي العروض
     } else {
       const offer = p ? posGetOfferForProduct(p.product_id, p.variant_id) : null;
@@ -8795,27 +8870,58 @@ function _uprCol(left, right){
   return lm + ' '.repeat(space) + rm + '\n';
 }
 
+// ═══ 🆕 v112: إيصال محسّن — تصميم receipt-preview على ESC/POS ═══
+const UPR_APP_QR_URL = 'https://share.shopney.co/QVJPz43iOX';   // نفس لينك QR التطبيق
+
+// اسم الكاشير للطباعة: إنجليزي بس — العربي بيطلع رموز متكسرة على الحرارية
+function _uprCashierEn(){
+  const en = String(window.cachedCourierNameEn || '').trim();
+  if(en) return en;
+  const raw = String(window.cachedCourierName || '').trim();
+  if(raw && !/[\u0600-\u06FF]/.test(raw)) return raw;   // لاتيني؟ استخدمه
+  return '';   // عربي من غير مقابل إنجليزي → نشيل السطر أحسن من رموز
+}
+
+// أوامر QR الأصلية (GS ( k) — الطابعة بترسم QR نضيف بنفسها
+function _uprQRCommands(text){
+  const d = String(text);
+  const store_pL = (d.length + 3) & 0xFF, store_pH = ((d.length + 3) >> 8) & 0xFF;
+  return (
+    _UGS + '(k' + '\x04\x00' + '1A' + '\x32\x00' +                    // موديل 2
+    _UGS + '(k' + '\x03\x00' + '1C' + '\x06' +                        // حجم النقطة 6
+    _UGS + '(k' + '\x03\x00' + '1E' + '\x31' +                        // تصحيح خطأ M
+    _UGS + '(k' + String.fromCharCode(store_pL, store_pH) + '1P0' + d + // خزّن البيانات
+    _UGS + '(k' + '\x03\x00' + '1Q0'                                  // اطبع
+  );
+}
+
 // Build receipt as raw ESC/POS commands (string) → returns Uint8Array
 function uprBuildReceiptBytes(data){
   const parts = [];
   const push = (s) => parts.push(_uprStrToBytes(s));
 
   const dt = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo' });
-  const methodNames = { cash: 'كاش / Cash', visa: 'فيزا / Visa', instapay: 'انستاباي / InstaPay' };
   const w = _uprCharsPerLine();
 
-  // Init
   push(UPR_CMD.INIT);
 
-  // Header
+  // ── الترويسة ──
   push(UPR_CMD.ALIGN_CENTER);
   push(UPR_CMD.DBL_BOTH);
   push('CAFELAX\n');
   push(UPR_CMD.NORMAL);
   push(UPR_CMD.BOLD_ON);
-  push((typeof _posStore !== 'undefined' && _posStore?.name) ? (_posStore.name + '\n') : '');
+  push('W E   B R I N G   Y O U\n');
+  push('H A P P I N E S S\n');
   push(UPR_CMD.BOLD_OFF);
+  const storeName = (typeof _posStore !== 'undefined' && _posStore?.name) ? _posStore.name : '';
+  if(storeName) push('CAFELAX - ' + storeName + '\n');
   push(dt + '\n');
+  if(data.isReprint){
+    push(UPR_CMD.BOLD_ON);
+    push('* REPRINT - DUPLICATE COPY *\n');
+    push(UPR_CMD.BOLD_OFF);
+  }
   if(data.isOffline){
     push(UPR_CMD.BOLD_ON);
     push('*** OFFLINE - PENDING ***\n');
@@ -8823,72 +8929,95 @@ function uprBuildReceiptBytes(data){
   }
   push(_uprDivider('='));
 
-  // Sale info
-  // 🔧 v37: شيلت العربي - الـ printer مش بيدعم UTF-8 وبيطلع رموز غريبة
+  // ── بيانات البيع ──
   push(UPR_CMD.ALIGN_LEFT);
-  push('Sale: ' + (data.saleNumber || '') + '\n');
-  push('Cashier: ' + (window.cachedCourierName || '') + '\n');
+  push(_uprCol('Sale No.', data.saleNumber || ''));
+  const cashier = _uprCashierEn();
+  if(cashier) push(_uprCol('Cashier', cashier));
   if(data.customer){
-    push('Customer: ' + (data.customer.name || '') + '\n');
-    if(data.customer.phone) push('Phone: ' + data.customer.phone + '\n');
+    if(data.customer.name)  push(_uprCol('Customer', String(data.customer.name).slice(0, w - 10)));
+    if(data.customer.phone) push(_uprCol('Phone', data.customer.phone));
   }
   push(_uprDivider('-'));
 
-  // Items
+  // ── الأصناف ──
+  push(UPR_CMD.ALIGN_CENTER);
+  push('I T E M S\n');
+  push(UPR_CMD.ALIGN_LEFT);
+  push(_uprDivider('-'));
   (data.items || []).forEach(it => {
-    const title = (it.productTitle || '') + (it.variantTitle ? ' ' + it.variantTitle : '');
+    const title = (it.productTitle || '') + (it.variantTitle && it.variantTitle !== 'Default Title' ? ' - ' + it.variantTitle : '');
     push(UPR_CMD.BOLD_ON);
     push(title.slice(0, w) + '\n');
     push(UPR_CMD.BOLD_OFF);
     const lineTotal = (it.qty * it.unitPrice).toFixed(0);
-    const left = `  ${it.qty} x ${parseFloat(it.unitPrice).toFixed(0)}`;
-    const right = lineTotal + ' EGP';
-    push(_uprCol(left, right));
+    push(_uprCol('  ' + it.qty + ' x ' + parseFloat(it.unitPrice).toFixed(0), 'EGP ' + lineTotal));
   });
   push(_uprDivider('-'));
 
-  // Totals
-  push(_uprCol('Subtotal:', (data.subtotal||0).toFixed(0) + ' EGP'));
+  // ── الإجماليات ──
+  push(_uprCol('Subtotal', 'EGP ' + (data.subtotal || 0).toFixed(0)));
   if(data.discount > 0){
-    const lbl = `Discount${data.promo ? ' ('+data.promo.code+')' : ''}`;
-    push(_uprCol(lbl + ':', '-' + data.discount.toFixed(0) + ' EGP'));
+    const lbl = 'Discount' + (data.promo ? ' (' + data.promo.code + ')' : '');
+    push(_uprCol(lbl, '-EGP ' + data.discount.toFixed(0)));
   }
   push(_uprDivider('='));
-  push(UPR_CMD.DBL_HEIGHT);
+  push(UPR_CMD.DBL_BOTH);
   push(UPR_CMD.BOLD_ON);
-  push(_uprCol('TOTAL:', (data.total||0).toFixed(0) + ' EGP'));
+  push(_uprCol2x('TOTAL', 'EGP ' + (data.total || 0).toFixed(0)));
   push(UPR_CMD.NORMAL);
   push(UPR_CMD.BOLD_OFF);
   push(_uprDivider('='));
 
-  // Payments
+  // ── طرق الدفع ──
   const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
-  // 🔧 v37: methodNames إنجليزي فقط للـ printer
   const methodNamesEn = {
     cash: 'Cash', card: 'Card', visa: 'Card',
     instapay: 'InstaPay', wallet: 'Wallet',
     transfer: 'Transfer', bank_transfer: 'Bank Transfer'
   };
-  if(pays.length === 1){
-    const m = pays[0].method;
-    push('Payment: ' + (methodNamesEn[m] || m) + '\n');
-  } else if(pays.length > 1){
-    push('Payments:\n');
+  if(pays.length){
+    push(UPR_CMD.BOLD_ON);
+    push('Payment Methods\n');
+    push(UPR_CMD.BOLD_OFF);
     pays.forEach(p => {
-      const left = '  ' + (methodNamesEn[p.method] || p.method) + ':';
-      const right = parseFloat(p.amount).toFixed(0) + ' EGP';
-      push(_uprCol(left, right));
+      push(_uprCol('  ' + (methodNamesEn[p.method] || p.method), 'EGP ' + parseFloat(p.amount).toFixed(0)));
+      if(p.method === 'cash' && p.tenderedAmount && parseFloat(p.tenderedAmount) > parseFloat(p.amount)){
+        push(_uprCol('    Tendered', 'EGP ' + parseFloat(p.tenderedAmount).toFixed(0)));
+        push(_uprCol('    Change', 'EGP ' + (parseFloat(p.tenderedAmount) - parseFloat(p.amount)).toFixed(0)));
+      }
     });
   }
-
   push('\n');
+
+  // ── الفوتر ──
   push(UPR_CMD.ALIGN_CENTER);
-  push('Thank you for visiting!\n');
-  push('See you again ;)\n');
+  push(UPR_CMD.BOLD_ON);
+  push('Thank you for your visit!\n');
+  push(UPR_CMD.BOLD_OFF);
+  push('We hope to see you again\n');
+  push('www.cafelax.com\n');
+  push('Instagram: @cafelaxstore\n');
+  push('TikTok: @cafelax\n');
+  push('\n');
+  push(_uprQRCommands(UPR_APP_QR_URL));
+  push('\n');
+  push(UPR_CMD.BOLD_ON);
+  push('DOWNLOAD OUR APP\n');
+  push(UPR_CMD.BOLD_OFF);
+  push('Scan to order faster\n');
+  push('& get exclusive offers!\n');
   push(UPR_CMD.FEED_3);
   push(UPR_CMD.CUT);
 
   return _uprConcatBytes(parts);
+}
+
+// عمودين على عرض مضاعف (TOTAL) — العرض الفعلي نص عدد الأحرف
+function _uprCol2x(left, right){
+  const w = Math.floor(_uprCharsPerLine() / 2);
+  const space = Math.max(1, w - left.length - right.length);
+  return left + ' '.repeat(space) + right + '\n';
 }
 
 // ────────────────────────────────────────────────────────────
