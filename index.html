@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v114 — 🔄 تحديث فوري لأسعار طلبات (2026-09-08)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v114: مراقب نسخة الأسعار — نداء خفيف (رقم واحد) كل دقيقة. أول ما
+     تتنشر أسعار طلبات جديدة الجهاز بيجيبها فوراً من غير ما يستنى
+     الكاشير يفعّل الوضع تاني. مفيش نت → بيفضل بايع بالأسعار القديمة
+     (البيع مايقفش) والبانر بيحذّر. السلة المفتوحة أسعارها مابتتغيرش.
+  🆕 v113: نسبة طلبات بتيجي من السيرفر بدل 0.85 المتحططة بالإيد في
+     مكانين، وتفعيل الوضع بيجيب الأسعار الأول، والبانر بيوضّح النسبة
+     ووقت آخر تحديث. backend v464.
+
   Stars v112 — 🧾 إيصال ESC/POS محسّن (2026-08-06)
   ═══════════════════════════════════════════════════════════════════
   🆕 v112: الإيصال الحراري اتساوى بتصميم receipt-preview: ترويسة
@@ -36,12 +46,6 @@
      "illy Espresso Intenso".
 
   ═══════════════════════════════════════════════════════════════════
-  Stars v113 — 🛵 نسبة طلبات من السيرفر + تحديث عند التفعيل (2026-08-18)
-  🆕 v113: (أ) شيل 0.85 المتحططة بالإيد من مكانين — المقسوم عليه بقى
-     بيجي مع /api/pos/talabat-prices (backend v437) ومتكيّش مع الأسعار.
-     (ب) تفعيل "وضع طلبات" بقى بيحدّث الأسعار من السيرفر الأول، وبينبّه
-     الكاشير لو النسبة اتغيّرت. قبل كده الأسعار كانت بتتحمّل مرة واحدة
-     وقت فتح الكاشير بس.
   Stars v108 — settlement: show talabat deferred (record) (2026-07-07)
   ═══════════════════════════════════════════════════════════════════
   🆕 v108: تصفية الكاشير بتعرض سطر "آجل طلبات (تدوين فقط)" — مبلغ آجل طلبات
@@ -4962,11 +4966,10 @@ function posUpdateOnlineIndicator(){
 // 🆕 v97: وضع طلبات (Talabat) — أسعار + تفعيل
 let _posTalabatMode = false;
 let _talabatPrices = {};       // variant_id -> سعر طلبات
-// 🆕 v113: المقسوم عليه بيجي من السيرفر مش متحطّط بالإيد. كان 0.85 ثابتة
-//   في مكانين، فلو أنس غيّر النسبة في OrderPro كان المربوط يتحرّك والغير
-//   مربوط يفضل مكانه = أسعار متضاربة على نفس الشاشة.
-let _talDivisor = 0.85;
-function _posTalAuto(orig){ return Math.ceil((Number(orig)||0) / (_talDivisor || 0.85)); }
+let _talabatDivisor = 0.85;    // 🆕 v113: بييجي من السيرفر (1 − النسبة) — مش ثابت تاني
+let _talabatPricesAt = 0;      // 🆕 v113: آخر مرة اتحدّثت الأسعار
+let _talabatPriceVer = null;   // 🆕 v114: رقم نسخة الأسعار من السيرفر
+let _talabatStale = false;     // 🆕 v114: النت مقطوع والأسعار ممكن تبقى قديمة
 let _posTalabatDeferred = false;
 let _posTalabatCode = '';   // 🆕 v99: كود الطلب على تطبيق طلبات
 let _talabatPendingPay = false; // 🆕 v100: تسجيل العميل إجباري قبل دفع طلبات
@@ -4974,19 +4977,44 @@ async function posLoadTalabatPrices(){
   try {
     const cached = await posDBGet('meta', 'talabatPrices');
     if(cached?.value) _talabatPrices = cached.value;
-    if(cached?.divisor) _talDivisor = Number(cached.divisor) || 0.85;
+    if(cached?.divisor != null) _talabatDivisor = cached.divisor;    // 🆕 v113
+    if(cached?.savedAt) _talabatPricesAt = cached.savedAt;
+    if(cached?.ver != null) _talabatPriceVer = String(cached.ver);   // 🆕 v114
   } catch(e){}
   if(_posIsOnline){
     try {
       const r = await apiFetch('/api/pos/talabat-prices');
       _talabatPrices = (r && r.prices) || {};
-      if(r && r.divisor) _talDivisor = Number(r.divisor) || 0.85;   // 🆕 v113
-      await posDBPut('meta', { key:'talabatPrices', value:_talabatPrices, divisor:_talDivisor, savedAt: Date.now() });
-      return true;
-    } catch(e){ console.warn('talabat prices:', e.message); }
+      if(r && r.divisor != null) _talabatDivisor = Number(r.divisor);
+      if(r && r.version != null) _talabatPriceVer = String(r.version);
+      _talabatPricesAt = Date.now(); _talabatStale = false;
+      await posDBPut('meta', { key:'talabatPrices', value:_talabatPrices, divisor:_talabatDivisor,
+                               savedAt:_talabatPricesAt, ver:_talabatPriceVer });
+    } catch(e){ _talabatStale = true; console.warn('talabat prices:', e.message); }
   }
-  return false;
 }
+
+// 🆕 v114: مراقب نسخة الأسعار — نداء خفيف (رقم واحد) كل دقيقة. أول ما
+//   تتنشر أسعار جديدة، الجهاز بيجيبها فوراً من غير ما يستنى تفعيل الوضع.
+//   مفيش نت → بيفضل بايع بالأسعار القديمة والبانر بيحذّر.
+async function posWatchTalabatPrices(){
+  if(!_posIsOnline){ _talabatStale = true; return; }
+  try{
+    const r = await apiFetch('/api/pos/talabat-price-version');
+    const v = r && r.version != null ? String(r.version) : null;
+    if(v == null) return;
+    if(_talabatPriceVer == null){ _talabatPriceVer = v; return; }
+    if(v !== _talabatPriceVer){
+      console.log('[v114] أسعار طلبات اتغيّرت:', _talabatPriceVer, '→', v);
+      await posLoadTalabatPrices();
+      if(_posTalabatMode){
+        posSetTalabatMode(true);
+        if(typeof toast === 'function') toast('🔄 أسعار طلبات اتحدّثت');
+      }
+    }
+  }catch(e){ _talabatStale = true; }
+}
+setInterval(posWatchTalabatPrices, 60 * 1000);
 
 // 🆕 v29: load active store offers
 async function posLoadOffers(){
@@ -5538,35 +5566,38 @@ function setupPosScanInput(){
   };
 }
 
+// 🆕 v113: سعر المنتج غير المربوط بيتحسب بنسبة السيرفر — كان 0.85
+//   متحططة بالإيد، فلما النسبة تتغيّر كان المربوط يتحرك والغير مربوط
+//   يفضل مكانه = أسعار متضاربة على نفس الشاشة.
+function _talFallbackPrice(orig){
+  const d = Number(_talabatDivisor);
+  if(!isFinite(d) || !(d > 0) || d > 1) return Math.ceil(orig / 0.85);
+  return Math.ceil(orig / d);
+}
+
 // 🆕 v97: احسب سعر المنتج حسب الوضع (طلبات / عادي) → {price, talabatUnlinked}
 function posComputeUnitPrice(product){
   const orig = parseFloat(product.price) || 0;
   if(_posTalabatMode){
     const vid = String(product.variant_id);
     if(_talabatPrices[vid] != null) return { price: _talabatPrices[vid], talabatUnlinked:false };
-    return { price: _posTalAuto(orig), talabatUnlinked:true }; // 🔧 v113: بنسبة السيرفر
+    return { price: _talFallbackPrice(orig), talabatUnlinked:true }; // مش مربوط → نسبة السيرفر
   }
   const offer = posGetOfferForProduct(product.product_id, product.variant_id);
   return { price: offer ? parseFloat(offer.offerPrice) : orig, offer, talabatUnlinked:false };
 }
 
-// 🆕 v113: قبل ما نفعّل وضع طلبات، هات آخر أسعار من السيرفر.
-//   الأسعار مكيّشة في IndexedDB وكانت بتتحمّل مرة واحدة بس وقت فتح
-//   الكاشير — يعني لو أنس غيّر النسبة والجهاز فاتح من الصبح، الكاشير
-//   يفضل بايع بالسعر القديم في صمت. الكاشير بيدوس الزرار ده قبل كل
-//   أوردر طلبات، فده أنسب وقت للتحديث.
+// 🆕 v113: تفعيل الوضع بيجيب الأسعار من السيرفر الأول — الجهاز الفاتح
+//   من الصبح كان بيفضل بايع بأسعار قديمة في صمت.
 async function posToggleTalabat(){
   const turningOn = !_posTalabatMode;
   if(turningOn && _posIsOnline){
-    const btn = $('pos-talabat-toggle');
-    const label0 = btn ? btn.innerHTML : '';
-    if(btn){ btn.innerHTML = '⏳ بحدّث الأسعار...'; btn.disabled = true; }
-    const before = _talDivisor;
-    try{ await posLoadTalabatPrices(); }catch(e){}
-    if(btn){ btn.innerHTML = label0; btn.disabled = false; }
-    if(before !== _talDivisor){
-      try{ toast(`🛵 النسبة اتغيّرت — الأسعار دلوقتي بـ ${Math.round((1-_talDivisor)*100)}%`, 'warning'); }catch(e){}
-    }
+    const btn = document.getElementById('pos-talabat-toggle');
+    const old = btn ? btn.innerHTML : '';
+    if(btn){ btn.innerHTML = '🛵 ⏳'; btn.disabled = true; }
+    try{ await posLoadTalabatPrices(); }
+    catch(e){ console.warn('talabat refresh:', e.message); }
+    finally{ if(btn){ btn.innerHTML = old; btn.disabled = false; } }
   }
   posSetTalabatMode(turningOn);
 }
@@ -5578,7 +5609,7 @@ function posSetTalabatMode(on){
     const orig = p ? (parseFloat(p.price)||0) : (c.originalPrice || c.unitPrice);
     if(on){
       const vid = String(c.variantId);
-      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : _posTalAuto(orig);  // 🔧 v113
+      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : _talFallbackPrice(orig);
       c.offerId = null; c.offerName = null; c.originalPrice = null; // وضع طلبات يلغي العروض
     } else {
       const offer = p ? posGetOfferForProduct(p.product_id, p.variant_id) : null;
@@ -5595,7 +5626,20 @@ function posSetTalabatMode(on){
     btn.textContent = on ? '↩️ رجوع للوضع العادي' : '🛵 وضع طلبات';   // 🆕 v98: النص يتغيّر منعاً للّغبطة
     btn.title = on ? 'اضغط للرجوع لأسعار المحل العادية' : 'وضع طلبات — تسعير بأسعار طلبات';
   }
-  const banner = $('pos-talabat-banner'); if(banner) banner.style.display = on ? 'block' : 'none';
+  const banner = $('pos-talabat-banner');
+  if(banner){
+    banner.style.display = on ? 'block' : 'none';
+    if(on){
+      // 🆕 v113/v114: النسبة الشغالة + وقت آخر تحديث + تحذير لو مفيش نت
+      const pct = Math.round((1 - _talabatDivisor) * 1000) / 10;
+      const mins = _talabatPricesAt ? Math.floor((Date.now() - _talabatPricesAt) / 60000) : null;
+      const age = mins == null ? 'مش محدّثة' : (mins < 1 ? 'محدّثة دلوقتي' : (mins < 60 ? `من ${mins} دقيقة` : `من ${Math.floor(mins/60)} ساعة`));
+      const stale = (mins != null && mins > 120) || _talabatStale;
+      banner.innerHTML = `🛵 وضع طلبات مُفعّل — التسعير بنسبة ${pct}% `
+        + `<span style="opacity:.85;font-weight:600">· الأسعار ${age}${stale ? ' ⚠️' : ''}</span>`
+        + (_talabatStale ? `<div style="font-size:11px;font-weight:700;margin-top:2px">⚠️ مفيش نت — الأسعار ممكن تكون قديمة</div>` : '');
+    }
+  }
   document.body.classList.toggle('talabat-active', on); // 🆕 v103: ثيم برتقالي
   posRenderCart();
   if(typeof posRenderProducts === 'function') posRenderProducts();
@@ -5654,7 +5698,7 @@ function posAddToCart(variantId){
   const offer = _posTalabatMode ? null : (_pr.offer || null);
   const originalPrice = parseFloat(product.price) || 0;
   const finalPrice = _pr.price;
-  if(_pr.talabatUnlinked){ toast('⚠️ المنتج ده مش مضاف على طلبات — اتسعّر ÷0.85', 'warning'); }
+  if(_pr.talabatUnlinked){ toast(`⚠️ المنتج ده مش مضاف على طلبات — اتسعّر بنسبة ${Math.round((1-_talabatDivisor)*1000)/10}%`, 'warning'); }
   
   // 🆕 v38: audit - track cart total قبل التعديل
   const cartTotalBefore = _auditCalcCartTotal();
