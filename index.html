@@ -1,14 +1,6 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
-  Stars v115 — ↩️ المرتجعات في تصفية المدير (2026-09-09)
-  ═══════════════════════════════════════════════════════════════════
-  🆕 v115: "التصفية الحالية" عند المدير بقت توري المرتجعات المخصومة
-     (كاش/فيزا/انستاباي) بدل ما الرقم ينزل من غير سبب ظاهر.
-  🚑 v115: "المتوقع في الدرج" كان بيطلع NaN — expected كائن
-     {cash,visa,instapay} والكود كان بيعمله parseFloat مباشرة.
-     backend v466.
-
   Stars v114 — 🔄 تحديث فوري لأسعار طلبات (2026-09-08)
   ═══════════════════════════════════════════════════════════════════
   🆕 v114: مراقب نسخة الأسعار — نداء خفيف (رقم واحد) كل دقيقة. أول ما
@@ -10176,7 +10168,7 @@ function smgrRenderCurrentSession(cashierId, cashierName, data){
           </div>
           <div>
             <div style="color:var(--muted)">المتوقع في الدرج</div>
-            <div style="font-weight:800;color:var(--gold);font-family:Roboto,sans-serif">${parseFloat((cd.expected&&typeof cd.expected==='object'?cd.expected.cash:cd.expected)||0).toFixed(0)} ج</div>
+            <div style="font-weight:800;color:var(--gold);font-family:Roboto,sans-serif">${parseFloat(cd.expected||0).toFixed(0)} ج</div>
           </div>
           ${parseFloat(cd.cashIn||0) > 0 ? `
             <div>
@@ -10188,24 +10180,6 @@ function smgrRenderCurrentSession(cashierId, cashierName, data){
             <div>
               <div style="color:var(--muted)">مسحوبات</div>
               <div style="font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">-${parseFloat(cd.cashOut).toFixed(0)} ج</div>
-            </div>
-          ` : ''}
-          ${parseFloat(cd.refunds?.cash||0) > 0 ? `
-            <div>
-              <div style="color:var(--muted)">مرتجعات كاش</div>
-              <div style="font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">-${parseFloat(cd.refunds.cash).toFixed(0)} ج</div>
-            </div>
-          ` : ''}
-          ${parseFloat(cd.refunds?.visa||0) > 0 ? `
-            <div>
-              <div style="color:var(--muted)">مرتجعات فيزا</div>
-              <div style="font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">-${parseFloat(cd.refunds.visa).toFixed(0)} ج</div>
-            </div>
-          ` : ''}
-          ${parseFloat(cd.refunds?.instapay||0) > 0 ? `
-            <div>
-              <div style="color:var(--muted)">مرتجعات انستاباي</div>
-              <div style="font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">-${parseFloat(cd.refunds.instapay).toFixed(0)} ج</div>
             </div>
           ` : ''}
         </div>
