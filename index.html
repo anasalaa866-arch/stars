@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v116 — 🛍️ رقم أوردر شوبيفاي في مبيعات الشيفت (2026-09-12)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v116: شاشة مبيعات الشيفت المستني (المجمّعة بطريقة الدفع) كانت
+     الوحيدة اللي مش بتعرض shopify_order_name — البيانات كانت راجعة
+     من الـ endpoint (s.*) والشاشة بتتجاهلها. بقى ظاهر تحت رقم البيعة،
+     ومعاه تنبيه أصفر للبيعة اللي لسه ماتزامنتش.
+
   Stars v115 — ↩️ المرتجعات في تصفية المدير (2026-09-09)
   ═══════════════════════════════════════════════════════════════════
   🆕 v115: "التصفية الحالية" عند المدير بقت توري المرتجعات المخصومة
@@ -12307,6 +12314,7 @@ async function smgrViewPendingSessionSales(cashierId, sessionId){
                       ${escapeHtml(sale.sale_number || '#' + sale.id)}
                       ${isPickup ? '<span style="font-size:9px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-right:4px">pickup</span>' : ''}
                     </div>
+                    ${sale.shopify_order_name ? `<div style="font-size:10px;color:#22c55e;font-weight:700;margin-top:2px;font-family:Roboto,sans-serif">🛍️ ${escapeHtml(sale.shopify_order_name)}</div>` : (sale.synced_to_shopify ? '' : `<div style="font-size:9px;color:#fbbf24;margin-top:2px">⏳ لسه ماتزامنش</div>`)}
                     <div style="font-size:10px;color:var(--muted);margin-top:2px">
                       ⏱️ ${time} · 👤 ${escapeHtml(sale.customer_name || 'عميل عام')}
                     </div>
