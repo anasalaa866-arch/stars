@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v117 — 🔔 تنبيه "اقفل على طلبات" عند بيع آخر قطعة (2026-09-17)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v117: بعد أي بيعة (محل أو طلبات)، لو صنف كان مرفوع مفتوح في آخر
+     شيت طلبات ومخزونه خلص، بيظهر بانر برتقالي ثابت بأسماء الأصناف
+     لحد ما الكاشير يقفله. backend v481.
+
   Stars v116 — 🛍️ رقم أوردر شوبيفاي في مبيعات الشيفت (2026-09-12)
   ═══════════════════════════════════════════════════════════════════
   🆕 v116: شاشة مبيعات الشيفت المستني (المجمّعة بطريقة الدفع) كانت
@@ -5009,6 +5015,26 @@ async function posLoadTalabatPrices(){
   }
 }
 
+// 🆕 v117: تنبيه "اقفل على طلبات" — بيفضل ظاهر لحد ما الكاشير يقفله
+//   بإيده، وبيتجمّع لو اتباع أكتر من صنف في أوردرات متتالية.
+let _talClosePending = [];
+function posShowTalabatClose(items){
+  for(const it of items){ if(!_talClosePending.some(x => x.variant_id === it.variant_id)) _talClosePending.push(it); }
+  let box = document.getElementById('pos-talabat-close');
+  if(!box){
+    box = document.createElement('div'); box.id = 'pos-talabat-close';
+    box.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9998;background:#7c2d12;color:#fff;border:2px solid #fb923c;border-radius:14px;padding:12px 16px;max-width:520px;width:calc(100% - 32px);box-shadow:0 8px 30px rgba(0,0,0,.5);font-family:Cairo,sans-serif';
+    document.body.appendChild(box);
+  }
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-weight:900;font-size:14px">🛵 اقفل على طلبات — آخر قطعة اتباعت</div>
+      <button onclick="document.getElementById('pos-talabat-close').remove();_talClosePending=[]" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div style="font-size:12px;opacity:.9;margin-bottom:6px">الأصناف دي لسه مفتوحة على طلبات ومخزونها خلص. بلّغ الأدمن يولّد شيت التحديث.</div>
+    <ul style="margin:0;padding-inline-start:18px;font-size:13px;font-weight:700">${_talClosePending.map(x => `<li>${escapeHtml(x.name)}</li>`).join('')}</ul>`;
+}
+
 // 🆕 v114: مراقب نسخة الأسعار — نداء خفيف (رقم واحد) كل دقيقة. أول ما
 //   تتنشر أسعار جديدة، الجهاز بيجيبها فوراً من غير ما يستنى تفعيل الوضع.
 //   مفيش نت → بيفضل بايع بالأسعار القديمة والبانر بيحذّر.
@@ -6833,6 +6859,10 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
         // 🆕 v41: poll عشان نجيب الـ Shopify order number
         if(result.saleId){
           pollShopifyOrderNumber(result.saleId, result.saleNumber);
+        }
+        // 🆕 v117: آخر قطعة من صنف مفتوح على طلبات اتباعت → نبّه
+        if(Array.isArray(result.talabatClose) && result.talabatClose.length){
+          posShowTalabatClose(result.talabatClose);
         }
       }
     }).catch(e => {
