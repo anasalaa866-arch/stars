@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v118 — 🧾 تسويات المدير في تصفية الكاشير (2026-09-19)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v118: صندوق "تسويات" في مودال تأكيد التصفية — بيان + مبلغ (±)
+     زي المناديب. المصروف من الدرج بالسالب، الداخل بالموجب. بتدخل في
+     الكاش المتوقع فوراً وبتتحفظ مع التصفية. backend v501.
+
   Stars v117 — 🔔 تنبيه "اقفل على طلبات" عند بيع آخر قطعة (2026-09-17)
   ═══════════════════════════════════════════════════════════════════
   🆕 v117: بعد أي بيعة (محل أو طلبات)، لو صنف كان مرفوع مفتوح في آخر
@@ -11561,6 +11567,7 @@ async function smgrSubmitCashMovement(cashierId, cashierName, direction){
 // ─── Settlement ───
 // 🆕 v64: entry point - يفحص لو في pending متعددة ويعرض selector
 async function smgrOpenSettlement(cashierId, cashierName){
+  _smgrAdj = [];   // 🆕 v118: تصفية جديدة = تسويات جديدة
   _smgrSelectedCashier = { id: cashierId, name: cashierName };
   
   $('smgr-settlement-content').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ جاري التحميل...</div>';
@@ -11625,6 +11632,7 @@ async function smgrOpenSettlement(cashierId, cashierName){
 
 // الـ logic الفعلية للـ settlement لـ session معينة (أو الأقدم لو null)
 async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
+  _smgrAdj = [];   // 🆕 v118: تصفية جديدة = تسويات جديدة
   _smgrSelectedCashier = { id: cashierId, name: cashierName, sessionId };
   
   // جيب الـ preview
@@ -11903,6 +11911,16 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
         </div>
       </div>
       
+      <!-- 🆕 v118: تسويات المدير — زي المناديب -->
+      <div style="background:var(--elev);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-weight:800;color:var(--gold);font-size:13px">🧾 تسويات (اختياري)</div>
+          <button onclick="smgrAdjAdd()" style="padding:4px 10px;background:var(--gold);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">➕ تسوية</button>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">مصروف اتدفع من الدرج = بالسالب (−). فلوس دخلت الدرج من غير بيع = بالموجب (+). بتتحسب في الكاش المتوقع.</div>
+        <div id="smgr-adj-list"></div>
+        <div id="smgr-adj-total" style="font-size:12px;font-weight:700;text-align:left;margin-top:4px;color:var(--muted)"></div>
+      </div>
       <textarea id="smgr-settlement-notes" placeholder="ملاحظات (اختياري)..." style="width:100%;padding:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;margin-bottom:14px;resize:vertical;min-height:60px"></textarea>
       
       <!-- 🆕 v78: زرار تفاصيل البيعات (نفس اللي في OrderPro) -->
@@ -11928,11 +11946,15 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
 
 // 🆕 v24: حساب الفروقات لكل طريقة
 function smgrUpdateAllDiffs(expectedCash, expectedVisa, expectedInstapay){
+  window._smgrExpected = { cash: expectedCash, visa: expectedVisa, instapay: expectedInstapay };
+  if($('smgr-adj-list') && !$('smgr-adj-list').innerHTML) smgrAdjRender();
   const cashCol = parseFloat($('smgr-cash-collected')?.value) || 0;
   const visaCol = parseFloat($('smgr-visa-collected')?.value) || 0;
   const instapayCol = parseFloat($('smgr-instapay-collected')?.value) || 0;
   
-  const cashDiff = cashCol - expectedCash;
+  // 🆕 v118: التسويات بتدخل في الكاش المتوقع (+ إضافة / − مصروف من الدرج)
+  const adjSum = smgrAdjSum();
+  const cashDiff = cashCol - (expectedCash + adjSum);
   const visaDiff = visaCol - expectedVisa;
   const instapayDiff = instapayCol - expectedInstapay;
   const totalDiff = cashDiff + visaDiff + instapayDiff;
@@ -11974,6 +11996,24 @@ function smgrCloseSettlement(){
   _smgrSelectedCashier = null;
 }
 
+// 🆕 v118: تسويات المدير
+let _smgrAdj = [];
+function smgrAdjSum(){ return _smgrAdj.reduce((a,x)=>a+(parseFloat(x.amount)||0),0); }
+function smgrAdjRender(){
+  const el = $('smgr-adj-list'); if(!el) return;
+  el.innerHTML = _smgrAdj.map((a,i)=>`
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <input value="${escapeHtml(a.label||'')}" placeholder="البيان (مثال: أجرة توصيل، شراء أكياس)" oninput="_smgrAdj[${i}].label=this.value"
+             style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:12px">
+      <input type="number" step="1" value="${a.amount??''}" placeholder="± مبلغ" oninput="_smgrAdj[${i}].amount=this.value;smgrAdjChanged()"
+             style="width:100px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Roboto,sans-serif;text-align:center;font-weight:700">
+      <button onclick="_smgrAdj.splice(${i},1);smgrAdjRender();smgrAdjChanged()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer">✕</button>
+    </div>`).join('');
+  const t = $('smgr-adj-total'); if(t){ const sum = smgrAdjSum(); t.textContent = _smgrAdj.length ? `مجموع التسويات: ${sum>0?'+':''}${sum.toFixed(0)} ج` : ''; }
+}
+function smgrAdjAdd(){ _smgrAdj.push({ label:'', amount:'' }); smgrAdjRender(); setTimeout(()=>{ const inputs=$('smgr-adj-list')?.querySelectorAll('input'); if(inputs?.length) inputs[inputs.length-2].focus(); },50); }
+function smgrAdjChanged(){ smgrAdjRender(); if(window._smgrExpected) smgrUpdateAllDiffs(window._smgrExpected.cash, window._smgrExpected.visa, window._smgrExpected.instapay); }
+
 async function smgrConfirmSettlement(){
   if(!_smgrSelectedCashier) return;
   
@@ -12001,7 +12041,8 @@ async function smgrConfirmSettlement(){
       cashCollected,
       visaCollected,
       instapayCollected,
-      notes
+      notes,
+      adj: _smgrAdj.filter(a => (a.label||'').trim() && parseFloat(a.amount))   // 🆕 v118
     });
     
     if(r?.success){
