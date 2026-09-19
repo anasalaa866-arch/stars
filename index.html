@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v120 — 💱 تغيير طريقة الدفع من شاشة التصفية (2026-09-19)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v120: في "تفاصيل البيعات" جوه مودال التصفية — جنب كل بيعة أزرار
+     💵 💳 📱 تحوّلها كلها للطريقة دي بضغطة، والمتوقع بيتحدّث فوراً.
+     التسويات اللي المدير كتبها بتفضل زي ما هي.
+
+  Stars v119 — 🔧 بند صيانة + التسويات بالطريقة (2026-09-19)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v119: زرار "🔧 صيانة" في الكاشير — بند بسعر مفتوح (منتج خدمة في
+     Shopify، SKU من OrderPro). بيتباع بأي طريقة دفع وبيدخل التصفية
+     وShopify وZoho كبند عادي.
+  🆕 v119: كل تسوية للمدير بتختار طريقتها (كاش / انستاباي / فيزا)
+     وبتدخل في المتوقع بتاع الطريقة دي. backend v503.
+
   Stars v118 — 🧾 تسويات المدير في تصفية الكاشير (2026-09-19)
   ═══════════════════════════════════════════════════════════════════
   🆕 v118: صندوق "تسويات" في مودال تأكيد التصفية — بيان + مبلغ (±)
@@ -1061,6 +1075,7 @@ a{color:inherit;text-decoration:none}
         <button class="pos-tb-btn" onclick="posOpenSalesHistory()" title="سجل البيعات">📋 السجل</button>
         <button class="pos-tb-btn" onclick="posOpenReturnsSearch()" title="إنشاء مرتجع" style="background:#fed7aa;color:#9a3412;border-color:#fdba74">↩️ مرتجع</button>
         <button class="pos-tb-btn" id="pos-talabat-toggle" onclick="posToggleTalabat()" title="وضع طلبات — تسعير بأسعار طلبات">🛵 وضع طلبات</button>
+        <button class="pos-tb-btn" onclick="posAddService()" title="بند صيانة مكن — السعر بتكتبه">🔧 صيانة</button>
         <button class="pos-tb-btn" onclick="posShowCloseShiftModal()" title="اقفل الشيفت" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🔒 قفل الشيفت</button>
         <button class="pos-tb-btn icon-only" onclick="posForceRefresh()" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
         <button class="pos-tb-btn icon-only" onclick="posOpenPrinterSettings()" id="pos-printer-btn" title="إعداد الطابعة">🖨️</button>
@@ -5062,6 +5077,7 @@ async function posWatchTalabatPrices(){
   }catch(e){ _talabatStale = true; }
 }
 setInterval(posWatchTalabatPrices, 60 * 1000);
+posLoadServiceSku(); setInterval(posLoadServiceSku, 10 * 60 * 1000);
 
 // 🆕 v29: load active store offers
 async function posLoadOffers(){
@@ -5734,6 +5750,33 @@ async function posTalabatComplete(payMethod){
   await posCompleteSale({ payments: [{ method: payMethod, amount: total }], total, subtotal, discount });
   _posTalabatDeferred = false;
   _posTalabatCode = '';
+}
+
+// 🆕 v119: بند صيانة مكن بسعر مفتوح — منتج خدمة في Shopify (SKU بيتحدد من
+//   OrderPro). بيدخل السلة بالسعر اللي الكاشير بيكتبه، ويتباع بأي طريقة دفع،
+//   ويتحسب في التصفية، ويروح Shopify وZoho كبند عادي (الفاتورة بتاخد الـ
+//   item بالـ SKU — عنصر خدمة في Zoho).
+let _posServiceSku = null;
+async function posLoadServiceSku(){
+  try { const r = await apiFetch('/api/pos/service-item'); _posServiceSku = r?.sku || null; } catch(e){}
+}
+function posAddService(){
+  if(!_posServiceSku){ toast('⚠️ بند الصيانة مش متظبط — من OrderPro › فريق POS › إعدادات', 'warning'); return; }
+  const product = _posCatalog.find(p => String(p.sku||'').split(',')[0].trim() === _posServiceSku);
+  if(!product){ toast(`⚠️ منتج الصيانة (SKU ${_posServiceSku}) مش في الكتالوج — اعمل مزامنة`, 'warning'); return; }
+  const v = prompt('🔧 صيانة مكن — المبلغ بالجنيه:', '');
+  if(v == null) return;
+  const amt = parseFloat(String(v).replace(/[^\d.]/g,''));
+  if(!(amt > 0)){ toast('❌ مبلغ غير صحيح', 'error'); return; }
+  const note = prompt('وصف الصيانة (اختياري — مثال: تنظيف ماكينة إسبريسو):', '') || '';
+  _posCart.push({
+    variantId: product.variant_id, productId: product.product_id,
+    productTitle: (product.product_title || 'صيانة مكن') + (note ? ' — ' + note.slice(0,60) : ''),
+    variantTitle: product.variant_title, sku: product.sku, barcode: product.barcode,
+    qty: 1, unitPrice: Math.round(amt*100)/100, originalPrice: null, offerId: null, offerName: null,
+    imageUrl: product.image_url, service: true
+  });
+  posRenderCart(); toast(`🔧 صيانة ${amt} ج اتضافت`, 'success');
 }
 
 function posAddToCart(variantId){
@@ -11917,7 +11960,7 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
           <div style="font-weight:800;color:var(--gold);font-size:13px">🧾 تسويات (اختياري)</div>
           <button onclick="smgrAdjAdd()" style="padding:4px 10px;background:var(--gold);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:pointer">➕ تسوية</button>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">مصروف اتدفع من الدرج = بالسالب (−). فلوس دخلت الدرج من غير بيع = بالموجب (+). بتتحسب في الكاش المتوقع.</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">مصروف اتدفع = بالسالب (−). فلوس دخلت من غير بيع = بالموجب (+). واختار الطريقة اللي اتأثرت (كاش / انستاباي / فيزا).</div>
         <div id="smgr-adj-list"></div>
         <div id="smgr-adj-total" style="font-size:12px;font-weight:700;text-align:left;margin-top:4px;color:var(--muted)"></div>
       </div>
@@ -11953,10 +11996,10 @@ function smgrUpdateAllDiffs(expectedCash, expectedVisa, expectedInstapay){
   const instapayCol = parseFloat($('smgr-instapay-collected')?.value) || 0;
   
   // 🆕 v118: التسويات بتدخل في الكاش المتوقع (+ إضافة / − مصروف من الدرج)
-  const adjSum = smgrAdjSum();
-  const cashDiff = cashCol - (expectedCash + adjSum);
-  const visaDiff = visaCol - expectedVisa;
-  const instapayDiff = instapayCol - expectedInstapay;
+  // 🆕 v119: كل تسوية على طريقتها (كاش / انستاباي / فيزا)
+  const cashDiff = cashCol - (expectedCash + smgrAdjSum('cash'));
+  const visaDiff = visaCol - (expectedVisa + smgrAdjSum('visa'));
+  const instapayDiff = instapayCol - (expectedInstapay + smgrAdjSum('instapay'));
   const totalDiff = cashDiff + visaDiff + instapayDiff;
   
   const formatDiff = (diff) => {
@@ -11998,7 +12041,7 @@ function smgrCloseSettlement(){
 
 // 🆕 v118: تسويات المدير
 let _smgrAdj = [];
-function smgrAdjSum(){ return _smgrAdj.reduce((a,x)=>a+(parseFloat(x.amount)||0),0); }
+function smgrAdjSum(method){ return _smgrAdj.filter(x => (x.method||'cash') === (method||'cash')).reduce((a,x)=>a+(parseFloat(x.amount)||0),0); }
 function smgrAdjRender(){
   const el = $('smgr-adj-list'); if(!el) return;
   el.innerHTML = _smgrAdj.map((a,i)=>`
@@ -12006,12 +12049,15 @@ function smgrAdjRender(){
       <input value="${escapeHtml(a.label||'')}" placeholder="البيان (مثال: أجرة توصيل، شراء أكياس)" oninput="_smgrAdj[${i}].label=this.value"
              style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:12px">
       <input type="number" step="1" value="${a.amount??''}" placeholder="± مبلغ" oninput="_smgrAdj[${i}].amount=this.value;smgrAdjChanged()"
-             style="width:100px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Roboto,sans-serif;text-align:center;font-weight:700">
+             style="width:90px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Roboto,sans-serif;text-align:center;font-weight:700">
+      <select onchange="_smgrAdj[${i}].method=this.value;smgrAdjChanged()" style="padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:11px">
+        <option value="cash" ${(a.method||'cash')==='cash'?'selected':''}>💵 كاش</option><option value="instapay" ${a.method==='instapay'?'selected':''}>📱 انستا</option><option value="visa" ${a.method==='visa'?'selected':''}>💳 فيزا</option></select>
       <button onclick="_smgrAdj.splice(${i},1);smgrAdjRender();smgrAdjChanged()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer">✕</button>
     </div>`).join('');
-  const t = $('smgr-adj-total'); if(t){ const sum = smgrAdjSum(); t.textContent = _smgrAdj.length ? `مجموع التسويات: ${sum>0?'+':''}${sum.toFixed(0)} ج` : ''; }
+  const t = $('smgr-adj-total'); if(t){ const c=smgrAdjSum('cash'), i=smgrAdjSum('instapay'), v=smgrAdjSum('visa'); const f=n=>(n>0?'+':'')+n.toFixed(0);
+    t.textContent = _smgrAdj.length ? `التسويات: كاش ${f(c)} · انستا ${f(i)} · فيزا ${f(v)}` : ''; }
 }
-function smgrAdjAdd(){ _smgrAdj.push({ label:'', amount:'' }); smgrAdjRender(); setTimeout(()=>{ const inputs=$('smgr-adj-list')?.querySelectorAll('input'); if(inputs?.length) inputs[inputs.length-2].focus(); },50); }
+function smgrAdjAdd(){ _smgrAdj.push({ label:'', amount:'', method:'cash' }); smgrAdjRender(); setTimeout(()=>{ const inputs=$('smgr-adj-list')?.querySelectorAll('input'); if(inputs?.length) inputs[inputs.length-2].focus(); },50); }
 function smgrAdjChanged(){ smgrAdjRender(); if(window._smgrExpected) smgrUpdateAllDiffs(window._smgrExpected.cash, window._smgrExpected.visa, window._smgrExpected.instapay); }
 
 async function smgrConfirmSettlement(){
@@ -12042,7 +12088,7 @@ async function smgrConfirmSettlement(){
       visaCollected,
       instapayCollected,
       notes,
-      adj: _smgrAdj.filter(a => (a.label||'').trim() && parseFloat(a.amount))   // 🆕 v118
+      adj: _smgrAdj.filter(a => (a.label||'').trim() && parseFloat(a.amount)).map(a => ({ ...a, method: a.method || 'cash' }))   // 🆕 v118/v119
     });
     
     if(r?.success){
@@ -12283,6 +12329,22 @@ async function smgrLoadSettlements(){
 // 🆕 v24: عرض تفاصيل تصفية (كل البيعات + طريقة دفع كل واحدة)
 // 🆕 v78: عرض تفاصيل البيعات لشيفت مستني التصفية (POS + Pickup)
 // نفس الـ modal اللي في OrderPro - بـ table مجمّع بـ payment method
+// 🆕 v120: المدير يغيّر طريقة دفع بيعة من شاشة التفاصيل وهو بيصفّي
+async function smgrSwitchPay(saleId, method, total, saleNo, cashierId, sessionId){
+  const label = { cash:'كاش', visa:'فيزا', instapay:'انستاباي' }[method];
+  if(!confirm(`تحويل بيعة ${saleNo} (${Number(total).toFixed(0)} ج) كلها إلى ${label}؟`)) return;
+  try{
+    const r = await apiFetch('/api/pos/sales/'+saleId+'/payments', 'PATCH', { payments:[{ method, amount: Number(total) }], change_reason: 'المدير وقت التصفية' });
+    if(!r || r.error){ toast('❌ ' + (r?.error || 'فشل'), 'error'); return; }
+    toast(`✅ ${saleNo} بقت ${label}`, 'success');
+    // أعد تحميل التفاصيل والمودال عشان المتوقع يتحدّث
+    await smgrViewPendingSessionSales(cashierId, sessionId);
+    if(typeof smgrOpenSettlementForSession === 'function' && _smgrSelectedCashier?.sessionId === sessionId){
+      const adjKeep = _smgrAdj; await smgrOpenSettlementForSession(cashierId, _smgrSelectedCashier.name, sessionId); _smgrAdj = adjKeep; smgrAdjRender(); smgrAdjChanged();
+    }
+  }catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
 async function smgrViewPendingSessionSales(cashierId, sessionId){
   if(!sessionId){ alert('❌ session id غير متوفر'); return; }
   
@@ -12391,8 +12453,11 @@ async function smgrViewPendingSessionSales(cashierId, sessionId){
                     </div>
                     <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:Roboto,sans-serif">${paysStr}</div>
                   </div>
-                  <div style="text-align:left;font-weight:800;font-size:14px;color:var(--gold);align-self:center;font-family:Roboto,sans-serif">
-                    ${parseFloat(sale.total).toFixed(0)} ج
+                  <div style="text-align:left;align-self:center">
+                    <div style="font-weight:800;font-size:14px;color:var(--gold);font-family:Roboto,sans-serif">${parseFloat(sale.total).toFixed(0)} ج</div>
+                    ${isPickup ? '' : `<div style="display:flex;gap:3px;margin-top:4px;justify-content:flex-end" title="غيّر طريقة الدفع للبيعة كلها">
+                      ${[['cash','💵'],['visa','💳'],['instapay','📱']].filter(([m])=>m!==methodKey).map(([m,ico])=>`<button onclick="smgrSwitchPay(${sale.id},'${m}',${parseFloat(sale.total)||0},'${escapeHtml(sale.sale_number||'')}',${cashierId},${sessionId})" style="padding:2px 7px;font-size:12px;background:var(--elev);border:1px solid var(--border);border-radius:6px;cursor:pointer">${ico}</button>`).join('')}
+                    </div>`}
                   </div>
                 </div>
               `;
