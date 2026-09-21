@@ -1,6 +1,44 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v126 — 🧠 ذكاء التحويلات + 🔍 مراقبة الكاشيرز عند المدير (2026-09-21)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v126: تبويبين في شاشة المدير: اقتراحات التحويل بين المخازن (نفس منطق
+     OrderPro) بشكل موبايل، وملخص حركات الكاشيرز 7 أيام + آخر الحركات.
+     backend v518.
+
+  Stars v125 — 🚨 تنبيه النواقص لأي صنف + شاشة المدير (2026-09-21)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v125: بانر الكاشير بقى لأي صنف خلص (قسمين: يتقفل على طلبات /
+     يتطلب). + تبويب "🚨 النواقص" عند المدير بشارة عدد، مجمّع بالنوع،
+     صورة وSKU ووقت النفاد وكام مرة اتباع وهو صفر، وزرار "اتعامل معاه".
+     اللي يرجع مخزونه بيتشال لوحده. backend v516.
+
+  Stars v124 — 🧾 تسويات: زرار +/− ومفيش طيران للفوكس (2026-09-21)
+  ═══════════════════════════════════════════════════════════════════
+  🔧 v124: كل رقم كان بيعيد رسم القايمة فالفوكس بيطلع من الخانة. الكتابة
+     بقت بتحدّث المجاميع بس. + زرار أحمر/أخضر (−/+) بدل كتابة السالب:
+     أحمر = مصروف من الدرج، أخضر = دخل للدرج. المبلغ يتكتب موجب دايماً.
+
+  Stars v123 — ⚠️ تحذير المرتجعات المعلّقة قبل التصفية (2026-09-21)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v123: لو فيه مرتجعات مش معتمدة للكاشير، صندوق أحمر في مودال التصفية:
+     "X مرتجع معلّق مش هيتخصم — اعتمده الأول". backend v515 خلّى المعاينة
+     تخصم المعتمد بس زي الحفظ.
+
+  Stars v122 — 🧾 سجل التصفيات: "المفروض" الحقيقي (2026-09-21)
+  ═══════════════════════════════════════════════════════════════════
+  🔧 v122: كان بيعرض cash_amount = المبيعات الخام في خانة "المفروض"،
+     بينما الفرق محسوب على المتوقع الكامل (افتتاحي + مبيعات − مرتجع
+     + وارد − منصرف + تسويات) — فالتلات أرقام مكانوش من نفس المعادلة.
+     دلوقتي "المفروض" = المتوقع الحقيقي، وسطر تحت بيفصّل المعادلة.
+
+  Stars v121 — ⛔ مفيش بيع من غير شيفت مفتوح (2026-09-21)
+  ═══════════════════════════════════════════════════════════════════
+  🆕 v121: لو السيرفر رفض البيعة بـ NO_OPEN_SHIFT، بتظهر رسالة واضحة
+     ومابتتعادش المحاولة. (البيعات الأوفلاين بتحمل وقت الجهاز — السيرفر
+     v514 بيستخدمه لتحديد الشيفت الصح.)
+
   Stars v120 — 💱 تغيير طريقة الدفع من شاشة التصفية (2026-09-19)
   ═══════════════════════════════════════════════════════════════════
   🆕 v120: في "تفاصيل البيعات" جوه مودال التصفية — جنب كل بيعة أزرار
@@ -1688,6 +1726,9 @@ a{color:inherit;text-decoration:none}
       <button class="smgr-tab" onclick="smgrSwitchTab('cashiers', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">👥 الكاشييرز</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('sales', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📋 البيعات</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('returns', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;position:relative">↩️ المرتجعات <span id="smgr-returns-badge" style="display:none;background:#ef4444;color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;margin-right:4px"></span></button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('transfers', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🧠 ذكاء التحويلات</button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('audit', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔍 مراقبة الكاشيرز</button>
+            <button class="smgr-tab" onclick="smgrSwitchTab('stockouts', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🚨 النواقص <span id="smgr-stockout-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:10px"></span></button>
       <button class="smgr-tab" onclick="smgrSwitchTab('settlements', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💰 سجل التصفيات</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('promos', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🎟️ أكواد الخصم</button>
     </div>
@@ -5047,13 +5088,15 @@ function posShowTalabatClose(items){
     box.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9998;background:#7c2d12;color:#fff;border:2px solid #fb923c;border-radius:14px;padding:12px 16px;max-width:520px;width:calc(100% - 32px);box-shadow:0 8px 30px rgba(0,0,0,.5);font-family:Cairo,sans-serif';
     document.body.appendChild(box);
   }
+  const tal = _talClosePending.filter(x => x.on_talabat), re = _talClosePending.filter(x => !x.on_talabat);
   box.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <div style="font-weight:900;font-size:14px">🛵 اقفل على طلبات — آخر قطعة اتباعت</div>
+      <div style="font-weight:900;font-size:14px">📦 خلص من المحل — آخر قطعة اتباعت</div>
       <button onclick="document.getElementById('pos-talabat-close').remove();_talClosePending=[]" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer">×</button>
     </div>
-    <div style="font-size:12px;opacity:.9;margin-bottom:6px">الأصناف دي لسه مفتوحة على طلبات ومخزونها خلص. بلّغ الأدمن يولّد شيت التحديث.</div>
-    <ul style="margin:0;padding-inline-start:18px;font-size:13px;font-weight:700">${_talClosePending.map(x => `<li>${escapeHtml(x.name)}</li>`).join('')}</ul>`;
+    ${tal.length ? `<div style="font-size:12px;font-weight:800;margin-top:4px">🛵 اقفل على طلبات (${tal.length}):</div><ul style="margin:2px 0 6px;padding-inline-start:18px;font-size:13px;font-weight:700">${tal.map(x => `<li>${escapeHtml(x.name)}</li>`).join('')}</ul>` : ''}
+    ${re.length ? `<div style="font-size:12px;font-weight:800;margin-top:4px">🛒 محتاج يتطلب (${re.length}):</div><ul style="margin:2px 0 6px;padding-inline-start:18px;font-size:13px;font-weight:700">${re.map(x => `<li>${escapeHtml(x.name)}</li>`).join('')}</ul>` : ''}
+    <div style="font-size:11px;opacity:.85">المدير هيلاقيهم مجمّعين في تبويب "🚨 النواقص".</div>`;
 }
 
 // 🆕 v114: مراقب نسخة الأسعار — نداء خفيف (رقم واحد) كل دقيقة. أول ما
@@ -6910,11 +6953,21 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
           pollShopifyOrderNumber(result.saleId, result.saleNumber);
         }
         // 🆕 v117: آخر قطعة من صنف مفتوح على طلبات اتباعت → نبّه
-        if(Array.isArray(result.talabatClose) && result.talabatClose.length){
+        // 🆕 v125: أي صنف خلص (طلبات أو محتاج طلب)
+        if(Array.isArray(result.stockOut) && result.stockOut.length){
+          posShowTalabatClose(result.stockOut);
+        } else if(Array.isArray(result.talabatClose) && result.talabatClose.length){
           posShowTalabatClose(result.talabatClose);
         }
       }
     }).catch(e => {
+      // 🆕 v121: مفيش شيفت مفتوح — ماتعيدش المحاولة، وجّه الكاشير
+      if(String(e?.message||'').includes('NO_OPEN_SHIFT') || String(e?.message||'').includes('مفيش شيفت مفتوح')){
+        toast('⛔ مفيش شيفت مفتوح — افتح شيفت الأول', 'error');
+        try { posDBDelete('pendingSales', sale.clientUuid); } catch(_){}
+        if(typeof posShowOpenShiftModal === 'function') posShowOpenShiftModal();
+        return;
+      }
       toast('⚠️ هيتم إعادة المحاولة...', 'warning');
     });
   } else {
@@ -9931,7 +9984,91 @@ async function loadStoreMgrPage(){
   }
 }
 
+// 🆕 v126: ذكاء التحويلات — نفس اقتراحات OrderPro، بشكل موبايل
+async function smgrLoadTransferIntel(){
+  const c=$('smgr-content'); if(!c) return; c.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">⏳ بيحلل المخازن...</div>';
+  try{
+    const r=await apiFetch('/api/transfers/suggestions'); const list=r.suggestions||[];
+    if(!list.length){ c.innerHTML='<div style="text-align:center;padding:40px;color:#22c55e;font-weight:800">✅ مفيش تحويلات مقترحة دلوقتي</div>'; return; }
+    const myStore = (window._smgrStoreName||'').toLowerCase();
+    c.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px">أصناف عندها مخزون كتير في مخزن وقليل في مخزن تاني — مرتبة بالأهمية. ${list.length} اقتراح.</div>`+list.map(x=>`
+      <div style="display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid ${String(x.to?.warehouseName||'').toLowerCase().includes(myStore)&&myStore?'#eab308':'var(--border)'};border-radius:12px;padding:10px;margin-bottom:8px">
+        ${x.imageUrl?`<img src="${escapeHtml(x.imageUrl)}" style="width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff">`:'<div style="width:44px;height:44px;border-radius:8px;background:var(--elev);display:flex;align-items:center;justify-content:center">📦</div>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(x.productTitle)}${x.variantTitle&&x.variantTitle!=='Default Title'?' · '+escapeHtml(x.variantTitle):''}</div>
+          <div style="font-size:11px;margin-top:3px"><span style="color:#ef4444">من ${escapeHtml(x.from?.warehouseName||'')}</span> (${x.from?.currentQty} قطعة · ${Math.round(x.from?.daysOfStock||0)} يوم) ← <span style="color:#22c55e">لـ ${escapeHtml(x.to?.warehouseName||'')}</span> (${x.to?.currentQty} · ${Math.round(x.to?.daysOfStock||0)} يوم)</div>
+          <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${escapeHtml(x.sku||'')}</div>
+        </div>
+        <div style="text-align:center;min-width:52px"><div style="font-size:20px;font-weight:900;color:var(--gold)">${x.suggestedQty}</div><div style="font-size:9px;color:var(--muted)">قطعة</div></div>
+      </div>`).join('')+`<div style="font-size:10px;color:var(--muted);margin-top:8px">التحويل الفعلي بيتعمل من OrderPro → تحويلات المخازن.</div>`;
+  }catch(e){ c.innerHTML=`<div style="color:#ef4444;padding:20px">❌ ${escapeHtml(e.message)}</div>`; }
+}
+// 🆕 v126: مراقبة الكاشيرز — ملخص 7 أيام + آخر الحركات
+async function smgrLoadCartAudit(){
+  const c=$('smgr-content'); if(!c) return; c.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">⏳</div>';
+  try{
+    const [sum, log] = await Promise.all([apiFetch('/api/cart-audit/summary?days=7'), apiFetch('/api/cart-audit?limit=60')]);
+    const rows=(sum.summary||sum.rows||sum||[]); const events=(log.rows||log.events||log||[]);
+    const A={remove_item:['🗑️','حذف صنف','#ef4444'],clear_cart:['🧹','مسح السلة','#ef4444'],cancel_sale:['❌','إلغاء بيعة','#ef4444'],discount_applied:['🏷️','خصم','#eab308'],qty_decreased:['➖','تقليل كمية','#f97316'],price_change:['💲','تغيير سعر','#eab308']};
+    c.innerHTML=`
+      <div style="font-weight:800;margin-bottom:6px">📊 آخر 7 أيام — لكل كاشير</div>
+      ${Array.isArray(rows)&&rows.length?rows.map(x=>`<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><b>${escapeHtml(x.cashier_name||'')}</b><span style="font-size:11px;color:var(--muted)">${x.total_actions} حركة</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:11px">
+          ${[['removes','🗑️ حذف'],['clears','🧹 مسح'],['cancels','❌ إلغاء'],['discounts','🏷️ خصم'],['qty_decreases','➖ تقليل'],['price_changes','💲 سعر']].filter(([k])=>x[k]>0).map(([k,l])=>`<span style="background:var(--elev);border-radius:6px;padding:2px 8px">${l} <b>${x[k]}</b></span>`).join('')||'<span style="color:var(--muted)">مفيش حركات مريبة</span>'}
+        </div></div>`).join(''):'<div style="color:var(--muted);font-size:12px;margin-bottom:10px">مفيش حركات في آخر 7 أيام</div>'}
+      <div style="font-weight:800;margin:14px 0 6px">🕒 آخر الحركات</div>
+      ${Array.isArray(events)&&events.length?events.map(e=>{ const a=A[e.action_type]||['•',e.action_type,'var(--muted)']; return `<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
+        <span style="font-size:16px">${a[0]}</span>
+        <div style="flex:1;min-width:0"><span style="color:${a[2]};font-weight:700">${a[1]}</span> — ${escapeHtml(e.cashier_name||'')}
+          ${e.product_title?`<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(e.product_title)}${e.old_qty!=null&&e.new_qty!=null?` <span style="font-family:Roboto,sans-serif;color:var(--muted)">${e.old_qty}→${e.new_qty}</span>`:''}${e.old_price!=null&&e.new_price!=null?` <span style="font-family:Roboto,sans-serif;color:var(--muted)">${e.old_price}→${e.new_price}</span>`:''}</div>`:''}
+          <div style="font-size:10px;color:var(--muted)">${new Date(e.created_at).toLocaleString('ar-EG',{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'})}${e.reason?` · ${escapeHtml(e.reason)}`:''}</div>
+        </div></div>`; }).join(''):'<div style="color:var(--muted);font-size:12px">مفيش</div>'}`;
+  }catch(e){ c.innerHTML=`<div style="color:#ef4444;padding:20px">❌ ${escapeHtml(e.message)}</div>`; }
+}
+
+// 🆕 v125: شاشة النواقص للمدير — مجمّعة: يتقفل على طلبات / يتطلب
+async function smgrLoadStockouts(){
+  const c = $('smgr-content'); if(!c) return;
+  c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳</div>';
+  try{
+    const r = await apiFetch('/api/store-mgr/stockouts');
+    const b = $('smgr-stockout-badge'); if(b){ b.textContent = r.count||''; b.style.display = r.count ? 'inline-block' : 'none'; }
+    if(!r.count){ c.innerHTML = '<div style="text-align:center;padding:40px;color:#22c55e;font-weight:800">✅ مفيش نواقص دلوقتي</div>'; return; }
+    const card = x => `
+      <div style="display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px">
+        ${x.image_url ? `<img src="${escapeHtml(x.image_url)}" style="width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff">` : '<div style="width:44px;height:44px;border-radius:8px;background:var(--elev);display:flex;align-items:center;justify-content:center">📦</div>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(x.name)}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${escapeHtml(x.sku||'')} · خلص ${new Date(x.last_at).toLocaleString('ar-EG',{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'})}${x.hits>1?` · ${x.hits} مرات`:''}${x.qty_elsewhere>0?` · <span style="color:#22c55e">${x.qty_elsewhere} في مخازن تانية</span>`:''}</div>
+        </div>
+        <button onclick="smgrAckStockout('${escapeHtml(x.variant_id)}')" style="padding:6px 10px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Cairo,sans-serif;font-size:11px;cursor:pointer">✓ اتعامل معاه</button>
+      </div>`;
+    const tal = r.rows.filter(x=>x.on_talabat), re = r.rows.filter(x=>!x.on_talabat);
+    c.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="flex:1;background:var(--card);border:1px solid #f97316;border-radius:12px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--muted)">🛵 يتقفل على طلبات</div><div style="font-size:22px;font-weight:900;color:#f97316">${tal.length}</div></div>
+        <div style="flex:1;background:var(--card);border:1px solid #ef4444;border-radius:12px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--muted)">🛒 يتطلب</div><div style="font-size:22px;font-weight:900;color:#ef4444">${re.length}</div></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button onclick="smgrAckStockout(null)" style="padding:6px 12px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:Cairo,sans-serif;font-size:11px;cursor:pointer">✓ اتعاملت مع الكل</button></div>
+      ${tal.length ? `<div style="font-weight:800;color:#f97316;margin:8px 0 6px">🛵 مفتوحين على طلبات ومخزونهم صفر — بلّغ الأدمن يولّد شيت</div>${tal.map(card).join('')}` : ''}
+      ${re.length ? `<div style="font-weight:800;color:#ef4444;margin:12px 0 6px">🛒 خلصوا من المحل — اطلبهم</div>${re.map(card).join('')}` : ''}
+      <div style="font-size:10px;color:var(--muted);margin-top:10px">اللي يرجع مخزونه بيتشال من القايمة لوحده.</div>`;
+  }catch(e){ c.innerHTML = `<div style="color:#ef4444;padding:20px">❌ ${escapeHtml(e.message)}</div>`; }
+}
+async function smgrAckStockout(vid){
+  try{
+    let ids = vid ? [vid] : null;
+    if(!ids){ const r = await apiFetch('/api/store-mgr/stockouts'); ids = (r.rows||[]).map(x=>x.variant_id); if(!ids.length) return; if(!confirm(`تعليم ${ids.length} صنف كـ "اتعامل معاه"؟`)) return; }
+    await apiFetch('/api/store-mgr/stockouts/ack', 'POST', { variant_ids: ids });
+    smgrLoadStockouts();
+  }catch(e){ toast('❌ '+e.message, 'error'); }
+}
+// عدّاد الشارة عند فتح شاشة المدير
+async function smgrRefreshStockoutBadge(){ try{ const r = await apiFetch('/api/store-mgr/stockouts'); const b = $('smgr-stockout-badge'); if(b){ b.textContent = r.count||''; b.style.display = r.count ? 'inline-block' : 'none'; } }catch(e){} }
+
 function smgrSwitchTab(tab, btn){
+  if(tab !== 'stockouts') smgrRefreshStockoutBadge();
   _smgrCurrentTab = tab;
   
   // update buttons
@@ -9963,6 +10100,9 @@ async function smgrLoadTab(tab){
     else if(tab === 'sales') await smgrLoadSales();
     else if(tab === 'returns') await smgrLoadReturns();
     else if(tab === 'settlements') await smgrLoadSettlements();
+    else if(tab === 'stockouts') await smgrLoadStockouts();
+    else if(tab === 'transfers') await smgrLoadTransferIntel();
+    else if(tab === 'audit') await smgrLoadCartAudit();
     else if(tab === 'promos') await smgrLoadPromos();
   } catch(e) {
     c.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
@@ -10159,6 +10299,7 @@ async function smgrOpenCurrentSession(cashierId, cashierName){
   
   try {
     const r = await apiFetch(`/api/store-mgr/current-session-preview/${cashierId}`);
+    window._smgrLastSummary = r || null;   // 🆕 v123: للتحذير بالمرتجعات المعلّقة
     smgrRenderCurrentSession(cashierId, cashierName, r);
   } catch(e){
     toast('فشل تحميل التصفية الحالية: ' + (e.message || ''), 'error');
@@ -11954,6 +12095,9 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
         </div>
       </div>
       
+      ${(window._smgrLastSummary?.pending_refunds?.count) ? `<div style="background:#7f1d1d;border:2px solid #ef4444;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#fff">
+        <b>⚠️ ${window._smgrLastSummary.pending_refunds.count} مرتجع معلّق (${Number(window._smgrLastSummary.pending_refunds.amount).toFixed(0)} ج) مش معتمد</b><br>
+        <span style="opacity:.9">مش هيتخصم من الكاش في التصفية دي. اعتمده من تبويب "المرتجعات" الأول وارجع صفّي — وإلا هيظهر فرق.</span></div>` : ''}
       <!-- 🆕 v118: تسويات المدير — زي المناديب -->
       <div style="background:var(--elev);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -12039,26 +12183,39 @@ function smgrCloseSettlement(){
   _smgrSelectedCashier = null;
 }
 
-// 🆕 v118: تسويات المدير
+// 🆕 v118: تسويات المدير — 🔧 v124: زرار +/− بدل كتابة السالب، والكتابة مابتعيدش الرسم (كان الفوكس بيطير بعد كل رقم)
 let _smgrAdj = [];
-function smgrAdjSum(method){ return _smgrAdj.filter(x => (x.method||'cash') === (method||'cash')).reduce((a,x)=>a+(parseFloat(x.amount)||0),0); }
+const _adjVal = x => (x.sign||-1) * Math.abs(parseFloat(x.amount)||0);
+function smgrAdjSum(method){ return _smgrAdj.filter(x => (x.method||'cash') === (method||'cash')).reduce((a,x)=>a+_adjVal(x),0); }
 function smgrAdjRender(){
   const el = $('smgr-adj-list'); if(!el) return;
   el.innerHTML = _smgrAdj.map((a,i)=>`
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px" data-i="${i}">
       <input value="${escapeHtml(a.label||'')}" placeholder="البيان (مثال: أجرة توصيل، شراء أكياس)" oninput="_smgrAdj[${i}].label=this.value"
-             style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:12px">
-      <input type="number" step="1" value="${a.amount??''}" placeholder="± مبلغ" oninput="_smgrAdj[${i}].amount=this.value;smgrAdjChanged()"
+             style="flex:1;min-width:120px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:12px">
+      <button type="button" onclick="smgrAdjSign(${i})" id="smgr-adj-sign-${i}" title="اضغط للتبديل: − مصروف من الدرج / + دخل للدرج"
+              style="width:40px;height:38px;border:none;border-radius:8px;font-size:18px;font-weight:900;cursor:pointer;color:#fff;background:${(a.sign||-1)<0?'#ef4444':'#22c55e'}">${(a.sign||-1)<0?'−':'+'}</button>
+      <input type="number" inputmode="numeric" step="1" min="0" value="${a.amount??''}" placeholder="المبلغ" oninput="_smgrAdj[${i}].amount=this.value;smgrAdjTotals()"
              style="width:90px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Roboto,sans-serif;text-align:center;font-weight:700">
-      <select onchange="_smgrAdj[${i}].method=this.value;smgrAdjChanged()" style="padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:11px">
+      <select onchange="_smgrAdj[${i}].method=this.value;smgrAdjTotals()" style="padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:11px">
         <option value="cash" ${(a.method||'cash')==='cash'?'selected':''}>💵 كاش</option><option value="instapay" ${a.method==='instapay'?'selected':''}>📱 انستا</option><option value="visa" ${a.method==='visa'?'selected':''}>💳 فيزا</option></select>
-      <button onclick="_smgrAdj.splice(${i},1);smgrAdjRender();smgrAdjChanged()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer">✕</button>
+      <button type="button" onclick="_smgrAdj.splice(${i},1);smgrAdjRender();smgrAdjTotals()" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer">✕</button>
     </div>`).join('');
+  smgrAdjTotals();
+}
+function smgrAdjSign(i){
+  _smgrAdj[i].sign = (_smgrAdj[i].sign||-1) * -1;
+  const b = $('smgr-adj-sign-'+i); if(b){ const neg = _smgrAdj[i].sign < 0; b.textContent = neg ? '−' : '+'; b.style.background = neg ? '#ef4444' : '#22c55e'; }
+  smgrAdjTotals();
+}
+// المجاميع والفروق بس — من غير إعادة رسم
+function smgrAdjTotals(){
   const t = $('smgr-adj-total'); if(t){ const c=smgrAdjSum('cash'), i=smgrAdjSum('instapay'), v=smgrAdjSum('visa'); const f=n=>(n>0?'+':'')+n.toFixed(0);
     t.textContent = _smgrAdj.length ? `التسويات: كاش ${f(c)} · انستا ${f(i)} · فيزا ${f(v)}` : ''; }
+  if(window._smgrExpected) smgrUpdateAllDiffs(window._smgrExpected.cash, window._smgrExpected.visa, window._smgrExpected.instapay);
 }
-function smgrAdjAdd(){ _smgrAdj.push({ label:'', amount:'', method:'cash' }); smgrAdjRender(); setTimeout(()=>{ const inputs=$('smgr-adj-list')?.querySelectorAll('input'); if(inputs?.length) inputs[inputs.length-2].focus(); },50); }
-function smgrAdjChanged(){ smgrAdjRender(); if(window._smgrExpected) smgrUpdateAllDiffs(window._smgrExpected.cash, window._smgrExpected.visa, window._smgrExpected.instapay); }
+function smgrAdjAdd(){ _smgrAdj.push({ label:'', amount:'', method:'cash', sign:-1 }); smgrAdjRender(); setTimeout(()=>{ const row=$('smgr-adj-list')?.lastElementChild; row?.querySelector('input')?.focus(); },50); }
+function smgrAdjChanged(){ smgrAdjTotals(); }
 
 async function smgrConfirmSettlement(){
   if(!_smgrSelectedCashier) return;
@@ -12088,7 +12245,7 @@ async function smgrConfirmSettlement(){
       visaCollected,
       instapayCollected,
       notes,
-      adj: _smgrAdj.filter(a => (a.label||'').trim() && parseFloat(a.amount)).map(a => ({ ...a, method: a.method || 'cash' }))   // 🆕 v118/v119
+      adj: _smgrAdj.filter(a => (a.label||'').trim() && parseFloat(a.amount)).map(a => ({ label:a.label, method:a.method||'cash', amount:_adjVal(a) }))   // 🔧 v124: الإشارة من الزرار.map(a => ({ ...a, method: a.method || 'cash' }))   // 🆕 v118/v119
     });
     
     if(r?.success){
@@ -12265,6 +12422,15 @@ async function smgrLoadSettlements(){
     const date = new Date(s.settled_at).toLocaleString('ar-EG', {dateStyle: 'short', timeStyle: 'short'});
     
     const cashDiff = parseFloat(s.cash_difference) || 0;
+    // 🔧 v122: "المفروض" كان بيعرض cash_amount = المبيعات الخام. المتوقع الحقيقي
+    //   (اللي الفرق محسوب عليه) = افتتاحي + مبيعات − مرتجع + وارد − منصرف + تسويات.
+    const _n = v => parseFloat(v) || 0;
+    let _adj = []; try { _adj = typeof s.adj === 'string' ? JSON.parse(s.adj) : (s.adj || []); } catch(e){}
+    const adjBy = m => _adj.filter(a => (a.method||'cash') === m).reduce((t,a) => t + _n(a.amount), 0);
+    const expCash = _n(s.opening_cash) + _n(s.cash_amount) - _n(s.refund_cash) + _n(s.cash_in_total) - _n(s.cash_out_total) + adjBy('cash');
+    const expVisa = _n(s.visa_amount) - _n(s.refund_visa) + adjBy('visa');
+    const expInsta = _n(s.instapay_amount) - _n(s.refund_instapay) + adjBy('instapay');
+    const hasBreak = _n(s.opening_cash) || _n(s.refund_cash) || _n(s.refund_visa) || _n(s.refund_instapay) || _n(s.cash_in_total) || _n(s.cash_out_total) || _adj.length;
     const visaDiff = parseFloat(s.visa_difference) || 0;
     const instapayDiff = parseFloat(s.instapay_difference) || 0;
     const totalDiff = parseFloat(s.total_difference) || cashDiff;
@@ -12297,17 +12463,17 @@ async function smgrLoadSettlements(){
             <span style="text-align:center;color:var(--muted)">الفرق</span>
             
             <span style="color:#22c55e;font-weight:700">💵</span>
-            <span style="text-align:center">${parseFloat(s.cash_amount || 0).toFixed(0)}</span>
+            <span style="text-align:center" title="افتتاحي ${_n(s.opening_cash).toFixed(0)} + مبيعات ${_n(s.cash_amount).toFixed(0)} − مرتجع ${_n(s.refund_cash).toFixed(0)} + وارد ${_n(s.cash_in_total).toFixed(0)} − منصرف ${_n(s.cash_out_total).toFixed(0)}${adjBy('cash')?` ${adjBy('cash')>0?'+':'−'} تسويات ${Math.abs(adjBy('cash')).toFixed(0)}`:''}">${expCash.toFixed(0)}</span>
             <span style="text-align:center;font-weight:700">${parseFloat(s.cash_collected || 0).toFixed(0)}</span>
             <span style="text-align:center;font-weight:800;color:${colorDiff(cashDiff)}">${cashDiff === 0 ? '✓' : fmtDiff(cashDiff)}</span>
             
             <span style="color:#3b82f6;font-weight:700">💳</span>
-            <span style="text-align:center">${parseFloat(s.visa_amount || 0).toFixed(0)}</span>
+            <span style="text-align:center">${expVisa.toFixed(0)}</span>
             <span style="text-align:center;font-weight:700">${parseFloat(s.visa_collected || 0).toFixed(0)}</span>
             <span style="text-align:center;font-weight:800;color:${colorDiff(visaDiff)}">${visaDiff === 0 ? '✓' : fmtDiff(visaDiff)}</span>
             
             <span style="color:#a855f7;font-weight:700">📱</span>
-            <span style="text-align:center">${parseFloat(s.instapay_amount || 0).toFixed(0)}</span>
+            <span style="text-align:center">${expInsta.toFixed(0)}</span>
             <span style="text-align:center;font-weight:700">${parseFloat(s.instapay_collected || 0).toFixed(0)}</span>
             <span style="text-align:center;font-weight:800;color:${colorDiff(instapayDiff)}">${instapayDiff === 0 ? '✓' : fmtDiff(instapayDiff)}</span>
           </div>
@@ -12316,6 +12482,11 @@ async function smgrLoadSettlements(){
             <span>الفرق الإجمالي:</span>
             <span style="color:${totalColor}">${totalText}</span>
           </div>
+          ${hasBreak ? `<div style="margin-top:6px;font-size:10px;color:var(--muted);line-height:1.6">
+            💵 المفروض = ${_n(s.opening_cash)?`افتتاحي ${_n(s.opening_cash).toFixed(0)} + `:''}مبيعات ${_n(s.cash_amount).toFixed(0)}${_n(s.refund_cash)?` − مرتجع ${_n(s.refund_cash).toFixed(0)}`:''}${_n(s.cash_in_total)?` + وارد ${_n(s.cash_in_total).toFixed(0)}`:''}${_n(s.cash_out_total)?` − منصرف ${_n(s.cash_out_total).toFixed(0)}`:''}${adjBy('cash')?` ${adjBy('cash')>0?'+':'−'} تسويات ${Math.abs(adjBy('cash')).toFixed(0)}`:''} = <b>${expCash.toFixed(0)}</b>
+            ${(_n(s.refund_visa)||adjBy('visa'))?`<br>💳 مبيعات ${_n(s.visa_amount).toFixed(0)}${_n(s.refund_visa)?` − مرتجع ${_n(s.refund_visa).toFixed(0)}`:''}${adjBy('visa')?` ${adjBy('visa')>0?'+':'−'} تسويات ${Math.abs(adjBy('visa')).toFixed(0)}`:''} = <b>${expVisa.toFixed(0)}</b>`:''}
+            ${(_n(s.refund_instapay)||adjBy('instapay'))?`<br>📱 مبيعات ${_n(s.instapay_amount).toFixed(0)}${_n(s.refund_instapay)?` − مرتجع ${_n(s.refund_instapay).toFixed(0)}`:''}${adjBy('instapay')?` ${adjBy('instapay')>0?'+':'−'} تسويات ${Math.abs(adjBy('instapay')).toFixed(0)}`:''} = <b>${expInsta.toFixed(0)}</b>`:''}
+          </div>` : ''}
         </div>
         
         ${s.notes ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📝 ${escapeHtml(s.notes)}</div>` : ''}
