@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v127 — 🚑 Maximum call stack في مودال التصفية (2026-09-21)
+  ═══════════════════════════════════════════════════════════════════
+  🚑 v127: smgrUpdateAllDiffs كان بيرسم قايمة التسويات لو فاضية، والرسم
+     (v124) بينادي المجاميع اللي بتنادي smgrUpdateAllDiffs → حلقة.
+     اتشال السطر — الرسم بيحصل عند الإضافة/الحذف بس.
+
   Stars v126 — 🧠 ذكاء التحويلات + 🔍 مراقبة الكاشيرز عند المدير (2026-09-21)
   ═══════════════════════════════════════════════════════════════════
   🆕 v126: تبويبين في شاشة المدير: اقتراحات التحويل بين المخازن (نفس منطق
@@ -12134,7 +12140,7 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
 // 🆕 v24: حساب الفروقات لكل طريقة
 function smgrUpdateAllDiffs(expectedCash, expectedVisa, expectedInstapay){
   window._smgrExpected = { cash: expectedCash, visa: expectedVisa, instapay: expectedInstapay };
-  if($('smgr-adj-list') && !$('smgr-adj-list').innerHTML) smgrAdjRender();
+  // 🚑 v127: كان بينادي smgrAdjRender لما القايمة فاضية → Render → Totals → UpdateAllDiffs → ... حلقة لا نهائية
   const cashCol = parseFloat($('smgr-cash-collected')?.value) || 0;
   const visaCol = parseFloat($('smgr-visa-collected')?.value) || 0;
   const instapayCol = parseFloat($('smgr-instapay-collected')?.value) || 0;
