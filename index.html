@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v131 — 🔧 التصفية: سطر آجل طلبات/أخرى عشان الإجمالي يطابق (2026-09-22)
+  🔧 v131: "الإجمالي الكلي" كان شامل آجل طلبات من غير ما يظهر في التوزيع.
   Stars v130 — 🧠 ذكاء التحويلات على الـ endpoint الصح (2026-09-22)
   ═══════════════════════════════════════════════════════════════════
   🚑 v130: كان بينادي /api/transfers/suggestions (مكسور من الأصل). بقى
@@ -12062,6 +12064,14 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
             <span style="font-weight:800;color:#a855f7">${instapay.toFixed(0)} ج</span>
           </div>
         `}
+        ${(() => { // 🆕 v131: اللي في الإجمالي ومش في الكاش/فيزا/انستا (آجل طلبات وغيره)
+          const _tal = byM.talabat_deferred?.total || 0;
+          const _other = parseFloat(r.total||0) - cashSales - visa - instapay - _tal;
+          let h = '';
+          if(_tal > 0.5) h += `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;border-top:1px dashed var(--border);margin-top:6px"><span>🛵 آجل طلبات <span style="font-size:10px;color:var(--muted)">(${byM.talabat_deferred?.count||0}) · مش في الدرج</span></span><span style="font-weight:700;color:#FF5A00;font-family:Roboto,sans-serif">${_tal.toFixed(0)} ج</span></div>`;
+          if(Math.abs(_other) > 0.5) h += `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>❓ غير مصنّف</span><span style="font-weight:700;color:#ef4444;font-family:Roboto,sans-serif">${_other.toFixed(0)} ج</span></div>`;
+          return h;
+        })()}
         <div style="display:flex;justify-content:space-between;padding:10px 0 0 0;font-weight:800;font-size:15px;border-top:2px solid var(--gold);margin-top:6px">
           <span>الإجمالي الكلي</span>
           <span style="color:var(--gold)">${parseFloat(r.total).toFixed(0)} ج</span>
