@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v130 — 🧠 ذكاء التحويلات على الـ endpoint الصح (2026-09-22)
+  ═══════════════════════════════════════════════════════════════════
+  🚑 v130: كان بينادي /api/transfers/suggestions (مكسور من الأصل). بقى
+     /api/transfer-plan زي OrderPro — من الرئيسي لمخزن المحل، بحالة
+     الصنف (حرج/قليل) والمخزون والسرعة والكمية المقترحة. backend v525.
+
   Stars v129 — 🔐 مفيش طرد على 401 إلا لو الجلسة فعلاً بايظة (2026-09-22)
   ═══════════════════════════════════════════════════════════════════
   🔧 v129: أي 401 برسالة token كان بيعمل logout فوراً. دلوقتي بيسأل
@@ -10032,21 +10038,23 @@ async function smgrNeverIgnore(vid){
 
 // 🆕 v126: ذكاء التحويلات — نفس اقتراحات OrderPro، بشكل موبايل
 async function smgrLoadTransferIntel(){
-  const c=$('smgr-content'); if(!c) return; c.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">⏳ بيحلل المخازن...</div>';
+  const c=$('smgr-content'); if(!c) return; c.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">⏳ بيحلل المبيعات والمخزون...</div>';
   try{
-    const r=await apiFetch('/api/transfers/suggestions'); const list=r.suggestions||[];
-    if(!list.length){ c.innerHTML='<div style="text-align:center;padding:40px;color:#22c55e;font-weight:800">✅ مفيش تحويلات مقترحة دلوقتي</div>'; return; }
-    const myStore = (window._smgrStoreName||'').toLowerCase();
-    c.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px">أصناف عندها مخزون كتير في مخزن وقليل في مخزن تاني — مرتبة بالأهمية. ${list.length} اقتراح.</div>`+list.map(x=>`
-      <div style="display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid ${String(x.to?.warehouseName||'').toLowerCase().includes(myStore)&&myStore?'#eab308':'var(--border)'};border-radius:12px;padding:10px;margin-bottom:8px">
-        ${x.imageUrl?`<img src="${escapeHtml(x.imageUrl)}" style="width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff">`:'<div style="width:44px;height:44px;border-radius:8px;background:var(--elev);display:flex;align-items:center;justify-content:center">📦</div>'}
+    // 🔧 v130: نفس endpoint صفحة OrderPro (/api/transfer-plan) — من الرئيسي لمخزن المحل
+    const r=await apiFetch('/api/transfer-plan?days=14&targetCoverage=14&criticalThreshold=7');
+    const list=(r.plan||[]).filter(x=>x.suggested_qty>0);
+    if(!list.length){ c.innerHTML=`<div style="text-align:center;padding:40px;color:#22c55e;font-weight:800">✅ ${escapeHtml(r.to?.warehouse_name||'المحل')} مغطّي — مفيش تحويلات مقترحة</div>`; return; }
+    const S={critical:['#ef4444','🔴 حرج'],low:['#f97316','🟠 قليل'],ok:['#22c55e','🟢']};
+    c.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px">من <b>${escapeHtml(r.from?.warehouse_name||'')}</b> ← لـ <b>${escapeHtml(r.to?.warehouse_name||'')}</b> · ${list.length} صنف · تغطية مستهدفة ${r.params?.targetCoverage||14} يوم</div>`
+      + list.map(x=>{ const st=S[x.to_status]||['var(--muted)',x.to_status||'']; return `
+      <div style="display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid ${x.to_status==='critical'?'#ef4444':'var(--border)'};border-radius:12px;padding:10px;margin-bottom:8px">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(x.productTitle)}${x.variantTitle&&x.variantTitle!=='Default Title'?' · '+escapeHtml(x.variantTitle):''}</div>
-          <div style="font-size:11px;margin-top:3px"><span style="color:#ef4444">من ${escapeHtml(x.from?.warehouseName||'')}</span> (${x.from?.currentQty} قطعة · ${Math.round(x.from?.daysOfStock||0)} يوم) ← <span style="color:#22c55e">لـ ${escapeHtml(x.to?.warehouseName||'')}</span> (${x.to?.currentQty} · ${Math.round(x.to?.daysOfStock||0)} يوم)</div>
-          <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${escapeHtml(x.sku||'')}</div>
+          <div style="font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(x.product_title)}${x.variant_title&&x.variant_title!=='Default Title'?' · '+escapeHtml(x.variant_title):''}</div>
+          <div style="font-size:11px;margin-top:3px"><span style="color:${st[0]};font-weight:700">${st[1]}</span> المحل: ${x.to_stock} قطعة${x.to_days_left!=null?` (${Math.round(x.to_days_left)} يوم)`:''} · بيبيع ${(x.to_velocity||0).toFixed(1)}/يوم</div>
+          <div style="font-size:10px;color:var(--muted)">الرئيسي: ${x.from_stock} قطعة${x.from_days_left!=null?` (${Math.round(x.from_days_left)} يوم)`:''} · يقدر يدي ${x.from_can_spare}${!x.has_enough_source?' <span style="color:#f97316">⚠️ مش كفاية</span>':''}<span style="font-family:Roboto,sans-serif"> · ${escapeHtml(x.sku||'')}</span></div>
         </div>
-        <div style="text-align:center;min-width:52px"><div style="font-size:20px;font-weight:900;color:var(--gold)">${x.suggestedQty}</div><div style="font-size:9px;color:var(--muted)">قطعة</div></div>
-      </div>`).join('')+`<div style="font-size:10px;color:var(--muted);margin-top:8px">التحويل الفعلي بيتعمل من OrderPro → تحويلات المخازن.</div>`;
+        <div style="text-align:center;min-width:56px"><div style="font-size:22px;font-weight:900;color:var(--gold)">${x.suggested_qty}</div><div style="font-size:9px;color:var(--muted)">قطعة</div></div>
+      </div>`; }).join('')+`<div style="font-size:10px;color:var(--muted);margin-top:8px">التحويل الفعلي بيتعمل من OrderPro → ذكاء التحويلات.</div>`;
   }catch(e){ c.innerHTML=`<div style="color:#ef4444;padding:20px">❌ ${escapeHtml(e.message)}</div>`; }
 }
 // 🆕 v126: مراقبة الكاشيرز — ملخص 7 أيام + آخر الحركات
