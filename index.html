@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v129 — 🔐 مفيش طرد على 401 إلا لو الجلسة فعلاً بايظة (2026-09-22)
+  ═══════════════════════════════════════════════════════════════════
+  🔧 v129: أي 401 برسالة token كان بيعمل logout فوراً. دلوقتي بيسأل
+     /api/auth/ping الأول: لو ناجح → الجلسة سليمة والمشكلة في الـ endpoint
+     (بتظهر رسالة بس)، لو 401 → logout. backend v523.
+
   Stars v128 — 🆕 تبويب "ماراحتش المحل" عند المدير (2026-09-21)
   ═══════════════════════════════════════════════════════════════════
   🆕 v128: أصناف عندها مخزون بره وعمرها ماراحت المحل (لا مخزون ولا بيع
@@ -2582,9 +2588,13 @@ async function api(path, opts = {}){
       errMsg.includes('invalid');
     
     if(realTokenIssue){
-      // token فعلاً باظ → اعمل logout
-      logout();
-      throw new Error('انتهت صلاحية الجلسة');
+      // 🔧 v129: اتأكد الأول إن الجلسة فعلاً بايظة — ممكن الـ 401 يكون من endpoint واحد
+      //   (نسخة سيرفر مش شايفة التوكن، أو صلاحية) مش من الجلسة كلها
+      let sessionDead = true;
+      try { const p = await fetch(API_URL.replace(/\/$/,'') + '/api/auth/ping', { headers: { Authorization: 'Bearer ' + TOKEN } }); sessionDead = (p.status === 401); } catch(_) { sessionDead = false; }
+      if(sessionDead){ logout(); throw new Error('انتهت صلاحية الجلسة'); }
+      console.warn('[v129] 401 من', path, 'بس الجلسة سليمة — مش هنعمل logout');
+      throw new Error(data.error || 'غير مصرح لهذا الطلب');
     }
     
     // 401 من غير سبب واضح → خلي الـ caller يقرر، ميعملش logout
