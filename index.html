@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v132 — 🔍 المرتجعات ظاهرة في معاينة التصفية (2026-09-22)
   Stars v131 — 🔧 التصفية: سطر آجل طلبات/أخرى عشان الإجمالي يطابق (2026-09-22)
   🔧 v131: "الإجمالي الكلي" كان شامل آجل طلبات من غير ما يظهر في التوزيع.
   Stars v130 — 🧠 ذكاء التحويلات على الـ endpoint الصح (2026-09-22)
@@ -11956,8 +11957,11 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
           <tr><td style="padding:3px 0;color:var(--muted)">+ مبيعات كاش</td><td style="text-align:left;color:#22c55e;font-family:Roboto,sans-serif">+${cashSales.toFixed(0)} ج</td></tr>
           <tr><td style="padding:3px 0;color:var(--muted)">+ إيداعات</td><td style="text-align:left;color:#22c55e;font-family:Roboto,sans-serif">+${cashIn.toFixed(0)} ج</td></tr>
           <tr><td style="padding:3px 0;color:var(--muted)">- سحوبات</td><td style="text-align:left;color:#ef4444;font-family:Roboto,sans-serif">-${cashOut.toFixed(0)} ج</td></tr>
+          <tr><td style="padding:3px 0;color:var(--muted)">- مرتجعات كاش</td><td style="text-align:left;color:#ef4444;font-family:Roboto,sans-serif">-${(drawer?.refunds?.cash||0).toFixed(0)} ج</td></tr>
           <tr style="border-top:1px solid var(--border)"><td style="padding:6px 0;font-weight:800;color:var(--gold)">= المفروض في الدرج</td><td style="text-align:left;font-weight:900;color:var(--gold);font-family:Roboto,sans-serif">${expectedCash.toFixed(0)} ج</td></tr>
         </table>
+        ${((drawer?.refunds?.visa||0) + (drawer?.refunds?.instapay||0)) > 0 ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(239,68,68,.08);border:1px dashed #ef4444;border-radius:8px;font-size:11px;color:#ef4444">↩️ مرتجعات مخصومة من المفروض: فيزا <b>${(drawer.refunds.visa||0).toFixed(0)}</b> ج · انستا <b>${(drawer.refunds.instapay||0).toFixed(0)}</b> ج</div>` : ''}
+        ${(() => { const gap = (visa - (drawer?.refunds?.visa||0)) - expectedVisa; return Math.abs(gap) > 0.5 ? `<div style="margin-top:8px;padding:8px 10px;background:#7f1d1d;border-radius:8px;font-size:11px;color:#fff">⚠️ فيزا المفروض (${expectedVisa.toFixed(0)}) أقل من التوزيع ناقص المرتجعات بـ ${gap.toFixed(0)} ج — السيرفر لسه قديم (ارفع v526)</div>` : ''; })()}
         ${(drawer?.talabatDeferred?.total || 0) > 0 ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(255,90,0,.08);border:1px dashed #FF5A00;border-radius:8px;font-size:11px;color:#FF5A00">🛵 آجل طلبات (تدوين فقط — مش داخل الدرج): <b style="font-family:Roboto,sans-serif">${(drawer.talabatDeferred.total).toFixed(0)} ج</b>${drawer.talabatDeferred.count ? ` · ${drawer.talabatDeferred.count} طلب` : ''}</div>` : ''}
       </div>
     `;
