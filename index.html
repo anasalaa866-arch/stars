@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v137 — 🔓 شيفتات مستقلة + أرقام الأوردرات في المرتجعات (2026-10-14)
+  🔓 v137: (1) رصيد الافتتاح مابقاش بيظهر لما يكون صفر. (2) منع "صفّي
+  الأقدم الأول" بقى تنبيه مش منع. (3) رقم أوردر شوبيفاي جنب كل مرتجع في
+  شاشة التصفية وفي تقرير المرتجعات. (4) زرار تصحيح طريقة الاسترداد
+  لمدير المحل. محتاج سيرفر v549.
+  Stars v136 — 🚫 إلغاء مرتجع اتسجّل بالغلط (2026-10-14)
+  🚫 v136: زرار إلغاء في شاشة مراجعة المرتجعات — بيطلب سبب وكلمة سر
+  أدمن. الكميات بترجع متاحة والمرتجع بيبطّل يتخصم من التصفية.
+  محتاج سيرفر v548.
+  Stars v135 — 🎟️ برومو كود المحل شغّال مع الأدمن (2026-10-13)
+  🎟️ v135: الكود المربوط بمحل معين كان بيترفض لو اللي على الكاشير
+  داخل بحساب أدمن (الأدمن مالوش store_id). دلوقتي Stars بيبعت المحل
+  المختار من الواجهة مع التحقق.
+  Stars v134 — 📋 تقرير الجرد + PDF من ستارز (2026-10-13)
+  📋 v134: زرار "تقارير الجرد" في صفحة الجرد — يفتح الجلسات المنتهية،
+  يعرض التقرير كامل (عجز / زيادة / مطابق / لم يُعد) ويطبعه PDF.
+  "لم يُعد وله رصيد" في جدولين منفصلين (موجب وسالب) للتنبيه.
+  Stars v133 — 🔒 التصفيات بالترتيب (الأقدم الأول) (2026-10-01)
+  🔒 v133: لو الكاشير عنده شيفت أقدم مستني، التصفية بتتقفل وبيظهر زرار
+  للانتقال للأقدم. السيرفر كمان بيرفض بـ 409.
   Stars v132 — 🔍 المرتجعات ظاهرة في معاينة التصفية (2026-09-22)
   Stars v131 — 🔧 التصفية: سطر آجل طلبات/أخرى عشان الإجمالي يطابق (2026-09-22)
   🔧 v131: "الإجمالي الكلي" كان شامل آجل طلبات من غير ما يظهر في التوزيع.
@@ -3110,8 +3130,215 @@ let _stkScanStream = null;
 
 // 🆕 v104: فتح جلسة جرد جديدة من ستارز (blind دايماً)
 function _stkNewBtnHtml(){
-  return `<button onclick="stkOpenNewModal()" style="width:100%;padding:14px;margin-bottom:14px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">➕ فتح جرد جديد</button>`;
+  return `<button onclick="stkOpenNewModal()" style="width:100%;padding:14px;margin-bottom:10px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">➕ فتح جرد جديد</button>
+  <button onclick="stkOpenReports()" style="width:100%;padding:13px;margin-bottom:14px;background:var(--elev);color:var(--gold);border:1px solid var(--gold);border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:14px;cursor:pointer">📋 تقارير الجرد</button>`;
 }
+// ═══════════ 📋 v134: تقارير الجرد ═══════════
+let _stkRepSessions = [];
+let _stkRep = null;
+
+async function stkOpenReports(){
+  const c = $('stk-sessions-view');
+  $('stk-page-title').textContent = '📋 تقارير الجرد';
+  $('stk-page-subtitle').textContent = 'اختار جلسة عشان تشوف التقرير';
+  c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try{
+    const r = await apiFetch('/api/stocktake/history?limit=60');
+    _stkRepSessions = (r?.sessions || []).filter(s => s.status !== 'in_progress');
+    const st = { approved:{t:'✅ معتمد',c:'#22c55e'}, cancelled:{t:'🚫 ملغي',c:'#ef4444'} };
+    c.innerHTML = `
+      <button class="btn-secondary" onclick="loadStkSessions()" style="width:100%;margin-bottom:14px">← رجوع للجلسات النشطة</button>
+      ${!_stkRepSessions.length ? `<div style="text-align:center;padding:40px;color:var(--muted)">
+        <div style="font-size:56px;opacity:.35">📋</div><div style="margin-top:10px">مفيش جرود منتهية</div></div>` :
+      _stkRepSessions.map(s => {
+        const i = st[s.status] || { t: s.status, c: '#94a3b8' };
+        const d = new Date(s.approved_at || s.completed_at || s.started_at).toLocaleDateString('ar-EG');
+        return `
+        <div onclick="stkShowReport(${s.id})" style="background:var(--elev);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:800;font-size:14px">${escapeHtml(s.title || 'جرد')}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px">${escapeHtml(s.warehouse_name || '')} · ${d}</div>
+            </div>
+            <div style="color:${i.c};font-weight:800;font-size:12px;white-space:nowrap">${i.t}</div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--muted);flex-wrap:wrap">
+            <span>📦 ${s.items_total || 0} صنف</span>
+            <span>✅ ${s.items_counted || 0} معدود</span>
+            <span style="color:${(s.items_diff||0) ? '#f59e0b' : 'inherit'}">⚠️ ${s.items_diff || 0} فرق</span>
+          </div>
+        </div>`;
+      }).join('')}`;
+  }catch(e){
+    c.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function _stkSplit(items){
+  const counted  = items.filter(i => i.counted_qty != null);
+  const shortage = counted.filter(i => i.system_qty != null && i.counted_qty < i.system_qty);
+  const surplus  = counted.filter(i => i.system_qty != null && i.counted_qty > i.system_qty);
+  const matching = counted.filter(i => i.system_qty != null && i.counted_qty === i.system_qty);
+  const un       = items.filter(i => i.counted_qty == null);
+  return {
+    counted, shortage, surplus, matching,
+    // 📋 v134: اللي مااتعدّش — مقسوم عشان التنبيه
+    unPos:  un.filter(i => (i.system_qty || 0) > 0),
+    unNeg:  un.filter(i => (i.system_qty || 0) < 0),
+    unZero: un.filter(i => i.system_qty === 0),
+    unNull: un.filter(i => i.system_qty == null)
+  };
+}
+
+async function stkShowReport(sessionId){
+  const c = $('stk-sessions-view');
+  c.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try{
+    const r = await apiFetch('/api/stocktake/sessions/' + sessionId);
+    _stkRep = r;
+    const s = r.session || {};
+    const items = r.items || [];
+    const g = _stkSplit(items);
+    const tbl = (rows, cols) => `
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:var(--bg)">${cols.map(h => `<th style="padding:7px;text-align:right;white-space:nowrap">${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    const prodCell = i => `<div style="font-weight:700">${escapeHtml((i.product_title||'').slice(0,40))}</div>
+      <div style="font-size:9px;color:var(--muted);font-family:monospace">${escapeHtml(i.sku||'—')}</div>`;
+    const diffRows = list => list.map(i => {
+      const d = i.counted_qty - i.system_qty;
+      return `<tr style="border-top:1px solid var(--border)">
+        <td style="padding:6px">${prodCell(i)}</td>
+        <td style="padding:6px;text-align:center">${i.system_qty}</td>
+        <td style="padding:6px;text-align:center;font-weight:700">${i.counted_qty}</td>
+        <td style="padding:6px;text-align:center;font-weight:800;color:${d<0?'#ef4444':'#22c55e'}">${d>0?'+':''}${d}</td>
+      </tr>`;
+    }).join('');
+    const unRows = list => list.map(i => `<tr style="border-top:1px solid var(--border)">
+        <td style="padding:6px">${prodCell(i)}</td>
+        <td style="padding:6px;text-align:center;font-weight:800">${i.system_qty == null ? '—' : i.system_qty}</td>
+      </tr>`).join('');
+
+    const sec = (title, color, count, body, warn) => !count ? '' : `
+      <div style="background:var(--elev);border:1px solid ${color};border-radius:12px;padding:12px;margin-bottom:12px">
+        <div style="font-weight:800;color:${color};font-size:13px;margin-bottom:${warn?'4':'8'}px">${title} (${count})</div>
+        ${warn ? `<div style="font-size:11px;color:${color};opacity:.9;margin-bottom:8px;line-height:1.6">${warn}</div>` : ''}
+        ${body}
+      </div>`;
+
+    c.innerHTML = `
+      <button class="btn-secondary" onclick="stkOpenReports()" style="width:100%;margin-bottom:12px">← رجوع للتقارير</button>
+      <button class="btn-primary" onclick="stkPrintReport()" style="width:100%;margin-bottom:14px;font-size:15px;padding:13px">🖨️ طباعة / PDF</button>
+
+      <div style="background:var(--elev);border:1px solid var(--gold);border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="font-weight:800;color:var(--gold);font-size:15px">${escapeHtml(s.title || 'جرد')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${escapeHtml(s.warehouse_name || '')} · ${new Date(s.approved_at || s.completed_at || s.started_at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})}</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;text-align:center">
+          <div style="background:var(--bg);border-radius:8px;padding:8px"><div style="font-size:10px;color:var(--muted)">أصناف</div><div style="font-weight:900;font-size:16px">${items.length}</div></div>
+          <div style="background:var(--bg);border-radius:8px;padding:8px"><div style="font-size:10px;color:var(--muted)">عجز</div><div style="font-weight:900;font-size:16px;color:#ef4444">${g.shortage.length}</div></div>
+          <div style="background:var(--bg);border-radius:8px;padding:8px"><div style="font-size:10px;color:var(--muted)">زيادة</div><div style="font-weight:900;font-size:16px;color:#22c55e">${g.surplus.length}</div></div>
+          <div style="background:var(--bg);border-radius:8px;padding:8px"><div style="font-size:10px;color:var(--muted)">لم يُعد</div><div style="font-weight:900;font-size:16px;color:#f59e0b">${g.unPos.length + g.unNeg.length + g.unZero.length + g.unNull.length}</div></div>
+        </div>
+      </div>
+
+      ${sec('🔻 عجز', '#ef4444', g.shortage.length, tbl(diffRows(g.shortage), ['المنتج','النظام','المعدود','الفرق']))}
+      ${sec('🔺 زيادة', '#22c55e', g.surplus.length, tbl(diffRows(g.surplus), ['المنتج','النظام','المعدود','الفرق']))}
+
+      ${sec('⚠️ لم يُعد — وعنده رصيد موجب', '#f59e0b', g.unPos.length,
+            tbl(unRows(g.unPos), ['المنتج','الرصيد بالنظام']),
+            'المنتجات دي مظهرتش في الجرد ورصيدها في النظام موجب — يعني الأرجح مش موجودة فعلياً. في الجرد الكلي بتتصفّر عند الاعتماد.')}
+
+      ${sec('🚨 لم يُعد — ورصيده سالب', '#dc2626', g.unNeg.length,
+            tbl(unRows(g.unNeg), ['المنتج','الرصيد بالنظام']),
+            'رصيد سالب = النظام غلط أصلاً. تصفيرها <b>بيزوّد</b> مخزون على Shopify مش بيقلّله — راجعها كويس.')}
+
+      ${sec('📭 لم يُعد — من غير كمية نظام', '#64748b', g.unNull.length,
+            tbl(unRows(g.unNull), ['المنتج','الرصيد بالنظام']),
+            'الستوك بتاعها مااتسحبش من Shopify — مش داخلة في أي حسابات.')}
+
+      ${sec('✅ مطابق', '#22c55e', g.matching.length,
+            `<div style="font-size:12px;color:var(--muted)">${g.matching.length} صنف مطابق للنظام تماماً (مش معروضين عشان التقرير مايطولش)</div>`)}
+    `;
+  }catch(e){
+    c.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function stkPrintReport(){
+  if(!_stkRep) return;
+  const s = _stkRep.session || {};
+  const items = _stkRep.items || [];
+  const g = _stkSplit(items);
+  const when = new Date(s.approved_at || s.completed_at || s.started_at).toLocaleString('ar-EG',{dateStyle:'full',timeStyle:'short'});
+  const esc = x => String(x ?? '').replace(/[<>&]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+  const diffRows = list => list.map((i, n) => {
+    const d = i.counted_qty - i.system_qty;
+    return `<tr><td>${n+1}</td><td>${esc(i.product_title)}</td><td class="m">${esc(i.sku||'')}</td>
+      <td class="c">${i.system_qty}</td><td class="c b">${i.counted_qty}</td>
+      <td class="c b" style="color:${d<0?'#b91c1c':'#15803d'}">${d>0?'+':''}${d}</td></tr>`;
+  }).join('');
+  const unRows = list => list.map((i, n) =>
+    `<tr><td>${n+1}</td><td>${esc(i.product_title)}</td><td class="m">${esc(i.sku||'')}</td>
+     <td class="c b">${i.system_qty == null ? '—' : i.system_qty}</td><td class="c"><span class="box"></span></td></tr>`).join('');
+  const sec = (t, cls, rows, head, note) => !rows ? '' : `
+    <h3 class="${cls}">${t}</h3>${note ? `<div class="note ${cls}">${note}</div>` : ''}
+    <table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+
+  const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تقرير جرد — ${esc(s.title||'')}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Segoe UI",Tahoma,Arial,sans-serif;direction:rtl;padding:14px;font-size:11px;color:#111}
+h1{font-size:18px;margin-bottom:2px}
+.sub{font-size:11px;color:#555;margin-bottom:10px}
+.stats{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.st{flex:1;min-width:90px;border:1px solid #ddd;border-radius:7px;padding:7px;text-align:center}
+.st .n{font-size:17px;font-weight:800}
+.st .l{font-size:9px;color:#666}
+h3{font-size:13px;margin:14px 0 5px;padding:5px 9px;border-radius:5px;color:#fff}
+h3.sh{background:#b91c1c} h3.su{background:#15803d} h3.un{background:#b45309} h3.neg{background:#7f1d1d} h3.nul{background:#475569}
+.note{font-size:10px;padding:6px 9px;border-radius:5px;margin-bottom:5px;line-height:1.6}
+.note.un{background:#fef3c7;color:#78350f} .note.neg{background:#fee2e2;color:#7f1d1d} .note.nul{background:#f1f5f9;color:#334155}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}
+th{background:#1e293b;color:#fff;padding:5px;font-size:9px;text-align:right}
+td{padding:4px 5px;border-bottom:1px solid #e5e7eb;font-size:10px}
+tr:nth-child(even) td{background:#f8fafc}
+td.c{text-align:center} td.b{font-weight:800} td.m{font-family:monospace;font-size:9px;color:#555}
+.box{display:inline-block;width:13px;height:13px;border:1.3px solid #888;border-radius:2px}
+.sigs{display:flex;gap:36px;margin-top:22px}
+.sig{text-align:center}.sl{width:135px;border-bottom:1px solid #000;height:26px}.sg{font-size:9px;color:#666}
+@media print{body{padding:7px} h3,.note{break-after:avoid} tr{break-inside:avoid}}
+</style></head><body>
+<h1>📋 تقرير جرد — ${esc(s.title || '')}</h1>
+<div class="sub">${esc(s.warehouse_name || '')} · ${when} · الحالة: ${esc(s.status || '')}${s.approved_by ? ' · اعتمده: ' + esc(s.approved_by) : ''}</div>
+<div class="stats">
+  <div class="st"><div class="n">${items.length}</div><div class="l">إجمالي الأصناف</div></div>
+  <div class="st"><div class="n">${g.counted.length}</div><div class="l">المعدود</div></div>
+  <div class="st"><div class="n" style="color:#b91c1c">${g.shortage.length}</div><div class="l">عجز</div></div>
+  <div class="st"><div class="n" style="color:#15803d">${g.surplus.length}</div><div class="l">زيادة</div></div>
+  <div class="st"><div class="n" style="color:#b45309">${g.unPos.length + g.unNeg.length + g.unZero.length + g.unNull.length}</div><div class="l">لم يُعد</div></div>
+</div>
+${sec('🔻 عجز — ' + g.shortage.length + ' صنف', 'sh', diffRows(g.shortage), ['#','المنتج','SKU','النظام','المعدود','الفرق'])}
+${sec('🔺 زيادة — ' + g.surplus.length + ' صنف', 'su', diffRows(g.surplus), ['#','المنتج','SKU','النظام','المعدود','الفرق'])}
+${sec('⚠️ لم يُعد — وعنده رصيد موجب — ' + g.unPos.length + ' صنف', 'un', unRows(g.unPos), ['#','المنتج','SKU','الرصيد بالنظام','✓'],
+  'المنتجات دي مظهرتش في الجرد ورصيدها موجب — الأرجح مش موجودة فعلياً. في الجرد الكلي بتتصفّر وقت الاعتماد. راجعها قبل ما تعتمد.')}
+${sec('🚨 لم يُعد — ورصيده سالب — ' + g.unNeg.length + ' صنف', 'neg', unRows(g.unNeg), ['#','المنتج','SKU','الرصيد بالنظام','✓'],
+  'رصيد سالب معناه إن النظام نفسه غلط. تصفيرها <b>بيزوّد</b> مخزون على Shopify مش بيقلّله.')}
+${sec('📭 لم يُعد — من غير كمية نظام — ' + g.unNull.length + ' صنف', 'nul', unRows(g.unNull), ['#','المنتج','SKU','الرصيد بالنظام','✓'],
+  'الستوك بتاعها مااتسحبش من Shopify، فهي مش داخلة في أي حسابات.')}
+<div class="sigs">
+  <div class="sig"><div class="sl"></div><div class="sg">القائم بالجرد</div></div>
+  <div class="sig"><div class="sl"></div><div class="sg">مدير المحل</div></div>
+  <div class="sig"><div class="sl"></div><div class="sg">المراجعة</div></div>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if(!w){ toast('❌ المتصفح منع النافذة — اسمح بالنوافذ المنبثقة', 'error'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 600);
+}
+
 let _stkNew = { mode:'full', warehouseId:'', count:50, templateId:'', products:[], talabatIds:[] };
 let _stkNewSearchTimer = null;
 async function stkOpenNewModal(){
@@ -5294,17 +5521,12 @@ async function posShowOpenShiftModal(){
         <div style="text-align:center;margin-bottom:20px">
           <div style="font-size:48px;margin-bottom:8px">💰</div>
           <h2 style="margin:0;color:var(--gold);font-size:22px;font-weight:900">افتح الشيفت</h2>
-          <div style="color:var(--muted);font-size:13px;margin-top:6px">عدّ الكاش في الدرج وأدخل المبلغ</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:6px">الشيفت بيبدأ برصيد صفر</div>
         </div>
-        
-        <div style="margin-bottom:14px">
-          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">رصيد الدرج الافتتاحي (ج) *</label>
-          <input id="pos-opening-cash" type="number" min="0" step="0.01" placeholder="مثلاً: 500" 
-                 inputmode="decimal"
-                 style="width:100%;padding:14px;background:var(--elev);color:var(--text);border:2px solid var(--gold);border-radius:10px;font-family:Cairo,sans-serif;font-size:22px;text-align:center;font-weight:800">
-          <div style="font-size:11px;color:var(--muted);margin-top:6px">💡 الفكّة اللي معاك في الدرج دلوقتي</div>
-        </div>
-        
+
+        <!-- 💰 v137: خانة الرصيد الافتتاحي اتشالت. الكاش بيتسلّم للمدير
+             وقت الإقفال، فكل شيفت بيبدأ من صفر ومالوش علاقة باللي قبله. -->
+
         <div style="margin-bottom:16px">
           <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">ملاحظات (اختياري)</label>
           <input id="pos-opening-notes" type="text" placeholder="مثلاً: استلمت كاش الفكّة من المدير"
@@ -5312,8 +5534,8 @@ async function posShowOpenShiftModal(){
         </div>
         
         <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.2);border-radius:8px;padding:10px;margin-bottom:16px;font-size:11px;color:var(--muted);line-height:1.6">
-          ⚠️ ده الرصيد بتاع الكاش بس. <strong>الفيزا والإنستا باي بيبدأوا من صفر</strong>.
-          عند نهاية الشيفت، هتدخل القيم النهائية للـ 3 طرق.
+          💡 الشيفت بيبدأ بصفر في الكاش والفيزا والإنستا.
+          عند نهاية الشيفت، هتدخل القيم النهائية للـ 3 طرق وتسلّم الكاش للمدير.
         </div>
         
         <button id="pos-confirm-open-btn" onclick="posConfirmOpenShift()" 
@@ -5323,7 +5545,7 @@ async function posShowOpenShiftModal(){
       </div>
     `;
     document.body.appendChild(modal);
-    setTimeout(() => $('pos-opening-cash')?.focus(), 200);
+    setTimeout(() => $('pos-opening-notes')?.focus(), 200);
     
     // store resolver للاستخدام بعدين
     window._posOpenShiftResolve = resolve;
@@ -5331,14 +5553,7 @@ async function posShowOpenShiftModal(){
 }
 
 async function posConfirmOpenShift(){
-  const cashInput = $('pos-opening-cash');
-  const opening = parseFloat(cashInput.value);
-  if(isNaN(opening) || opening < 0){
-    toast('❌ ادخل رقم صحيح للرصيد', 'error');
-    cashInput.focus();
-    return;
-  }
-  
+  const opening = 0;   // 💰 v137: الرصيد الافتتاحي اتلغى — كل شيفت بيبدأ من صفر
   const notes = ($('pos-opening-notes')?.value || '').trim();
   const storeId = _posStore?.id;
   
@@ -5354,7 +5569,7 @@ async function posConfirmOpenShift(){
     
     if(r?.session){
       window._posCurrentSession = r.session;
-      toast(`✅ تم فتح الشيفت - رصيد ${opening.toFixed(0)} ج`, 'success');
+      toast('✅ تم فتح الشيفت', 'success');
       document.getElementById('pos-open-shift-modal')?.remove();
       
       // resolve الـ promise لو موجودة
@@ -6370,7 +6585,9 @@ async function posApplyPromo(){
   if(subtotal <= 0){ toast('❌ السلة فاضية'); return; }
   
   try {
-    const r = await apiFetch('/api/pos/promo/validate', 'POST', { code, subtotal });
+    // 🎟️ v135: ابعت المحل من الواجهة. الأدمن اللي بيدخل Stars مالوش
+    //   store_id في قاعدة البيانات، فالكود المربوط بمحل كان بيترفض.
+    const r = await apiFetch('/api/pos/promo/validate', 'POST', { code, subtotal, storeId: _posStore?.id });
     
     if(r?.valid){
       _posPromo = { 
@@ -6414,7 +6631,9 @@ async function posRevalidatePromo(){
   const subtotal = posCalcSubtotal();
   
   try {
-    const r = await apiFetch('/api/pos/promo/validate', 'POST', { code, subtotal });
+    // 🎟️ v135: ابعت المحل من الواجهة. الأدمن اللي بيدخل Stars مالوش
+    //   store_id في قاعدة البيانات، فالكود المربوط بمحل كان بيترفض.
+    const r = await apiFetch('/api/pos/promo/validate', 'POST', { code, subtotal, storeId: _posStore?.id });
     if(r?.valid){
       _posPromo = { ...r.promo, code: r.promo.code };
       $('pos-promo-discount-display').textContent = `خصم: ${parseFloat(r.promo.discount).toFixed(0)} ج`;
@@ -11953,7 +12172,7 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
       <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid #3b82f6">
         <div style="font-weight:800;font-size:13px;color:#3b82f6;margin-bottom:10px">💵 تفصيل درج الكاش</div>
         <table style="width:100%;font-size:12px;border-collapse:collapse">
-          <tr><td style="padding:3px 0;color:var(--muted)">رصيد الافتتاح</td><td style="text-align:left;font-family:Roboto,sans-serif">${openingCash.toFixed(0)} ج</td></tr>
+          ${openingCash > 0 ? `<tr><td style="padding:3px 0;color:var(--muted)">رصيد الافتتاح</td><td style="text-align:left;font-family:Roboto,sans-serif">${openingCash.toFixed(0)} ج</td></tr>` : ''}
           <tr><td style="padding:3px 0;color:var(--muted)">+ مبيعات كاش</td><td style="text-align:left;color:#22c55e;font-family:Roboto,sans-serif">+${cashSales.toFixed(0)} ج</td></tr>
           <tr><td style="padding:3px 0;color:var(--muted)">+ إيداعات</td><td style="text-align:left;color:#22c55e;font-family:Roboto,sans-serif">+${cashIn.toFixed(0)} ج</td></tr>
           <tr><td style="padding:3px 0;color:var(--muted)">- سحوبات</td><td style="text-align:left;color:#ef4444;font-family:Roboto,sans-serif">-${cashOut.toFixed(0)} ج</td></tr>
@@ -11963,6 +12182,7 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
         ${((drawer?.refunds?.visa||0) + (drawer?.refunds?.instapay||0)) > 0 ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(239,68,68,.08);border:1px dashed #ef4444;border-radius:8px;font-size:11px;color:#ef4444">↩️ مرتجعات مخصومة من المفروض: فيزا <b>${(drawer.refunds.visa||0).toFixed(0)}</b> ج · انستا <b>${(drawer.refunds.instapay||0).toFixed(0)}</b> ج</div>` : ''}
         ${(() => { const gap = (visa - (drawer?.refunds?.visa||0)) - expectedVisa; return Math.abs(gap) > 0.5 ? `<div style="margin-top:8px;padding:8px 10px;background:#7f1d1d;border-radius:8px;font-size:11px;color:#fff">⚠️ فيزا المفروض (${expectedVisa.toFixed(0)}) أقل من التوزيع ناقص المرتجعات بـ ${gap.toFixed(0)} ج — السيرفر لسه قديم (ارفع v526)</div>` : ''; })()}
         ${(drawer?.talabatDeferred?.total || 0) > 0 ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(255,90,0,.08);border:1px dashed #FF5A00;border-radius:8px;font-size:11px;color:#FF5A00">🛵 آجل طلبات (تدوين فقط — مش داخل الدرج): <b style="font-family:Roboto,sans-serif">${(drawer.talabatDeferred.total).toFixed(0)} ج</b>${drawer.talabatDeferred.count ? ` · ${drawer.talabatDeferred.count} طلب` : ''}</div>` : ''}
+        ${smgrRefundsDetailHtml(drawer?.refundsDetail)}
       </div>
     `;
     
@@ -11990,7 +12210,26 @@ async function smgrOpenSettlementForSession(cashierId, cashierName, sessionId){
       </div>
     `;
     
-    const html = `
+    // 🔓 v137: المنع اتشال — أي شيفت يتصفّى في أي وقت. ده بقى مجرد
+    //   تنبيه بوجود شيفت أقدم مستني، مع زرار يوديك له لو حابب.
+    _smgrBlockedByOlder = false;
+    const _older = r.olderPending || [];
+    const olderHtml = _older.length ? `
+      <div style="background:rgba(245,158,11,.12);border:1px solid #f59e0b;border-radius:10px;padding:12px;margin-bottom:14px">
+        <div style="font-weight:800;font-size:13px;color:#f59e0b;margin-bottom:4px">⏳ فيه ${_older.length} شيفت أقدم لسه مستني تصفية</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.7">
+          تقدر تصفّي الشيفت ده عادي — كل شيفت بياخد بيعاته هو بس.
+          <div style="margin-top:5px">
+            ${_older.map(o => `شيفت #${o.id} — قفل ${o.closed_at ? new Date(o.closed_at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'}) : 'لسه'}`).join('<br>')}
+          </div>
+        </div>
+        ${r.oldestPendingId ? `<button onclick="smgrOpenSettlementForSession(${cashierId}, ${JSON.stringify(cashierName)}, ${r.oldestPendingId})"
+          style="margin-top:9px;background:transparent;color:#f59e0b;border:1px solid #f59e0b;border-radius:8px;padding:7px 13px;font-weight:700;cursor:pointer;font-size:12px">
+          ↩️ روح للأقدم (#${r.oldestPendingId})
+        </button>` : ''}
+      </div>` : '';
+    
+    const html = olderHtml + `
       <div style="background:var(--elev);border-radius:10px;padding:14px;margin-bottom:14px">
         <div style="font-weight:800;font-size:14px;color:var(--gold);margin-bottom:4px">${escapeHtml(cashierName)}</div>
         <div style="font-size:11px;color:var(--muted)">${r.count} بيعة - من ${new Date(r.first_sale_at).toLocaleString('ar-EG', {dateStyle:'short',timeStyle:'short'})} لـ ${new Date(r.last_sale_at).toLocaleString('ar-EG', {dateStyle:'short',timeStyle:'short'})}</div>
@@ -12254,6 +12493,7 @@ function smgrCloseSettlement(){
 
 // 🆕 v118: تسويات المدير — 🔧 v124: زرار +/− بدل كتابة السالب، والكتابة مابتعيدش الرسم (كان الفوكس بيطير بعد كل رقم)
 let _smgrAdj = [];
+let _smgrBlockedByOlder = false;   // 🔒 v133
 const _adjVal = x => (x.sign||-1) * Math.abs(parseFloat(x.amount)||0);
 function smgrAdjSum(method){ return _smgrAdj.filter(x => (x.method||'cash') === (method||'cash')).reduce((a,x)=>a+_adjVal(x),0); }
 function smgrAdjRender(){
@@ -12298,6 +12538,12 @@ async function smgrConfirmSettlement(){
   if(isNaN(visaCollected) || visaCollected < 0){ toast('❌ ادخل فيزا صحيح', 'error'); return; }
   if(isNaN(instapayCollected) || instapayCollected < 0){ toast('❌ ادخل انستاباي صحيح', 'error'); return; }
   
+  // 🔒 v133: ممنوع الحفظ وفيه شيفت أقدم مستني
+  if(_smgrBlockedByOlder){
+    toast('🔒 لازم تصفّي الشيفت الأقدم الأول', 'error');
+    return;
+  }
+  
   const confirmMsg = `تأكيد تصفية ${_smgrSelectedCashier.name}؟\n\n` +
     `💵 كاش: ${cashCollected.toFixed(0)} ج\n` +
     `💳 فيزا: ${visaCollected.toFixed(0)} ج\n` +
@@ -12317,6 +12563,13 @@ async function smgrConfirmSettlement(){
       adj: _smgrAdj.filter(a => (a.label||'').trim() && parseFloat(a.amount)).map(a => ({ label:a.label, method:a.method||'cash', amount:_adjVal(a) }))   // 🔧 v124: الإشارة من الزرار.map(a => ({ ...a, method: a.method || 'cash' }))   // 🆕 v118/v119
     });
     
+    if(r?.code === 'OLDER_PENDING_FIRST'){
+      // 🔒 v133
+      alert(r.error);
+      if(r.oldest_session_id) smgrOpenSettlementForSession(_smgrSelectedCashier.id, _smgrSelectedCashier.name, r.oldest_session_id);
+      return;
+    }
+    
     if(r?.success){
       const sum = r.summary;
       const diffs = sum.differences;
@@ -12334,8 +12587,38 @@ async function smgrConfirmSettlement(){
       await smgrLoadCashiers();
     }
   } catch(e) {
+    // 🔒 v133: السيرفر رفض لأن فيه شيفت أقدم
+    if((e.message || '').includes('الأقدم')){
+      alert('🔒 ' + e.message);
+      smgrCloseSettlement();
+      smgrOpenSettlement(_smgrSelectedCashier.id, _smgrSelectedCashier.name);
+      return;
+    }
     toast('❌ ' + e.message, 'error');
   }
+}
+
+// 🧾 v137: تفاصيل المرتجعات داخل شاشة التصفية — كل مرتجع برقم أوردر شوبيفاي
+const _SMGR_M_ICON = { cash:'💵', visa:'💳', instapay:'📱', store_credit:'🎟️', exchange:'🔁' };
+const _SMGR_M_NAME = { cash:'كاش', visa:'فيزا', instapay:'انستا', store_credit:'رصيد', exchange:'استبدال' };
+
+function smgrRefundsDetailHtml(list){
+  if(!Array.isArray(list) || !list.length) return '';
+  const total = list.reduce((a, b) => a + (parseFloat(b.amount) || 0), 0);
+  return `
+    <div style="margin-top:10px;border-top:1px dashed var(--border);padding-top:9px">
+      <div style="font-size:11px;font-weight:800;color:#ef4444;margin-bottom:6px">↩️ المرتجعات (${list.length}) · ${total.toFixed(0)} ج</div>
+      ${list.map(x => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;font-size:11px;border-top:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <span style="font-weight:800;font-family:Roboto,sans-serif">${x.orderName ? escapeHtml(x.orderName) : (x.saleNumber ? escapeHtml(x.saleNumber) : '—')}</span>
+            <span style="color:var(--muted)"> · ${_SMGR_M_ICON[x.method]||'•'} ${_SMGR_M_NAME[x.method]||escapeHtml(x.method||'')}</span>
+            ${x.approvalStatus !== 'approved' ? '<span style="color:#f59e0b"> · ⏳ مستني اعتماد</span>' : ''}
+            ${x.reason ? `<div style="color:var(--muted);font-size:10px">${escapeHtml(x.reason)}</div>` : ''}
+          </div>
+          <div style="font-weight:800;color:#ef4444;font-family:Roboto,sans-serif;white-space:nowrap">-${(parseFloat(x.amount)||0).toFixed(0)} ج</div>
+        </div>`).join('')}
+    </div>`;
 }
 
 // 🆕 v225: ─── Returns Review Tab ───
@@ -12397,6 +12680,7 @@ async function smgrLoadReturns(){
             <div style="text-align:left">
               <div style="font-size:18px;font-weight:900;color:#f97316">${total.toLocaleString()} ج</div>
               <div style="font-size:10px;color:var(--muted)">${methodIcons[refundMethod]||'•'} ${methodNames[refundMethod]||refundMethod}</div>
+              ${ret.shopify_order_name ? `<div style="font-size:11px;font-weight:800;color:#3b82f6;font-family:Roboto,sans-serif;margin-top:3px">🧾 ${escapeHtml(ret.shopify_order_name)}</div>` : (ret.original_sale_number ? `<div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif;margin-top:3px">${escapeHtml(ret.original_sale_number)}</div>` : '')}
             </div>
           </div>
 
@@ -12423,6 +12707,8 @@ async function smgrLoadReturns(){
           <div style="display:flex;gap:6px">
             ${!reviewed ? `<button onclick="smgrReviewReturn(${ret.id})" style="flex:1;padding:10px;background:#22c55e;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">✅ تم المراجعة</button>` : ''}
             ${syncFail ? `<button onclick="smgrRetryReturnSync(${ret.id})" style="flex:1;padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">🔄 اعادة محاولة Shopify</button>` : ''}
+            ${ret.settlement_id || ret.voided_at ? '' : `<button onclick="smgrChangeRefundMethod(${ret.id}, '${escapeHtml(refundMethod||'')}')" title="تصحيح طريقة الاسترداد" style="padding:10px 12px;background:transparent;color:#3b82f6;border:1px solid #3b82f6;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">💳 غيّر الطريقة</button>`}
+            ${ret.voided_at ? '' : `<button onclick="smgrVoidReturn(${ret.id}, '${escapeHtml(ret.return_number||'')}')" title="المرتجع اتسجّل بالغلط" style="padding:10px 12px;background:transparent;color:#ef4444;border:1px solid #ef4444;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:12px">🚫 إلغاء</button>`}
           </div>
         </div>
       `;
@@ -12457,6 +12743,105 @@ async function smgrRetryReturnSync(id){
     if(r?.success){
       toast('🔄 ' + (r.message || 'بدأت'));
       setTimeout(() => smgrLoadReturns(), 3000);
+    } else toast('❌ ' + (r?.error || 'فشل'), 'error');
+  } catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
+// 💳 v137: تصحيح طريقة الاسترداد — مدير المحل
+function smgrChangeRefundMethod(id, current){
+  document.getElementById('smgr-method-modal')?.remove();
+  const opts = [
+    { v:'cash',     t:'💵 كاش' },
+    { v:'visa',     t:'💳 فيزا' },
+    { v:'instapay', t:'📱 انستا' }
+  ];
+  const ov = document.createElement('div');
+  ov.id = 'smgr-method-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `
+    <div style="background:var(--elev,#1a1a1a);border:1px solid var(--border);border-radius:14px;max-width:360px;width:100%;padding:18px">
+      <h3 style="margin:0 0 4px;font-size:16px;color:#3b82f6">💳 تصحيح طريقة الاسترداد</h3>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:14px">
+        بيصحّح التسجيل عندنا بس — مفيش أي فلوس هتتحرك على Shopify.
+        التغيير بيحدّد المرتجع هيتخصم من أنهي خانة في تصفية الكاشير.
+      </div>
+      <div style="display:grid;gap:8px">
+        ${opts.map(o => `
+          <button onclick="smgrChangeRefundMethodSubmit(${id}, '${o.v}')"
+            ${o.v === current ? 'disabled' : ''}
+            style="padding:12px;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:${o.v===current?'default':'pointer'};
+                   background:${o.v===current?'rgba(255,255,255,.05)':'transparent'};
+                   color:${o.v===current?'var(--muted)':'var(--text)'};
+                   border:2px solid ${o.v===current?'var(--border)':'#3b82f6'}">
+            ${o.t}${o.v === current ? ' (الحالي)' : ''}
+          </button>`).join('')}
+      </div>
+      <button onclick="document.getElementById('smgr-method-modal').remove()" style="width:100%;margin-top:12px;padding:10px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">رجوع</button>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+async function smgrChangeRefundMethodSubmit(id, method){
+  try {
+    const r = await apiFetch(`/api/store-mgr/returns/${id}/change-method`, 'POST', { method });
+    if(r?.success){
+      document.getElementById('smgr-method-modal')?.remove();
+      toast(r.unchanged ? 'مفيش تغيير' : `✅ اتغيّرت من ${_SMGR_M_NAME[r.from]||r.from} لـ ${_SMGR_M_NAME[r.to]||r.to}`, 'success');
+      smgrLoadReturns();
+    } else toast('❌ ' + (r?.error || 'فشل'), 'error');
+  } catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
+// 🚫 v136: إلغاء مرتجع اتسجّل بالغلط — محتاج كلمة سر أدمن
+function smgrVoidReturn(id, returnNumber){
+  document.getElementById('smgr-void-modal')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'smgr-void-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `
+    <div style="background:var(--elev,#1a1a1a);border:1px solid var(--border);border-radius:14px;max-width:420px;width:100%;padding:18px">
+      <h3 style="margin:0 0 4px;font-size:16px;color:#ef4444">🚫 إلغاء المرتجع ${escapeHtml(returnNumber)}</h3>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:14px">
+        الكميات هترجع متاحة للإرجاع تاني، والمرتجع هيبطّل يتخصم من تصفية الكاشير.<br>
+        <b style="color:#f59e0b">الـ refund على Shopify مش هيتلغي</b> — لازم تتعامل معاه هناك.
+      </div>
+      <label style="display:block;font-size:11px;font-weight:700;margin-bottom:4px">سبب الإلغاء</label>
+      <input id="svd-reason" placeholder="اتسجّل بالغلط / اتعمل مرتين..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:13px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;margin-bottom:4px">يوزر الأدمن</label>
+          <input id="svd-user" autocomplete="off" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;margin-bottom:4px">كلمة السر</label>
+          <input id="svd-pass" type="password" autocomplete="off" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button onclick="document.getElementById('smgr-void-modal').remove()" style="flex:1;padding:11px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">رجوع</button>
+        <button onclick="smgrVoidReturnSubmit(${id})" style="flex:1;padding:11px;background:#ef4444;color:#fff;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">🚫 ألغِ المرتجع</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  setTimeout(() => document.getElementById('svd-reason')?.focus(), 100);
+}
+
+async function smgrVoidReturnSubmit(id){
+  const reason = (document.getElementById('svd-reason')?.value || '').trim();
+  const user   = (document.getElementById('svd-user')?.value || '').trim();
+  const pass   =  document.getElementById('svd-pass')?.value || '';
+  if(reason.length < 3){ toast('❗ اكتب سبب الإلغاء', 'error'); return; }
+  if(!user || !pass){ toast('❗ بيانات الأدمن مطلوبة', 'error'); return; }
+  try {
+    const r = await apiFetch(`/api/pos/returns/${id}/void`, 'POST', {
+      reason, admin_username: user, admin_pass_hash: await _sha256Hex(pass)
+    });
+    if(r?.success){
+      document.getElementById('smgr-void-modal')?.remove();
+      toast('🚫 المرتجع اتلغى', 'success');
+      if(r.warning) setTimeout(() => alert('⚠️ ' + r.warning), 400);
+      smgrLoadReturns();
+      smgrUpdateReturnsBadge();
     } else toast('❌ ' + (r?.error || 'فشل'), 'error');
   } catch(e){ toast('❌ ' + e.message, 'error'); }
 }
