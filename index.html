@@ -1160,6 +1160,8 @@ a{color:inherit;text-decoration:none}
         <button class="pos-tb-btn" onclick="posOpenSalesHistory()" title="سجل البيعات">📋 السجل</button>
         <button class="pos-tb-btn" onclick="posOpenReturnsSearch()" title="إنشاء مرتجع" style="background:#fed7aa;color:#9a3412;border-color:#fdba74">↩️ مرتجع</button>
         <button class="pos-tb-btn" id="pos-talabat-toggle" onclick="posToggleTalabat()" title="وضع طلبات — تسعير بأسعار طلبات">🛵 وضع طلبات</button>
+        <!-- 🆕 v138: خصم عميل طلبات برو — بيظهر في وضع طلبات وأيام الاتفاق بس -->
+        <button class="pos-tb-btn" id="pos-tpro-toggle" onclick="posToggleTpro()" style="display:none" title="العميل مشترك في طلبات برو — طبّق الخصم">⭐ عميل برو</button>
         <button class="pos-tb-btn" onclick="posAddService()" title="بند صيانة مكن — السعر بتكتبه">🔧 صيانة</button>
         <button class="pos-tb-btn" onclick="posShowCloseShiftModal()" title="اقفل الشيفت" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🔒 قفل الشيفت</button>
         <button class="pos-tb-btn icon-only" onclick="posForceRefresh()" title="حدّث المنتجات + ارفع البيعات المعلّقة">🔄</button>
@@ -5312,6 +5314,19 @@ let _talabatDivisor = 0.85;    // 🆕 v113: بييجي من السيرفر (1 �
 let _talabatPricesAt = 0;      // 🆕 v113: آخر مرة اتحدّثت الأسعار
 let _talabatPriceVer = null;   // 🆕 v114: رقم نسخة الأسعار من السيرفر
 let _talabatStale = false;     // 🆕 v114: النت مقطوع والأسعار ممكن تبقى قديمة
+let _posTproOn = false;                                      // 🆕 v138: عميل طلبات برو
+let _tproCfg = { enabled:false, pct:15, days:[23,24,25] };   // بييجي مع الأسعار وبيتكاش
+// يوم النهاردة بتوقيت القاهرة — الجهاز ممكن يكون على توقيت تاني
+function _tproDayNow(){
+  try{ return parseInt(new Date().toLocaleString('en-GB',{ timeZone:'Africa/Cairo', day:'2-digit' }),10); }
+  catch(e){ return new Date().getDate(); }
+}
+function _tproAvailable(){ return !!(_tproCfg.enabled && _tproCfg.days.includes(_tproDayNow())); }
+// السعر بعد خصم برو — بيتحسب من سعر طلبات الأصلي دايماً، فمفيش تراكم
+function _tproPrice(base){
+  if(!_posTproOn || !_tproAvailable()) return base;
+  return Math.round(base * (1 - _tproCfg.pct/100) * 100) / 100;
+}
 let _posTalabatDeferred = false;
 let _posTalabatCode = '';   // 🆕 v99: كود الطلب على تطبيق طلبات
 let _talabatPendingPay = false; // 🆕 v100: تسجيل العميل إجباري قبل دفع طلبات
@@ -5322,6 +5337,7 @@ async function posLoadTalabatPrices(){
     if(cached?.divisor != null) _talabatDivisor = cached.divisor;    // 🆕 v113
     if(cached?.savedAt) _talabatPricesAt = cached.savedAt;
     if(cached?.ver != null) _talabatPriceVer = String(cached.ver);   // 🆕 v114
+    if(cached?.tpro) _tproCfg = cached.tpro;                         // 🆕 v138
   } catch(e){}
   if(_posIsOnline){
     try {
@@ -5329,9 +5345,12 @@ async function posLoadTalabatPrices(){
       _talabatPrices = (r && r.prices) || {};
       if(r && r.divisor != null) _talabatDivisor = Number(r.divisor);
       if(r && r.version != null) _talabatPriceVer = String(r.version);
+      if(r && r.tpro) _tproCfg = { enabled:!!r.tpro.enabled, pct:Number(r.tpro.pct)||15,
+                                   days:Array.isArray(r.tpro.days)?r.tpro.days:[23,24,25] };   // 🆕 v138
+      if(!_tproAvailable()) _posTproOn = false;      // الاتفاق اتقفل أو اليوم عدّى
       _talabatPricesAt = Date.now(); _talabatStale = false;
       await posDBPut('meta', { key:'talabatPrices', value:_talabatPrices, divisor:_talabatDivisor,
-                               savedAt:_talabatPricesAt, ver:_talabatPriceVer });
+                               savedAt:_talabatPricesAt, ver:_talabatPriceVer, tpro:_tproCfg });
     } catch(e){ _talabatStale = true; console.warn('talabat prices:', e.message); }
   }
 }
@@ -5956,17 +5975,21 @@ async function posToggleTalabat(){
 }
 function posSetTalabatMode(on){
   _posTalabatMode = on;
+  if(!on) _posTproOn = false;                   // 🆕 v138: خصم برو تبع وضع طلبات بس
   // أعد تسعير السلة
   _posCart.forEach(c => {
     const p = _posCatalog.find(x => x.variant_id === c.variantId);
     const orig = p ? (parseFloat(p.price)||0) : (c.originalPrice || c.unitPrice);
     if(on){
       const vid = String(c.variantId);
-      c.unitPrice = _talabatPrices[vid] != null ? _talabatPrices[vid] : _talFallbackPrice(orig);
+      const talBase = _talabatPrices[vid] != null ? _talabatPrices[vid] : _talFallbackPrice(orig);
+      c.talBase = talBase;                      // 🆕 v138: السعر قبل خصم برو
+      c.unitPrice = _tproPrice(talBase);
       c.offerId = null; c.offerName = null; c.originalPrice = null; // وضع طلبات يلغي العروض
     } else {
       const offer = p ? posGetOfferForProduct(p.product_id, p.variant_id) : null;
       c.unitPrice = offer ? parseFloat(offer.offerPrice) : orig;
+      c.talBase = null;                         // 🆕 v138
       c.offerId = offer ? offer.offerId : null;
       c.offerName = offer ? offer.offerName : null;
       c.originalPrice = offer ? orig : null;
@@ -5993,10 +6016,35 @@ function posSetTalabatMode(on){
         + (_talabatStale ? `<div style="font-size:11px;font-weight:700;margin-top:2px">⚠️ مفيش نت — الأسعار ممكن تكون قديمة</div>` : '');
     }
   }
+  _tproSyncBtn();                                      // 🆕 v138
   document.body.classList.toggle('talabat-active', on); // 🆕 v103: ثيم برتقالي
   posRenderCart();
   if(typeof posRenderProducts === 'function') posRenderProducts();
   toast(on ? '🛵 وضع طلبات مُفعّل' : '↩️ رجع للوضع العادي', on ? 'warning' : 'info');
+}
+
+// 🆕 v138: زرار خصم عميل برو
+function _tproSyncBtn(){
+  const b = document.getElementById('pos-tpro-toggle');
+  if(!b) return;
+  const show = _posTalabatMode && _tproAvailable();
+  b.style.display = show ? '' : 'none';
+  if(!show) return;
+  b.style.background  = _posTproOn ? '#7c3aed' : '';
+  b.style.color       = _posTproOn ? '#fff' : '';
+  b.style.borderColor = _posTproOn ? '#7c3aed' : '';
+  b.textContent = _posTproOn ? `⭐ برو −${_tproCfg.pct}% ✓` : '⭐ عميل برو';
+  b.title = _posTproOn ? 'الخصم مطبّق — دوس لإلغائه' : `العميل مشترك في طلبات برو — خصم ${_tproCfg.pct}%`;
+}
+function posToggleTpro(){
+  if(!_posTalabatMode){ toast('فعّل وضع طلبات الأول','warning'); return; }
+  if(!_tproAvailable()){
+    toast(_tproCfg.enabled ? `الخصم أيام ${_tproCfg.days.join('، ')} بس` : 'خصم برو مقفول','warning');
+    _posTproOn = false; _tproSyncBtn(); return;
+  }
+  _posTproOn = !_posTproOn;
+  posSetTalabatMode(true);                     // إعادة تسعير من سعر طلبات الأصلي
+  toast(_posTproOn ? `⭐ خصم برو ${_tproCfg.pct}% اتطبّق` : 'خصم برو اتلغى', _posTproOn ? 'success' : 'info');
 }
 
 // 🆕 v97: اختيار طريقة دفع طلب طلبات (كاش مندوب / آجل)
@@ -7140,6 +7188,11 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     notes: _saleNotes, // 🆕 v94: طريقة الدفع + مصدر العميل → نوت الطلب في Shopify
     talabat: _posTalabatMode || false,            // 🆕 v97: طلب طلبات
     talabatDeferred: (_posTalabatMode && _posTalabatDeferred) || false,
+    // 🆕 v138: عميل برو + الإجمالي قبل الخصم (السيرفر بيتحقق بيه)
+    tpro: (_posTalabatMode && _posTproOn) || false,
+    tproBase: (_posTalabatMode && _posTproOn)
+      ? Math.round(_posCart.reduce((t,c)=> t + (Number(c.talBase)||Number(c.unitPrice)||0) * (Number(c.qty)||0), 0) * 100) / 100
+      : null,
     offlineCreated: !_posIsOnline
   };
   
