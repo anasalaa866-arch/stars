@@ -6006,12 +6006,12 @@ function posSetTalabatMode(on){
   if(banner){
     banner.style.display = on ? 'block' : 'none';
     if(on){
-      // 🆕 v113/v114: النسبة الشغالة + وقت آخر تحديث + تحذير لو مفيش نت
-      const pct = Math.round((1 - _talabatDivisor) * 1000) / 10;
+      // 🆕 v113/v114: وقت آخر تحديث + تحذير لو مفيش نت
       const mins = _talabatPricesAt ? Math.floor((Date.now() - _talabatPricesAt) / 60000) : null;
       const age = mins == null ? 'مش محدّثة' : (mins < 1 ? 'محدّثة دلوقتي' : (mins < 60 ? `من ${mins} دقيقة` : `من ${Math.floor(mins/60)} ساعة`));
       const stale = (mins != null && mins > 120) || _talabatStale;
-      banner.innerHTML = `🛵 وضع طلبات مُفعّل — التسعير بنسبة ${pct}% `
+      // 🔒 v139: النسبة مش بتتعرض للكاشير — معلومة تجارية. حداثة الأسعار بس.
+      banner.innerHTML = `🛵 وضع طلبات مُفعّل — التسعير بأسعار طلبات `
         + `<span style="opacity:.85;font-weight:600">· الأسعار ${age}${stale ? ' ⚠️' : ''}</span>`
         + (_talabatStale ? `<div style="font-size:11px;font-weight:700;margin-top:2px">⚠️ مفيش نت — الأسعار ممكن تكون قديمة</div>` : '');
     }
@@ -6033,8 +6033,9 @@ function _tproSyncBtn(){
   b.style.background  = _posTproOn ? '#7c3aed' : '';
   b.style.color       = _posTproOn ? '#fff' : '';
   b.style.borderColor = _posTproOn ? '#7c3aed' : '';
-  b.textContent = _posTproOn ? `⭐ برو −${_tproCfg.pct}% ✓` : '⭐ عميل برو';
-  b.title = _posTproOn ? 'الخصم مطبّق — دوس لإلغائه' : `العميل مشترك في طلبات برو — خصم ${_tproCfg.pct}%`;
+  // 🔒 v139: النسبة مخفية عن الكاشير
+  b.textContent = _posTproOn ? '⭐ عميل برو ✓' : '⭐ عميل برو';
+  b.title = _posTproOn ? 'خصم برو مطبّق — دوس لإلغائه' : 'العميل مشترك في طلبات برو — طبّق الخصم';
 }
 function posToggleTpro(){
   if(!_posTalabatMode){ toast('فعّل وضع طلبات الأول','warning'); return; }
@@ -6044,7 +6045,7 @@ function posToggleTpro(){
   }
   _posTproOn = !_posTproOn;
   posSetTalabatMode(true);                     // إعادة تسعير من سعر طلبات الأصلي
-  toast(_posTproOn ? `⭐ خصم برو ${_tproCfg.pct}% اتطبّق` : 'خصم برو اتلغى', _posTproOn ? 'success' : 'info');
+  toast(_posTproOn ? '⭐ خصم برو اتطبّق' : 'خصم برو اتلغى', _posTproOn ? 'success' : 'info');
 }
 
 // 🆕 v97: اختيار طريقة دفع طلب طلبات (كاش مندوب / آجل)
@@ -6126,7 +6127,7 @@ function posAddToCart(variantId){
   const offer = _posTalabatMode ? null : (_pr.offer || null);
   const originalPrice = parseFloat(product.price) || 0;
   const finalPrice = _pr.price;
-  if(_pr.talabatUnlinked){ toast(`⚠️ المنتج ده مش مضاف على طلبات — اتسعّر بنسبة ${Math.round((1-_talabatDivisor)*1000)/10}%`, 'warning'); }
+  if(_pr.talabatUnlinked){ toast('⚠️ المنتج ده مش مضاف على طلبات — اتسعّر تلقائي', 'warning'); }   // 🔒 v139
   
   // 🆕 v38: audit - track cart total قبل التعديل
   const cartTotalBefore = _auditCalcCartTotal();
