@@ -1781,11 +1781,37 @@ a{color:inherit;text-decoration:none}
             <button class="smgr-tab" onclick="smgrSwitchTab('stockouts', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🚨 النواقص <span id="smgr-stockout-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:10px"></span></button>
       <button class="smgr-tab" onclick="smgrSwitchTab('settlements', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💰 سجل التصفيات</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('promos', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🎟️ أكواد الخصم</button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('expiry', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⏳ الصلاحيات <span id="smgr-exp-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:10px"></span></button>
     </div>
     
     <div id="smgr-content" style="padding:14px;padding-bottom:80px"></div>
   </div>
   
+
+<!-- باتش محل جديد (v230) -->
+<div id="sb-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:1200;padding:14px;overflow-y:auto">
+  <div style="max-width:520px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-weight:900;font-size:16px">➕ باتش جديد</div>
+      <button onclick="sbCloseNew()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer">✕</button>
+    </div>
+    <input id="sb-q" placeholder="امسح الباركود أو اكتب اسم الصنف" autocomplete="off" oninput="sbSearch()"
+           style="width:100%;padding:12px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Cairo,sans-serif;font-size:14px">
+    <div id="sb-results" style="max-height:240px;overflow-y:auto;margin-top:6px"></div>
+    <div id="sb-picked" style="margin-top:8px"></div>
+    <div id="sb-form" style="display:none;margin-top:12px">
+      <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">الكمية</label>
+      <input id="sb-qty" type="number" min="1" inputmode="numeric"
+             style="width:100%;padding:12px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Roboto,sans-serif;font-size:15px">
+      <label style="display:block;font-size:12px;font-weight:700;margin:10px 0 4px">تاريخ الصلاحية</label>
+      <input id="sb-exp" type="date"
+             style="width:100%;padding:12px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Roboto,sans-serif;font-size:15px">
+      <label style="display:block;font-size:12px;font-weight:700;margin:10px 0 4px">ملاحظة (اختياري)</label>
+      <input id="sb-notes" style="width:100%;padding:11px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+      <button onclick="sbSave()" style="width:100%;margin-top:14px;padding:14px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">✅ سجّل الباتش</button>
+    </div>
+  </div>
+</div>
   <!-- Settlement Modal -->
   <div id="smgr-settlement-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;padding:14px;overflow-y:auto">
     <div style="background:var(--bg);max-width:500px;margin:0 auto;border-radius:14px;padding:20px;border:1px solid var(--gold)">
@@ -3120,6 +3146,220 @@ function showApp(){
     $('page-orders').classList.add('active');
     loadOrders();
   }
+}
+
+
+// ════════════════════════════════════════════════════════════
+// ⏳ v230: صلاحيات المحل — باتشات المدير بيعملها بنفسه
+//   بتتخصم من بيعات المحل (ومعاها طلبات) ومن التحويل الخارج.
+//   السؤال اللي الشاشة بتجاوب عليه: الكمية دي هتخلص قبل ما تبوظ
+//   ولا هيفضل منها؟ — عشان المدير يتصرف بدري.
+// ════════════════════════════════════════════════════════════
+let _sb = [], _sbSum = null, _sbDays = 14, _sbFilter = '', _sbPick = null, _sbT = null;
+
+async function sbLoad(){
+  const c = $('smgr-content'); if(!c) return;
+  c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ بيحسب...</div>';
+  try{
+    const r = await apiFetch('/api/store-batches?days=' + _sbDays
+      + (window._smgrStoreId ? '&storeId=' + window._smgrStoreId : ''));
+    if(!r?.ok) throw new Error(r?.error || 'فشل');
+    _sb = r.rows || []; _sbSum = r.summary || null;
+    sbRender();
+    const b = $('smgr-exp-badge');
+    if(b){ const n = (_sbSum?.expired||0) + (_sbSum?.high||0);
+      b.textContent = n || ''; b.style.display = n ? 'inline-block' : 'none'; }
+  }catch(e){
+    c.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+const _SB_RISK = {
+  expired: ['🔴 خلصت صلاحيتها', '#ef4444'],
+  high:    ['🟠 هيفضل منها',    '#f97316'],
+  warn:    ['🟡 راقبها',        '#eab308'],
+  ok:      ['🟢 هتخلص قبل الصلاحية', '#22c55e'],
+};
+
+function sbRender(){
+  const c = $('smgr-content'); if(!c) return;
+  const n = v => Number(v||0).toLocaleString('ar-EG');
+  const S = _sbSum || {};
+  const list = _sbFilter ? _sb.filter(x => x.risk === _sbFilter) : _sb;
+
+  const chip = (k, label, cnt, col) =>
+    `<button onclick="sbSetFilter('${k}')" style="padding:7px 12px;border-radius:99px;border:1px solid ${_sbFilter===k?col:'var(--border)'};
+      background:${_sbFilter===k?col:'transparent'};color:${_sbFilter===k?'#000':'var(--text)'};
+      font-family:Cairo,sans-serif;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap">${label}${cnt?` ${n(cnt)}`:''}</button>`;
+
+  c.innerHTML = `
+    <button onclick="sbOpenNew()" style="width:100%;padding:14px;margin-bottom:10px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">➕ باتش جديد</button>
+
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px">
+      ${chip('', 'الكل', _sb.length, 'var(--gold)')}
+      ${S.expired ? chip('expired','🔴 منتهية', S.expired, '#ef4444') : ''}
+      ${S.high    ? chip('high','🟠 هيفضل منها', S.high, '#f97316') : ''}
+      ${S.warn    ? chip('warn','🟡 راقبها', S.warn, '#eab308') : ''}
+      ${chip('ok','🟢 سليمة', _sb.filter(x=>x.risk==='ok').length, '#22c55e')}
+    </div>
+
+    ${S.atRiskQty ? `<div style="background:rgba(249,115,22,.12);border:1px solid #f97316;border-radius:12px;padding:11px;margin-bottom:10px;font-size:12.5px;color:#f97316;font-weight:700">
+      ⚠️ على معدّل البيع الحالي، <b>${n(S.atRiskQty)} قطعة</b> هتفضل معاك لما تخلص صلاحيتها.</div>` : ''}
+
+    ${S.pending ? `<div style="background:rgba(234,179,8,.12);border:1px solid #eab308;border-radius:12px;padding:11px;margin-bottom:10px;font-size:12.5px;color:#eab308;font-weight:700">
+      📦 ${n(S.pending)} باتش خلص — أكّد إنه فعلاً خلص من على الرف.</div>` : ''}
+
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+      سرعة البيع محسوبة من بيعات المحل وطلبات آخر ${n(_sbDays)} يوم.
+      <select onchange="_sbDays=+this.value;sbLoad()" style="background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-family:Cairo,sans-serif;font-size:11px">
+        ${[7,14,30,60].map(d=>`<option value="${d}" ${d===_sbDays?'selected':''}>${d} يوم</option>`).join('')}
+      </select>
+    </div>
+
+    ${!list.length ? '<div style="text-align:center;padding:40px;color:var(--muted)">مفيش باتشات هنا</div>'
+      : list.map(b => {
+      const rk = _SB_RISK[b.risk] || ['', 'var(--muted)'];
+      const exp = new Date(b.exp_date).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'});
+      return `<div style="background:var(--card);border:1px solid ${b.risk==='ok'?'var(--border)':rk[1]};border-radius:12px;padding:11px;margin-bottom:9px">
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          ${b.image?`<img src="${escapeHtml(b.image)}" style="width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff">`
+                   :'<div style="width:44px;height:44px;border-radius:8px;background:var(--elev);display:flex;align-items:center;justify-content:center">📦</div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:800;font-size:13px">${escapeHtml(b.product_title||b.variant_id)}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${escapeHtml(b.sku||b.barcode||'')}${
+              b.store_name?` · ${escapeHtml(b.store_name)}`:''}</div>
+            <div style="font-size:11.5px;margin-top:4px">
+              <b style="color:var(--gold)">${n(b.current_quantity)}</b> من ${n(b.original_quantity)} ·
+              صلاحية <b>${exp}</b> ${b.days_to_exp >= 0 ? `(بعد ${n(b.days_to_exp)} يوم)` : `<span style="color:#ef4444">(عدّت بـ ${n(-b.days_to_exp)} يوم)</span>`}
+            </div>
+            <div style="font-size:11.5px;margin-top:3px;color:${rk[1]};font-weight:700">${rk[0]}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">
+              ${b.velocity > 0
+                ? `بيبيع ${b.velocity.toLocaleString('ar-EG')}/يوم · هيخلص في ${n(b.days_to_sell)} يوم${
+                    b.left_over > 0 ? ` · <b style="color:${rk[1]}">هيفضل ${n(b.left_over)} قطعة</b>` : ''}`
+                : 'مفيش بيع في الفترة دي — الصنف واقف'}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">
+          ${b.status === 'depleted_pending'
+            ? `<button onclick="sbConfirm(${b.id})" style="flex:1;padding:9px;background:#22c55e;color:#000;border:none;border-radius:9px;font-family:Cairo,sans-serif;font-weight:800;font-size:12px;cursor:pointer">✅ أكّد إنه خلص</button>` : ''}
+          <button onclick="sbEdit(${b.id})" style="padding:9px 13px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:9px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">✏️ تعديل</button>
+          <button onclick="sbDel(${b.id})" style="padding:9px 13px;background:transparent;color:#ef4444;border:1px solid #ef4444;border-radius:9px;font-family:Cairo,sans-serif;font-size:12px;cursor:pointer">🗑️</button>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+function sbSetFilter(k){ _sbFilter = (_sbFilter === k ? '' : k); sbRender(); }
+
+async function sbConfirm(id){
+  if(!confirm('تأكيد إن الباتش ده خلص فعلاً من على الرف؟')) return;
+  try{ const r = await apiFetch(`/api/store-batches/${id}/confirm`, 'POST', {});
+    if(!r?.ok) throw new Error(r?.error||'فشل');
+    toast('✅ اتأكد'); sbLoad();
+  }catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
+async function sbDel(id){
+  if(!confirm('تمسح الباتش ده؟')) return;
+  try{ const r = await apiFetch(`/api/store-batches/${id}`, 'DELETE');
+    if(!r?.ok) throw new Error(r?.error||'فشل');
+    toast('🗑️ اتمسح'); sbLoad();
+  }catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
+async function sbEdit(id){
+  const b = _sb.find(x => x.id === id); if(!b) return;
+  const q = prompt('الكمية الموجودة دلوقتي:', b.current_quantity);
+  if(q === null) return;
+  const qty = parseInt(q, 10);
+  if(!(qty >= 0)) return toast('❌ كمية مش مظبوطة', 'error');
+  try{ const r = await apiFetch(`/api/store-batches/${id}`, 'PATCH', { qty });
+    if(!r?.ok) throw new Error(r?.error||'فشل');
+    toast('✅ اتعدّل'); sbLoad();
+  }catch(e){ toast('❌ ' + e.message, 'error'); }
+}
+
+// ── إضافة باتش ──
+function sbOpenNew(){
+  _sbPick = null;
+  const m = $('sb-modal'); if(!m) return;
+  $('sb-q').value = ''; $('sb-results').innerHTML = ''; $('sb-picked').innerHTML = '';
+  $('sb-form').style.display = 'none';
+  $('sb-qty').value = ''; $('sb-exp').value = ''; $('sb-notes').value = '';
+  m.style.display = 'block';
+  setTimeout(() => $('sb-q')?.focus(), 80);
+}
+function sbCloseNew(){ const m = $('sb-modal'); if(m) m.style.display = 'none'; }
+
+function sbSearch(){
+  clearTimeout(_sbT);
+  _sbT = setTimeout(async () => {
+    const q = ($('sb-q')?.value || '').trim();
+    const box = $('sb-results');
+    if(q.length < 2){ box.innerHTML = ''; return; }
+    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">⏳ بيدوّر...</div>';
+    try{
+      const r = await apiFetch('/api/store-batches/search?q=' + encodeURIComponent(q)
+        + (window._smgrStoreId ? '&storeId=' + window._smgrStoreId : ''));
+      if(!r?.ok) throw new Error(r?.error||'فشل');
+      const it = r.items || [];
+      window._sbFound = it;
+      if(!it.length){ box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">مفيش نتيجة</div>'; return; }
+      // باركود واحد بالظبط → اختاره على طول (المدير بيمسح بالسكانر)
+      if(it.length === 1 && (it[0].barcode === q || it[0].sku === q)){ sbPick(0); return; }
+      box.innerHTML = it.slice(0,20).map((x,i) => `
+        <div onclick="sbPick(${i})" style="display:flex;gap:9px;align-items:center;padding:8px;border-bottom:1px solid var(--border);cursor:pointer">
+          ${x.image_url?`<img src="${escapeHtml(x.image_url)}" style="width:34px;height:34px;object-fit:contain;border-radius:6px;background:#fff">`:'<div style="width:34px;height:34px;border-radius:6px;background:var(--elev)"></div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(x.title||'')}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${escapeHtml(x.sku||x.barcode||'')} · مخزون المحل ${Number(x.store_stock||0).toLocaleString('ar-EG')}</div>
+          </div>
+        </div>`).join('');
+    }catch(e){ box.innerHTML = `<div style="padding:8px;color:#ef4444;font-size:12px">❌ ${escapeHtml(e.message)}</div>`; }
+  }, 300);
+}
+
+function sbPick(i){
+  const x = (window._sbFound || [])[i]; if(!x) return;
+  _sbPick = x;
+  $('sb-results').innerHTML = '';
+  $('sb-q').value = x.title || '';
+  // مجموع باتشات الصنف ده مقابل مخزون المحل — بيمسك النسيان
+  const have = _sb.filter(b => String(b.variant_id) === String(x.variant_id))
+                  .reduce((a,b) => a + b.current_quantity, 0);
+  const st = Number(x.store_stock || 0);
+  const gap = st - have;
+  $('sb-picked').innerHTML = `<div style="background:var(--elev);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px">
+    <div style="font-weight:800">${escapeHtml(x.title||'')}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:3px;font-family:Roboto,sans-serif">${escapeHtml(x.sku||x.barcode||'')}</div>
+    <div style="font-size:11.5px;margin-top:5px">مخزون المحل <b>${st.toLocaleString('ar-EG')}</b> · في باتشات <b>${have.toLocaleString('ar-EG')}</b>
+      ${gap > 0 ? `<span style="color:#eab308"> · ${gap.toLocaleString('ar-EG')} لسه مش في أي باتش</span>`
+       : gap < 0 ? `<span style="color:#ef4444"> · الباتشات أكتر من المخزون بـ ${(-gap).toLocaleString('ar-EG')}</span>`
+       : '<span style="color:#22c55e"> · مطابق</span>'}</div>
+  </div>`;
+  $('sb-form').style.display = '';
+  if(gap > 0 && !$('sb-qty').value) $('sb-qty').value = gap;
+  setTimeout(() => $('sb-exp')?.focus(), 60);
+}
+
+async function sbSave(){
+  const x = _sbPick; if(!x) return toast('اختار الصنف الأول', 'error');
+  const qty = parseInt($('sb-qty').value, 10);
+  const exp = $('sb-exp').value;
+  if(!(qty > 0)) return toast('❌ اكتب الكمية', 'error');
+  if(!exp) return toast('❌ اكتب تاريخ الصلاحية', 'error');
+  try{
+    const r = await apiFetch('/api/store-batches', 'POST', {
+      storeId: window._smgrStoreId || undefined,
+      variantId: x.variant_id, title: x.title, variantTitle: x.variant_title,
+      sku: x.sku, barcode: x.barcode, image: x.image_url,
+      qty, expDate: exp, notes: $('sb-notes').value || null });
+    if(!r?.ok) throw new Error(r?.error||'فشل');
+    toast('✅ الباتش اتسجّل');
+    sbCloseNew(); sbLoad();
+  }catch(e){ toast('❌ ' + e.message, 'error'); }
 }
 
 // ============================================================
@@ -10435,6 +10675,7 @@ async function smgrLoadTab(tab){
     else if(tab === 'never') await smgrLoadNeverInStore();
     else if(tab === 'audit') await smgrLoadCartAudit();
     else if(tab === 'promos') await smgrLoadPromos();
+    else if(tab === 'expiry') await sbLoad();
   } catch(e) {
     c.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center">❌ ${escapeHtml(e.message)}</div>`;
   }
