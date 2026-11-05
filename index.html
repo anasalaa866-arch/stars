@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v231 — 📅 تاريخ صلاحية بسنة ناقصة (2026-11-05)
+  📅 v231: «27» بدل «2027» كانت بتتخزّن 0027 والباتش يبان منتهي من
+  ٧٣٠٬٣٩٤ يوم. دلوقتي: حدود على خانة التاريخ + تلميح وإنت بتكتب +
+  منع قبل الحفظ + الباتش الغلط بيبان «⚠️ تاريخ غلط» مش «خلصت صلاحيتها»
+  وتوقّعاته موقوفة + ✏️ تعديل بيسأل على التاريخ الأول.
+  محتاج سيرفر v679.
+  ═══════════════════════════════════════════════════════════════════
   Stars v137 — 🔓 شيفتات مستقلة + أرقام الأوردرات في المرتجعات (2026-10-14)
   🔓 v137: (1) رصيد الافتتاح مابقاش بيظهر لما يكون صفر. (2) منع "صفّي
   الأقدم الأول" بقى تنبيه مش منع. (3) رقم أوردر شوبيفاي جنب كل مرتجع في
@@ -1804,8 +1811,9 @@ a{color:inherit;text-decoration:none}
       <input id="sb-qty" type="number" min="1" inputmode="numeric"
              style="width:100%;padding:12px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Roboto,sans-serif;font-size:15px">
       <label style="display:block;font-size:12px;font-weight:700;margin:10px 0 4px">تاريخ الصلاحية</label>
-      <input id="sb-exp" type="date"
+      <input id="sb-exp" type="date" min="2000-01-01" max="2100-12-31" oninput="sbExpHint()"
              style="width:100%;padding:12px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Roboto,sans-serif;font-size:15px">
+      <div id="sb-exp-hint" style="display:none;font-size:11.5px;font-weight:700;margin-top:5px"></div>
       <label style="display:block;font-size:12px;font-weight:700;margin:10px 0 4px">ملاحظة (اختياري)</label>
       <input id="sb-notes" style="width:100%;padding:11px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
       <button onclick="sbSave()" style="width:100%;margin-top:14px;padding:14px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">✅ سجّل الباتش</button>
@@ -3174,6 +3182,36 @@ async function sbLoad(){
   }
 }
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║ 📅 v231: تاريخ صلاحية بسنة ناقصة                             ║
+// ╚══════════════════════════════════════════════════════════════╝
+// حصلت فعلاً: حد كتب «27» بدل «2027» فاتخزّن 0027-02-04، والباتش بان
+// «عدّت بـ ٧٣٠٬٣٩٤ يوم» ودخل في عدّاد المنتهي. السيرفر بقى يرفضها من
+// v679، بس الأحسن إن المدير يشوف الغلطة وهو بيكتب مش بعد ما يحفظ.
+const _SB_Y_MIN = 2000, _SB_Y_MAX = 2100;
+function _sbDateBad(d){
+  const v = String(d || '').slice(0, 10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;      // فاضي أو نص ناقص — مش شغلنا
+  const y = +v.slice(0, 4);
+  if(y >= _SB_Y_MIN && y <= _SB_Y_MAX) return null;
+  const guess = (y < 100 && y + 2000 <= _SB_Y_MAX) ? String(y + 2000) + v.slice(4) : null;
+  return { year: y, guess };
+}
+function sbExpHint(){
+  const el = $('sb-exp'), h = $('sb-exp-hint');
+  if(!el || !h) return;
+  const bad = _sbDateBad(el.value);
+  if(!bad){ h.style.display = 'none'; el.style.borderColor = 'var(--border)'; return; }
+  h.style.display = 'block';
+  h.style.color = '#ef4444';
+  el.style.borderColor = '#ef4444';
+  h.innerHTML = bad.guess
+    ? `⚠️ سنة ${bad.year}؟ قصدك <b>${bad.guess.slice(0,4)}</b> —
+       <span onclick="$('sb-exp').value='${bad.guess}';sbExpHint()"
+             style="text-decoration:underline;cursor:pointer">صلّحها</span>`
+    : `⚠️ سنة ${bad.year} مش معقولة — لازم بين ${_SB_Y_MIN} و ${_SB_Y_MAX}`;
+}
+
 const _SB_RISK = {
   expired: ['🔴 خلصت صلاحيتها', '#ef4444'],
   high:    ['🟠 هيفضل منها',    '#f97316'],
@@ -3218,8 +3256,11 @@ function sbRender(){
 
     ${!list.length ? '<div style="text-align:center;padding:40px;color:var(--muted)">مفيش باتشات هنا</div>'
       : list.map(b => {
-      const rk = _SB_RISK[b.risk] || ['', 'var(--muted)'];
-      const exp = new Date(b.exp_date).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'});
+      // 📅 v231: تاريخ مستحيل = بيانات غلط، مش صنف منتهي
+      const _bad = _sbDateBad(String(b.exp_date || '').slice(0, 10));
+      const rk = _bad ? ['⚠️ تاريخ غلط — صلّحه', '#f59e0b'] : (_SB_RISK[b.risk] || ['', 'var(--muted)']);
+      const exp = _bad ? String(b.exp_date || '').slice(0, 10)
+                       : new Date(b.exp_date).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'});
       return `<div style="background:var(--card);border:1px solid ${b.risk==='ok'?'var(--border)':rk[1]};border-radius:12px;padding:11px;margin-bottom:9px">
         <div style="display:flex;gap:10px;align-items:flex-start">
           ${b.image?`<img src="${escapeHtml(b.image)}" style="width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff">`
@@ -3230,11 +3271,17 @@ function sbRender(){
               b.store_name?` · ${escapeHtml(b.store_name)}`:''}</div>
             <div style="font-size:11.5px;margin-top:4px">
               <b style="color:var(--gold)">${n(b.current_quantity)}</b> من ${n(b.original_quantity)} ·
-              صلاحية <b>${exp}</b> ${b.days_to_exp >= 0 ? `(بعد ${n(b.days_to_exp)} يوم)` : `<span style="color:#ef4444">(عدّت بـ ${n(-b.days_to_exp)} يوم)</span>`}
+              صلاحية <b style="${_bad?'color:#f59e0b;font-family:Roboto,sans-serif':''}">${exp}</b> ${
+                _bad
+                  ? `<span style="color:#f59e0b">(السنة ناقصة${_bad.guess ? ` — قصدك ${_bad.guess.slice(0,4)}؟` : ''})</span>`
+                  : b.days_to_exp >= 0 ? `(بعد ${n(b.days_to_exp)} يوم)`
+                  : `<span style="color:#ef4444">(عدّت بـ ${n(-b.days_to_exp)} يوم)</span>`}
             </div>
             <div style="font-size:11.5px;margin-top:3px;color:${rk[1]};font-weight:700">${rk[0]}</div>
             <div style="font-size:11px;color:var(--muted);margin-top:3px">
-              ${b.velocity > 0
+              ${_bad
+                ? 'التوقّعات موقوفة لحد ما التاريخ يتصلّح — دوس ✏️ تعديل'
+                : b.velocity > 0
                 ? `بيبيع ${b.velocity.toLocaleString('ar-EG')}/يوم · هيخلص في ${n(b.days_to_sell)} يوم${
                     b.left_over > 0 ? ` · <b style="color:${rk[1]}">هيفضل ${n(b.left_over)} قطعة</b>` : ''}`
                 : 'مفيش بيع في الفترة دي — الصنف واقف'}
@@ -3271,6 +3318,26 @@ async function sbDel(id){
 
 async function sbEdit(id){
   const b = _sb.find(x => x.id === id); if(!b) return;
+  const cur = String(b.exp_date || '').slice(0, 10);
+  const bad = _sbDateBad(cur);
+
+  // 📅 v231: لو التاريخ هو الغلطان، اسأل عليه الأول — مفيش فايدة من
+  //   تعديل الكمية والباتش لسه بيتحسب منتهي من ٧٣٠ ألف يوم.
+  if(bad){
+    const d = prompt(`تاريخ الصلاحية المتخزّن ${cur} — السنة ناقصة.\n`
+      + `اكتبه صح بالشكل YYYY-MM-DD:`, bad.guess || '');
+    if(d === null) return;
+    const e2 = String(d).trim();
+    if(_sbDateBad(e2) || !/^\d{4}-\d{2}-\d{2}$/.test(e2))
+      return toast('❌ تاريخ مش مظبوط — لازم YYYY-MM-DD بسنة كاملة', 'error');
+    try{
+      const r = await apiFetch(`/api/store-batches/${id}`, 'PATCH', { expDate: e2 });
+      if(!r?.ok) throw new Error(r?.error || 'فشل');
+      toast('✅ التاريخ اتصلّح'); sbLoad();
+    }catch(e){ toast('❌ ' + e.message, 'error'); }
+    return;
+  }
+
   const q = prompt('الكمية الموجودة دلوقتي:', b.current_quantity);
   if(q === null) return;
   const qty = parseInt(q, 10);
@@ -3350,6 +3417,12 @@ async function sbSave(){
   const exp = $('sb-exp').value;
   if(!(qty > 0)) return toast('❌ اكتب الكمية', 'error');
   if(!exp) return toast('❌ اكتب تاريخ الصلاحية', 'error');
+  const _bad = _sbDateBad(exp);     // 📅 v231
+  if(_bad){
+    sbExpHint(); $('sb-exp')?.focus();
+    return toast(_bad.guess ? `❌ سنة ${_bad.year}؟ قصدك ${_bad.guess.slice(0,4)}`
+                            : `❌ سنة ${_bad.year} مش معقولة`, 'error');
+  }
   try{
     const r = await apiFetch('/api/store-batches', 'POST', {
       storeId: window._smgrStoreId || undefined,
