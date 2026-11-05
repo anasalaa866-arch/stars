@@ -5,6 +5,8 @@
 //   ١) urlsToCache فيه '/CafelaxStars.html' وهو مش موجود في الريبو
 //      (الملف اسمه index.html). و cache.addAll بترفض الكل لو ملف
 //      واحد مش لاقيه — يعني التنصيب كان بيفشل من أساسه.
+//   ٠) وقبل ده كله: التسجيل نفسه كان بمسار مطلق '/service-worker.js'
+//      والصفحة تحت /stars/ — فكان بيرجع 404 والـ SW معمرهوش اتسجّل.
 //   ٢) الـ fetch كان cache-first لكل حاجة من غير أي مراجعة للشبكة:
 //      أول ما index.html يتكاش، الموبايل بيفضل على نفس النسخة للأبد.
 //      ده معناه إن أي تحديث لـ Stars مش بيوصل لمديري المحلات اللي
@@ -16,11 +18,14 @@
 //  على طول، والكاش بيشتغل وقت قطع النت بس. باقي الملفات cache-first
 //  مع تحديث في الخلفية. يعني مش هتحتاج تزوّد رقم نسخة مع كل رفعة.
 // ═══════════════════════════════════════════════════════════════════
-const CACHE = 'cafelax-stars-v231';
+const CACHE = 'cafelax-stars-v232';
 
+// ⚠️ كل المسارات نسبية: الصفحة متستضافة تحت /stars/ على GitHub Pages،
+//    والمسار المطلق '/...' بيروح على الروت ويرجع 404 — وده اللي كان
+//    بيخلّي التنصيب يفشل من أساسه.
 // الثابت بس — index.html متعمّد مش هنا عشان ييجي من الشبكة دايماً
 const STATIC = [
-  '/manifest.json',
+  './manifest.json',
   'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js'
 ];
 
@@ -72,7 +77,7 @@ self.addEventListener('fetch', event => {
       }catch(e){
         // مفيش نت — هات آخر نسخة متكاشة
         return (await caches.match(req))
-            || (await caches.match('/'))
+            || (await caches.match('./'))
             || new Response('مفيش اتصال بالنت، ومفيش نسخة محفوظة.',
                  { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       }

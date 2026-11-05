@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v232 — ✏️ تعديل كامل للباتش + إصلاح مسارات الـ PWA (2026-11-05)
+  ✏️ v232: (1) التعديل كان prompt للكمية بس — بقى نافذة فيها الكمية
+  والتاريخ والملاحظة، والتاريخ عليه نفس حماية الإضافة. بيبعت المتغيّر بس.
+  (2) 🐞 الـ service worker والـ manifest كانوا بمسار مطلق '/...' والصفحة
+  متستضافة تحت /stars/ — يعني ٤٠٤ والـ PWA معمرهاش اشتغلت. بقوا نسبيين.
   Stars v231 — 📅 تاريخ صلاحية بسنة ناقصة (2026-11-05)
   📅 v231: «27» بدل «2027» كانت بتتخزّن 0027 والباتش يبان منتهي من
   ٧٣٠٬٣٩٤ يوم. دلوقتي: حدود على خانة التاريخ + تلميح وإنت بتكتب +
@@ -351,8 +356,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cafelax Stars">
 <meta name="description" content="تطبيق مناديب التوصيل - Cafelax Stars">
-<link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192x192.png">
 <title>Cafelax Stars</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1794,6 +1799,34 @@ a{color:inherit;text-decoration:none}
     <div id="smgr-content" style="padding:14px;padding-bottom:80px"></div>
   </div>
   
+
+<!-- ✏️ v232: تعديل باتش — كمية وتاريخ وملاحظة -->
+<div id="sbe-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;overflow-y:auto;padding:16px">
+  <div style="max-width:440px;margin:40px auto;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="font-weight:800;font-size:16px">✏️ تعديل الباتش</div>
+      <button onclick="sbeClose()" style="background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div id="sbe-title" style="font-size:12px;color:var(--muted);margin-bottom:14px"></div>
+
+    <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">الكمية الموجودة دلوقتي</label>
+    <input id="sbe-qty" type="number" min="0" inputmode="numeric"
+           style="width:100%;padding:12px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Roboto,sans-serif;font-size:15px">
+    <div id="sbe-qty-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+
+    <label style="display:block;font-size:12px;font-weight:700;margin:12px 0 4px">تاريخ الصلاحية</label>
+    <input id="sbe-exp" type="date" min="2000-01-01" max="2100-12-31" oninput="sbeHint()"
+           style="width:100%;padding:12px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Roboto,sans-serif;font-size:15px">
+    <div id="sbe-exp-hint" style="display:none;font-size:11.5px;font-weight:700;margin-top:5px"></div>
+
+    <label style="display:block;font-size:12px;font-weight:700;margin:12px 0 4px">ملاحظة (اختياري)</label>
+    <input id="sbe-notes" maxlength="200"
+           style="width:100%;padding:11px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px">
+
+    <button onclick="sbeSave()" style="width:100%;margin-top:16px;padding:14px;background:var(--gold);color:#000;border:none;border-radius:12px;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">💾 احفظ</button>
+    <button onclick="sbeClose()" style="width:100%;margin-top:8px;padding:12px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer">إلغاء</button>
+  </div>
+</div>
 
 <!-- باتش محل جديد (v230) -->
 <div id="sb-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:1200;padding:14px;overflow-y:auto">
@@ -3316,35 +3349,65 @@ async function sbDel(id){
   }catch(e){ toast('❌ ' + e.message, 'error'); }
 }
 
-async function sbEdit(id){
-  const b = _sb.find(x => x.id === id); if(!b) return;
-  const cur = String(b.exp_date || '').slice(0, 10);
-  const bad = _sbDateBad(cur);
+// ✏️ v232: التعديل كان prompt للكمية بس — دلوقتي كمية وتاريخ وملاحظة
+//   في نافذة واحدة، والتاريخ عليه نفس الحماية بتاعة الإضافة.
+let _sbeId = null;
 
-  // 📅 v231: لو التاريخ هو الغلطان، اسأل عليه الأول — مفيش فايدة من
-  //   تعديل الكمية والباتش لسه بيتحسب منتهي من ٧٣٠ ألف يوم.
+function sbEdit(id){
+  const b = _sb.find(x => x.id === id); if(!b) return;
+  _sbeId = id;
+  $('sbe-title').textContent = (b.product_title || b.variant_id || '')
+    + (b.sku ? ` · ${b.sku}` : '');
+  $('sbe-qty').value   = b.current_quantity;
+  $('sbe-exp').value   = String(b.exp_date || '').slice(0, 10);
+  $('sbe-notes').value = b.notes || '';
+  $('sbe-qty-note').textContent = `الأصلي كان ${b.original_quantity} · صفر معناه إنه خلص`;
+  sbeHint();
+  $('sbe-modal').style.display = 'block';
+}
+function sbeClose(){ const m = $('sbe-modal'); if(m) m.style.display = 'none'; _sbeId = null; }
+
+function sbeHint(){
+  const el = $('sbe-exp'), h = $('sbe-exp-hint');
+  if(!el || !h) return;
+  const bad = _sbDateBad(el.value);
+  if(!bad){ h.style.display = 'none'; el.style.borderColor = 'var(--border)'; return; }
+  h.style.display = 'block'; h.style.color = '#ef4444'; el.style.borderColor = '#ef4444';
+  h.innerHTML = bad.guess
+    ? `⚠️ سنة ${bad.year}؟ قصدك <b>${bad.guess.slice(0,4)}</b> —
+       <span onclick="$('sbe-exp').value='${bad.guess}';sbeHint()"
+             style="text-decoration:underline;cursor:pointer">صلّحها</span>`
+    : `⚠️ سنة ${bad.year} مش معقولة — لازم بين ${_SB_Y_MIN} و ${_SB_Y_MAX}`;
+}
+
+async function sbeSave(){
+  const id = _sbeId; if(id == null) return;
+  const b = _sb.find(x => x.id === id); if(!b) return;
+
+  const qty = parseInt($('sbe-qty').value, 10);
+  if(!(qty >= 0)) return toast('❌ كمية مش مظبوطة', 'error');
+
+  const exp = String($('sbe-exp').value || '').slice(0, 10);
+  if(!exp) return toast('❌ اكتب تاريخ الصلاحية', 'error');
+  const bad = _sbDateBad(exp);
   if(bad){
-    const d = prompt(`تاريخ الصلاحية المتخزّن ${cur} — السنة ناقصة.\n`
-      + `اكتبه صح بالشكل YYYY-MM-DD:`, bad.guess || '');
-    if(d === null) return;
-    const e2 = String(d).trim();
-    if(_sbDateBad(e2) || !/^\d{4}-\d{2}-\d{2}$/.test(e2))
-      return toast('❌ تاريخ مش مظبوط — لازم YYYY-MM-DD بسنة كاملة', 'error');
-    try{
-      const r = await apiFetch(`/api/store-batches/${id}`, 'PATCH', { expDate: e2 });
-      if(!r?.ok) throw new Error(r?.error || 'فشل');
-      toast('✅ التاريخ اتصلّح'); sbLoad();
-    }catch(e){ toast('❌ ' + e.message, 'error'); }
-    return;
+    sbeHint(); $('sbe-exp')?.focus();
+    return toast(bad.guess ? `❌ سنة ${bad.year}؟ قصدك ${bad.guess.slice(0,4)}`
+                           : `❌ سنة ${bad.year} مش معقولة`, 'error');
   }
 
-  const q = prompt('الكمية الموجودة دلوقتي:', b.current_quantity);
-  if(q === null) return;
-  const qty = parseInt(q, 10);
-  if(!(qty >= 0)) return toast('❌ كمية مش مظبوطة', 'error');
-  try{ const r = await apiFetch(`/api/store-batches/${id}`, 'PATCH', { qty });
-    if(!r?.ok) throw new Error(r?.error||'فشل');
-    toast('✅ اتعدّل'); sbLoad();
+  const notes = $('sbe-notes').value || '';
+  // نبعت المتغيّر بس — عشان السجل مايتلخبطش بحركات مالهاش لازمة
+  const body = {};
+  if(qty !== Number(b.current_quantity)) body.qty = qty;
+  if(exp !== String(b.exp_date || '').slice(0, 10)) body.expDate = exp;
+  if(notes !== (b.notes || '')) body.notes = notes || null;
+  if(!Object.keys(body).length){ sbeClose(); return toast('مفيش حاجة اتغيّرت'); }
+
+  try{
+    const r = await apiFetch(`/api/store-batches/${id}`, 'PATCH', body);
+    if(!r?.ok) throw new Error(r?.error || 'فشل');
+    sbeClose(); toast('✅ اتعدّل'); sbLoad();
   }catch(e){ toast('❌ ' + e.message, 'error'); }
 }
 
@@ -16370,7 +16433,11 @@ async function saveSort(){
 // ===== PWA SERVICE WORKER REGISTRATION =====
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
+    // 🐞 v232: كان '/service-worker.js' — والصفحة متستضافة تحت
+    //   /stars/ على GitHub Pages، فالمسار المطلق بيروح على الروت
+    //   anasalaa866-arch.github.io/service-worker.js = 404.
+    //   يعني الـ PWA والكاش معمرهمش اشتغلوا من أساسهم.
+    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
       .then(registration => {
         console.log('✅ Service Worker registered:', registration.scope);
       })
