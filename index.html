@@ -1957,6 +1957,32 @@ a{color:inherit;text-decoration:none}
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toasts"></div>
 
+<!-- 🔔 v761: تحذير عملية فيزا فاشلة — بيفضل ثابت لحد ما الكاشير ياخد باله -->
+<div id="vz-alert" style="display:none;position:fixed;inset:0;z-index:99999;
+     background:rgba(120,0,0,.55);backdrop-filter:blur(3px);
+     align-items:center;justify-content:center;padding:18px">
+  <div style="background:#fff;border-radius:18px;max-width:430px;width:100%;
+       box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;text-align:center">
+    <div style="background:#dc2626;color:#fff;padding:20px 18px">
+      <div style="font-size:48px;line-height:1">⚠️</div>
+      <div style="font-size:22px;font-weight:900;margin-top:6px">عملية فيزا فشلت</div>
+    </div>
+    <div style="padding:20px 18px">
+      <div id="vz-amount" style="font-size:34px;font-weight:900;color:#dc2626"></div>
+      <div id="vz-meta" style="color:#666;font-size:13px;margin-top:6px"></div>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;
+           padding:12px;margin-top:16px;font-size:13.5px;line-height:1.8;text-align:right">
+        الكارت <b>ما اتخصمش</b>. ما تسلّمش البضاعة على العملية دي —
+        إعادة المحاولة أو خد الفلوس كاش.
+      </div>
+      <button onclick="vzAck()" style="margin-top:16px;width:100%;background:#111;color:#fff;
+        border:none;border-radius:12px;padding:15px;font-family:inherit;font-weight:800;
+        font-size:16px;cursor:pointer">خدت بالي ✋</button>
+      <div id="vz-more" style="margin-top:10px;font-size:12px;color:#999"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ORDER DETAIL MODAL (handled inline in cards) -->
 
 <!-- DELIVER MODAL -->
@@ -16963,6 +16989,79 @@ async function completePre() {
 
 // (removed: showApp() handles role-based routing including preparer)
 
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════
+// 🔔 v761: إشعار لحظي من ماكينة الفيزا
+//   العملية المرفوضة لازم تبان **والعميل لسه واقف** مش آخر اليوم.
+//   بنسأل السيرفر كل ٤ ثواني — أبسط وأمتن من اتصال دايم، وبيكمّل
+//   لوحده لو النت قطع ورجع.
+// ══════════════════════════════════════════════════════════════════
+(function(){
+  var SINCE = null, SEEN = {}, QUEUE = [], SHOWING = null, TIMER = null;
+
+  function money(v){ return Number(v||0).toLocaleString('ar-EG') + ' ج'; }
+
+  function show(e){
+    SHOWING = e;
+    document.getElementById('vz-amount').textContent = money(e.amount);
+    document.getElementById('vz-meta').textContent =
+      'الساعة ' + (e.at_cairo || '') + (e.terminal_id ? ' · ماكينة ' + e.terminal_id : '');
+    document.getElementById('vz-more').textContent =
+      QUEUE.length ? ('و' + QUEUE.length + ' عملية فاشلة كمان') : '';
+    var box = document.getElementById('vz-alert');
+    box.style.display = 'flex';
+    try{ navigator.vibrate && navigator.vibrate([200,100,200]); }catch(_){}
+  }
+
+  window.vzAck = async function(){
+    var e = SHOWING; SHOWING = null;
+    document.getElementById('vz-alert').style.display = 'none';
+    if(e){
+      try{ await api('/api/pos/visa-live/ack', { method:'POST', body:{ id: e.id } }); }
+      catch(_){ /* هيتعاد في الدورة الجاية */ }
+    }
+    if(QUEUE.length) show(QUEUE.shift());
+  };
+
+  function push(e){
+    if(SEEN[e.id]) return;
+    SEEN[e.id] = 1;
+    if(SHOWING) QUEUE.push(e); else show(e);
+  }
+
+  async function tick(){
+    if(typeof TOKEN === 'undefined' || !TOKEN) return;
+    try{
+      var sid = (typeof _posStore !== 'undefined' && _posStore && _posStore.id) ? _posStore.id : '';
+      var q = '/api/pos/visa-live?' + (SINCE ? 'since=' + encodeURIComponent(SINCE) : '')
+            + (sid ? '&store_id=' + sid : '');
+      var d = await api(q);
+      if(!d || !d.ok) return;
+
+      for(var i = 0; i < (d.events || []).length; i++){
+        var e = d.events[i];
+        var good = e.success && !e.is_refunded && !e.is_voided;
+        if(SEEN[e.id]) continue;
+        if(good){
+          SEEN[e.id] = 1;
+          toast('فيزا ' + money(e.amount) + ' — عملية ناجحة', 'success', 6000);
+        } else {
+          push(e);          // الفاشلة بتروح للتحذير الثابت
+        }
+      }
+      // فاشلة من قبل كده ومحدش أخد باله (الشاشة اتقفلت مثلاً)
+      for(var j = 0; j < (d.unacked || []).length; j++) push(d.unacked[j]);
+      SINCE = d.now || SINCE;
+    }catch(_){ /* النت — الدورة الجاية هتلحق */ }
+  }
+
+  function start(){ if(!TIMER) TIMER = setInterval(tick, 4000); tick(); }
+  // أول ما الصفحة ترجع من الخلفية، نلحق اللي فات فوراً
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) tick(); });
+  if(document.readyState === 'complete') start();
+  else window.addEventListener('load', start);
+})();
 </script>
 </body>
 </html>
