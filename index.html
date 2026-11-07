@@ -11217,10 +11217,15 @@ function smgrRenderCurrentSession(cashierId, cashierName, data){
       <!-- التفصيل حسب طريقة الدفع -->
       <div style="font-weight:800;font-size:12px;color:var(--muted);margin-bottom:8px">💰 التفصيل حسب طريقة الدفع</div>
       ${methodsHtml}
-      
+
+      <!-- 🧾 v762: حكم الفيزا على الشيفت نفسه — المدير يشوفه قبل ما يقفل -->
+      <div id="smgr-visa-check" style="margin-top:10px;font-size:12px;color:var(--muted)">
+        ⏳ بيراجع الفيزا على Paymob…</div>
+
       ${cashDrawerHtml}
     `}
     
+    <!-- 🧾 v762 -->
     <!-- 🆕 v68: زرار الإقفال الإجباري للمدير -->
     <div style="margin-top:14px;padding:12px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px">
       <div style="font-size:11px;color:#92400e;line-height:1.6;margin-bottom:8px">
@@ -11231,6 +11236,42 @@ function smgrRenderCurrentSession(cashierId, cashierName, data){
     
     <button onclick="document.getElementById('smgr-current-session-modal').remove()" style="width:100%;margin-top:10px;padding:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">إغلاق</button>
   `;
+
+  // 🧾 v762: المدير يشوف حكم الفيزا على **فترة الشيفت** مش على اليوم.
+  //   شيفت ممكن يبدأ ٥ م ويقفل بعد ٢٨ ساعة — لو اتحسب باليوم،
+  //   هنقارن نص البيعات بكل العمليات ويطلع فرق وهمي.
+  (async function(){
+    const el = document.getElementById('smgr-visa-check');
+    if(!el) return;
+    try{
+      const from = new Date(sess.openedAt).toISOString();
+      const to   = new Date().toISOString();
+      const d = await api('/api/pos/visa-check/summary?from=' + encodeURIComponent(from)
+                          + '&to=' + encodeURIComponent(to));
+      if(!d || d.error) throw new Error(d && d.error ? d.error : 'ماردّش');
+      const m = v => Number(v||0).toLocaleString('ar-EG') + ' ج';
+      if(!d.cashier.count){ el.innerHTML = '<span style="color:#999">💳 مفيش بيعات فيزا في الشيفت ده</span>'; return; }
+      if(d.clean){
+        el.innerHTML = '<div style="background:#dcfce7;border:1px solid #86efac;border-radius:10px;'
+          + 'padding:10px;color:#166534;font-weight:800;font-size:12.5px">'
+          + '✅ الفيزا مظبوطة — ' + d.matched.count + ' عملية بـ ' + m(d.matched.total)
+          + '، كلها متأكدة من Paymob</div>';
+        return;
+      }
+      var bits = [];
+      if(d.sales_without_event.count)
+        bits.push(d.sales_without_event.count + ' بيعة مالهاش عملية (' + m(d.sales_without_event.total) + ')');
+      if(d.events_without_sale.count)
+        bits.push(d.events_without_sale.count + ' عملية مالهاش بيعة (' + m(d.events_without_sale.total) + ')');
+      el.innerHTML = '<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;'
+        + 'padding:10px;color:#991b1b;font-size:12.5px"><b>⚠️ الفيزا فيها فرق</b> — '
+        + bits.join(' · ') + '<div style="font-size:11px;margin-top:3px;color:#7f1d1d">'
+        + 'راجعها قبل ما تقفل الشيفت.</div></div>';
+    }catch(e){
+      // مانقولش «مظبوطة» لو مانعرفش — السكوت أأمن من طمأنة غلط
+      el.innerHTML = '<span style="color:#92400e">⚠️ ماقدرناش نراجع الفيزا دلوقتي</span>';
+    }
+  })();
 }
 
 // 🆕 v68: ─── الإقفال الإجباري للشيفت من المدير ───
