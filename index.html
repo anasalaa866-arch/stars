@@ -5792,10 +5792,9 @@ async function posWatchTalabatPrices(){
     if(v !== _talabatPriceVer){
       console.log('[v114] أسعار طلبات اتغيّرت:', _talabatPriceVer, '→', v);
       await posLoadTalabatPrices();
-      if(_posTalabatMode){
-        posSetTalabatMode(true);
-        if(typeof toast === 'function') toast('🔄 أسعار طلبات اتحدّثت');
-      }
+      // 🔇 v767: الكاشير مايشوفش حاجة. الأسعار بتتحدّث في السكوت —
+      //   التوست كان بيطلع مع كل رفعة وهو بيبيع، وده بيعلّمه يتجاهله.
+      if(_posTalabatMode) posSetTalabatMode(true);
     }
   }catch(e){ _talabatStale = true; }
 }
