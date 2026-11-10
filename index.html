@@ -704,6 +704,10 @@ a{color:inherit;text-decoration:none}
       <h1>CAFELAX STARS</h1>
     </div>
     <div class="topbar-user">
+      <!-- 🕌 v816: بيبان الجمعة من ١٠ لـ ٣ — والسيرفر هو اللي بيقرر -->
+      <button id="prayer-btn" onclick="prayerToggle()" style="display:none;border:none;
+        border-radius:9px;padding:6px 13px;font-family:inherit;font-weight:800;font-size:13px;
+        cursor:pointer;margin-inline-end:6px"></button>
       <span id="user-name">—</span>
       <button class="topbar-logout" onclick="toggleDarkMode()" id="theme-toggle-btn" title="تبديل الوضع الليلي" style="padding:4px 10px;font-size:14px">🌙</button>
       <button class="topbar-logout" onclick="logout()">خروج</button>
@@ -2691,6 +2695,54 @@ function toast(msg, kind = 'info', timeout = 3000){
 }
 
 // ===== API =====
+// 🕌 v816: «رايح أصلّي» — بيقفل طلبات (Talabat) وقت الصلاة ويرجّعها.
+//   السيرفر هو اللي بيقرر الزرار يبان ولا لأ وبيرفع الشيت — الشاشة
+//   بتعرض الحالة وبس، فمفيش فرصة إنها تقول حاجة والواقع غيرها.
+let _prayer = null, _prayerBusy = false;
+async function prayerLoad(){
+  try{
+    const st = await api('/api/talabat/prayer');
+    _prayer = st && st.ok ? st : null;
+  }catch(e){ _prayer = null; }
+  prayerRender();
+}
+function prayerRender(){
+  const b = document.getElementById('prayer-btn');
+  if(!b) return;
+  if(!_prayer || !_prayer.visible){ b.style.display = 'none'; return; }
+  b.style.display = '';
+  if(_prayer.closed){
+    const t = _prayer.until ? new Date(_prayer.until) : null;
+    const hm = t ? t.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',
+                     timeZone:'Africa/Cairo'}) : '';
+    b.textContent = _prayerBusy ? '⏳ ...' : '🟢 رجعت — افتح طلبات';
+    b.style.background = '#16a34a'; b.style.color = '#fff';
+    b.title = 'طلبات مقفولة دلوقتي' + (hm ? ` — هتفتح لوحدها ${hm} لو نسيت` : '');
+  } else {
+    b.textContent = _prayerBusy ? '⏳ ...' : '🕌 رايح أصلّي';
+    b.style.background = '#4338ca'; b.style.color = '#fff';
+    b.title = 'هيقفل كل منتجاتك على طلبات لحد ما ترجع تدوس تاني';
+  }
+}
+async function prayerToggle(){
+  if(_prayerBusy || !_prayer) return;
+  const open = !!_prayer.closed;
+  if(!open && !confirm('🕌 هتقفل كل المنتجات على طلبات؟\n\nمحدش هيقدر يطلب لحد ما ترجع تدوس الزرار.'))
+    return;
+  _prayerBusy = true; prayerRender();
+  try{
+    const r = await api('/api/talabat/prayer', { method:'POST', body:{ action: open ? 'open' : 'close' } });
+    if(!r || r.error) throw new Error(r?.error || 'الطلب فشل');
+    _prayer = r;
+    toast(open ? '✅ طلبات رجعت تشتغل' : '🕌 طلبات اتقفلت — متنساش ترجع تدوس');
+  }catch(e){
+    // 🚨 الحالة مابتتغيّرش من غير ما السيرفر يأكد — ومابنكدبش
+    alert('❌ ماحصلش: ' + (e.message || e));
+    await prayerLoad();
+  }
+  _prayerBusy = false; prayerRender();
+}
+
 async function api(path, opts = {}){
   const url = API_URL.replace(/\/$/, '') + path;
   const headers = { 'Content-Type': 'application/json' };
@@ -3213,6 +3265,10 @@ function showApp(){
     $('page-orders').classList.add('active');
     loadOrders();
   }
+  // 🕌 v816: الزرار بيتشاف كل دقيقة — عشان يبان لوحده الساعة ١٠
+  //   من غير ما الكاشير يعمل refresh، ويختفي بعد ٣.
+  prayerLoad();
+  if(!window._prayerTimer) window._prayerTimer = setInterval(prayerLoad, 60 * 1000);
 }
 
 
