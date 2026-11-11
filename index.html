@@ -1048,6 +1048,10 @@ a{color:inherit;text-decoration:none}
       .pos-product-tile-stock{font-size:10px;color:#6b7280;font-weight:600}
       .pos-product-tile-stock.zero{color:#dc2626}
       .pos-product-tile-offer-badge{position:absolute;top:6px;right:6px;background:#22c55e;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;letter-spacing:.3px}
+      /* ⭐ v829: صنف مثبّت من مدير المحل — الشمال عشان ميزاحمش بادج العرض */
+      .pos-product-tile-pin{position:absolute;top:6px;left:6px;font-size:13px;line-height:1;
+        filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));pointer-events:none}
+      .pos-product-tile.is-pinned{border-color:#f59e0b;box-shadow:0 0 0 1px #f59e0b inset}
       .pos-products-empty{text-align:center;padding:60px 20px;color:#9ca3af}
       .pos-products-empty-icon{font-size:60px;margin-bottom:14px;opacity:.4}
       .pos-products-empty-text{font-size:14px;font-weight:600}
@@ -1791,6 +1795,7 @@ a{color:inherit;text-decoration:none}
       <button class="smgr-tab" onclick="smgrSwitchTab('cashiers', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">👥 الكاشييرز</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('sales', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📋 البيعات</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('returns', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;position:relative">↩️ المرتجعات <span id="smgr-returns-badge" style="display:none;background:#ef4444;color:#fff;border-radius:99px;padding:1px 6px;font-size:10px;margin-right:4px"></span></button>
+      <button class="smgr-tab" onclick="smgrSwitchTab('pinned', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⭐ مثبّت للكاشير</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('never', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🆕 ماراحتش المحل</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('transfers', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🧠 ذكاء التحويلات</button>
       <button class="smgr-tab" onclick="smgrSwitchTab('audit', this)" style="padding:8px 14px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔍 مراقبة الكاشيرز</button>
@@ -5714,7 +5719,14 @@ async function loadPosPage(){
     
     // 4. جيب الـ catalog
     await loadPosCatalog();
-    
+
+    // ⭐ v829: الأصناف المثبّتة — قبل الرسم عشان تطلع أول مرة صح،
+    //   وبعدين كل دقيقة عشان تغيير المدير يوصل من غير قفل وفتح
+    await posPinnedLoad();
+    posRenderProducts(_posLastFilter || '');
+    if(window._posPinTimer) clearInterval(window._posPinTimer);
+    window._posPinTimer = setInterval(posPinnedLoad, 60 * 1000);
+
     // 🆕 v29: جيب العروض النشطة وطبقها
     await posLoadOffers();
     
@@ -6219,14 +6231,50 @@ async function loadPosCatalog(){
   }
 }
 
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║ ⭐ v829: الأصناف المثبّتة من مدير المحل                            ║
+// ╚══════════════════════════════════════════════════════════════════╝
+// بتتسحب لوحدها كل دقيقة من endpoint صغير — مش من الكتالوج كله — عشان
+// لو المدير ثبّت صنف دلوقتي الكاشير يشوفه من غير ما يقفل ويفتح.
+// ومتخزّنة محلياً عشان تشتغل offline.
+let _posPinned = [];          // ترتيب المدير، الأول = الأول على الشاشة
+let _posPinnedSet = new Set();
+let _posLastFilter = '';      // آخر بحث — عشان إعادة الرسم ماتلغيهوش
+
+function _posPinnedApply(list){
+  _posPinned = Array.isArray(list) ? list.map(String) : [];
+  _posPinnedSet = new Set(_posPinned);
+}
+
+async function posPinnedLoad(){
+  // ١) المحلي الأول عشان الشاشة ماتفضلش فاضية offline
+  if(!_posPinned.length){
+    try{
+      const m = await posDBGet('meta', 'pinned');
+      if(m && Array.isArray(m.value)) _posPinnedApply(m.value);
+    }catch(e){}
+  }
+  if(!_posIsOnline || !_posStore) return;
+  try{
+    const r = await apiFetch('/api/pos/pinned?storeId=' + _posStore.id);
+    if(!r || !Array.isArray(r.pinned)) return;
+    const before = _posPinned.join(',');
+    _posPinnedApply(r.pinned);
+    try{ await posDBPut('meta', { key: 'pinned', value: _posPinned }); }catch(e){}
+    // ماتعيدش الرسم إلا لو اتغيّر فعلاً — الكاشير ممكن يكون بيدوس
+    if(before !== _posPinned.join(',')) posRenderProducts(_posLastFilter || '');
+  }catch(e){ /* offline أو السيرفر واقع — نفضل على المحفوظ */ }
+}
+
 function posRenderProducts(filter = ''){
   const grid = $('pos-products-grid');
   const sectionTitle = $('pos-products-section-title');
   if(!grid) return;
-  
+
+  _posLastFilter = filter;
   let items = _posCatalog;
   let isFiltered = false;
-  
+
   if(filter){
     isFiltered = true;
     // 🆕 v109: بحث بمطابقة الكلمات بأي ترتيب (illy Intenso تلاقي illy Espresso Intenso)
@@ -6236,8 +6284,20 @@ function posRenderProducts(filter = ''){
     if(sectionTitle) sectionTitle.textContent = `نتائج البحث (${items.length})`;
   } else {
     if(sectionTitle) sectionTitle.textContent = 'كل المنتجات';
+    // ⭐ v829: المثبّت الأول بترتيب المدير — في العرض العادي بس.
+    //   البحث والباركود بيفضلوا زي ما هم.
+    if(_posPinned.length){
+      const rank = new Map(_posPinned.map((v, i) => [String(v), i]));
+      // ⚠️ مش Infinity — Infinity - Infinity = NaN والـ sort بيبوظ
+      const LAST = _posPinned.length + 1;
+      items = items.slice().sort((a, b) => {
+        const ra = rank.has(String(a.variant_id)) ? rank.get(String(a.variant_id)) : LAST;
+        const rb = rank.has(String(b.variant_id)) ? rank.get(String(b.variant_id)) : LAST;
+        return ra - rb;   // sort ثابت، فباقي المنتجات بتفضل بترتيبها الأصلي
+      });
+    }
   }
-  
+
   // أول 60
   items = items.slice(0, 60);
   
@@ -6276,10 +6336,16 @@ function posRenderProducts(filter = ''){
     const tileClasses = ['pos-product-tile'];
     if(lowStock) tileClasses.push('low-stock');
     if(offer) tileClasses.push('has-offer');
+    // ⭐ v829: علامة الصنف المثبّت من مدير المحل
+    const isPinned = _posPinnedSet.has(String(p.variant_id));
+    if(isPinned) tileClasses.push('is-pinned');
+    const pinStar = isPinned
+      ? `<span class="pos-product-tile-pin" title="مثبّت من مدير المحل">⭐</span>` : '';
     
     const fullName = `${escapeHtml(p.product_title || '')}${p.variant_title ? ' - ' + escapeHtml(p.variant_title) : ''}`;
     
     return `<div class="${tileClasses.join(' ')}" onclick="posAddToCart('${p.variant_id}')" title="${fullName}">
+      ${pinStar}
       ${offerBadge}
       ${imgHtml}
       <div class="pos-product-tile-name">${fullName}</div>
@@ -10746,6 +10812,152 @@ async function loadStoreMgrPage(){
   }
 }
 
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║ ⭐ v829: مثبّت للكاشير — المدير بيحدد اللي يطلع أول الشاشة        ║
+// ╚══════════════════════════════════════════════════════════════════╝
+// الترتيب هنا هو الترتيب على شاشة الكاشير بالظبط. الحفظ بيتبعت القايمة
+// كلها مرة واحدة (مش إضافة/حذف فردي) عشان الترتيب والمحتوى يتطابقوا.
+let _pinRows = [], _pinMax = 12, _pinDirty = false;
+
+async function smgrLoadPinned(){
+  const c = $('smgr-content'); if(!c) return;
+  c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ بيحمّل...</div>';
+  try{
+    const qs = window._smgrStoreId ? ('?storeId=' + window._smgrStoreId) : '';
+    const r = await apiFetch('/api/store-mgr/pinned' + qs);
+    _pinRows = r.pinned || [];
+    _pinMax  = r.max || 12;
+    _pinDirty = false;
+    smgrPinRender();
+  }catch(e){ c.innerHTML = `<div style="color:#ef4444;padding:20px">❌ ${escapeHtml(e.message)}</div>`; }
+}
+
+function smgrPinRender(){
+  const c = $('smgr-content'); if(!c) return;
+  const f = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+  const list = _pinRows.length ? _pinRows.map((x, i) => `
+    <div style="display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid #f59e0b;border-radius:12px;padding:10px;margin-bottom:8px">
+      <div style="font-weight:800;color:#f59e0b;font-size:13px;width:20px;text-align:center">${i + 1}</div>
+      ${x.image_url
+        ? `<img src="${escapeHtml(x.image_url)}" style="width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff">`
+        : '<div style="width:44px;height:44px;border-radius:8px;background:var(--elev);display:flex;align-items:center;justify-content:center">📦</div>'}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(x.product_title || '؟')}${x.variant_title ? ' - ' + escapeHtml(x.variant_title) : ''}</div>
+        <div style="font-size:11px;margin-top:2px;font-family:Roboto,sans-serif">
+          ${f(x.price)} ج · <span style="color:${Number(x.qty) > 0 ? '#22c55e' : '#ef4444'}">${Number(x.qty) > 0 ? 'متوفر: ' + f(x.qty) : 'انتهى'}</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <button onclick="smgrPinMove(${i},-1)" ${i === 0 ? 'disabled' : ''} style="background:var(--elev);border:1px solid var(--border);border-radius:6px;color:var(--text);width:30px;height:24px;cursor:pointer;opacity:${i === 0 ? .3 : 1}">▲</button>
+        <button onclick="smgrPinMove(${i},1)" ${i === _pinRows.length - 1 ? 'disabled' : ''} style="background:var(--elev);border:1px solid var(--border);border-radius:6px;color:var(--text);width:30px;height:24px;cursor:pointer;opacity:${i === _pinRows.length - 1 ? .3 : 1}">▼</button>
+      </div>
+      <button onclick="smgrPinRemove('${escapeHtml(x.variant_id)}')" title="شيله" style="background:none;border:1px solid var(--border);border-radius:8px;color:#ef4444;width:32px;height:32px;cursor:pointer">✕</button>
+    </div>`).join('')
+    : '<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">مفيش حاجة مثبّتة — دوّر تحت وضيف الأصناف اللي بتطلب كتير</div>';
+
+  c.innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.8">
+      الأصناف دي بتطلع <b>أول شاشة الكاشير</b> بنجمة ⭐ بالترتيب ده.
+      الكاشير بيشوف التغيير خلال دقيقة من غير ما يقفل ويفتح.
+      <b>${_pinRows.length}</b> من ${_pinMax}.
+    </div>
+
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button onclick="smgrPinSave()" id="pin-save" style="flex:1;padding:11px;background:${_pinDirty ? 'var(--gold)' : 'var(--elev)'};color:${_pinDirty ? '#000' : 'var(--muted)'};border:1px solid ${_pinDirty ? 'var(--gold)' : 'var(--border)'};border-radius:10px;font-family:Cairo,sans-serif;font-size:13px;font-weight:800;cursor:pointer">
+        ${_pinDirty ? '💾 احفظ التغييرات' : '✅ محفوظ'}
+      </button>
+      <button onclick="smgrLoadPinned()" style="padding:11px 14px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">↻</button>
+    </div>
+
+    ${list}
+
+    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:12px;font-weight:800;margin-bottom:8px">➕ ضيف صنف</div>
+      <input id="pin-q" type="search" placeholder="اسم المنتج أو الباركود أو SKU…" oninput="smgrPinSearch()"
+        style="width:100%;padding:11px;background:var(--elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;box-sizing:border-box">
+      <div id="pin-results" style="margin-top:8px"></div>
+    </div>`;
+}
+
+function smgrPinMove(i, dir){
+  const j = i + dir;
+  if(j < 0 || j >= _pinRows.length) return;
+  [_pinRows[i], _pinRows[j]] = [_pinRows[j], _pinRows[i]];
+  _pinDirty = true;
+  const q = $('pin-q')?.value || '';
+  smgrPinRender();
+  if(q){ $('pin-q').value = q; smgrPinSearch(); }
+}
+
+function smgrPinRemove(vid){
+  _pinRows = _pinRows.filter(x => String(x.variant_id) !== String(vid));
+  _pinDirty = true;
+  const q = $('pin-q')?.value || '';
+  smgrPinRender();
+  if(q){ $('pin-q').value = q; smgrPinSearch(); }
+}
+
+function smgrPinAdd(vid, title, price, qty, img){
+  if(_pinRows.some(x => String(x.variant_id) === String(vid))) return;
+  if(_pinRows.length >= _pinMax){ toast(`⚠️ أقصى عدد ${_pinMax} صنف — شيل واحد الأول`, 'error'); return; }
+  _pinRows.push({ variant_id: vid, product_title: title, variant_title: '', price, qty, image_url: img });
+  _pinDirty = true;
+  const q = $('pin-q')?.value || '';
+  smgrPinRender();
+  if(q){ $('pin-q').value = q; smgrPinSearch(); }
+}
+
+let _pinSearchT = null;
+function smgrPinSearch(){
+  clearTimeout(_pinSearchT);
+  _pinSearchT = setTimeout(async () => {
+    const box = $('pin-results'); if(!box) return;
+    const q = ($('pin-q')?.value || '').trim();
+    if(q.length < 2){ box.innerHTML = ''; return; }
+    box.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">⏳ بيدوّر...</div>';
+    try{
+      const sp = window._smgrStoreId ? ('&storeId=' + window._smgrStoreId) : '';
+      const r = await apiFetch('/api/store-mgr/pinned/search?q=' + encodeURIComponent(q) + sp);
+      const rows = r.rows || [];
+      if(!rows.length){ box.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">مفيش نتائج</div>'; return; }
+      const f = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+      box.innerHTML = rows.map(x => {
+        const on = _pinRows.some(p => String(p.variant_id) === String(x.variant_id));
+        const name = `${x.product_title || ''}${x.variant_title ? ' - ' + x.variant_title : ''}`;
+        return `<div style="display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px;margin-bottom:6px">
+          ${x.image_url
+            ? `<img src="${escapeHtml(x.image_url)}" style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:#fff">`
+            : '<div style="width:36px;height:36px;border-radius:6px;background:var(--elev);display:flex;align-items:center;justify-content:center">📦</div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(name)}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${f(x.price)} ج · ${Number(x.qty) > 0 ? 'متوفر: ' + f(x.qty) : 'انتهى'}${x.sku ? ' · ' + escapeHtml(x.sku) : ''}</div>
+          </div>
+          <button ${on ? 'disabled' : ''} onclick="smgrPinAdd('${escapeHtml(x.variant_id)}', ${JSON.stringify(name).replace(/"/g, '&quot;')}, ${Number(x.price) || 0}, ${Number(x.qty) || 0}, ${JSON.stringify(x.image_url || '').replace(/"/g, '&quot;')})"
+            style="background:${on ? 'var(--elev)' : 'var(--gold)'};color:${on ? 'var(--muted)' : '#000'};border:none;border-radius:8px;padding:7px 12px;font-family:Cairo,sans-serif;font-size:11px;font-weight:800;cursor:${on ? 'default' : 'pointer'}">${on ? '✓ مثبّت' : '+ ثبّت'}</button>
+        </div>`;
+      }).join('');
+    }catch(e){ box.innerHTML = `<div style="color:#ef4444;font-size:12px;padding:8px">❌ ${escapeHtml(e.message)}</div>`; }
+  }, 300);
+}
+
+async function smgrPinSave(){
+  if(!_pinDirty){ toast('مفيش تغييرات', 'info'); return; }
+  const btn = $('pin-save'); if(btn){ btn.disabled = true; btn.textContent = '⏳ بيحفظ...'; }
+  try{
+    await apiFetch('/api/store-mgr/pinned', 'POST', {
+      variant_ids: _pinRows.map(x => String(x.variant_id)),
+      storeId: window._smgrStoreId || undefined
+    });
+    _pinDirty = false;
+    toast(`✅ اتحفظ — ${_pinRows.length} صنف مثبّت`, 'success');
+    smgrPinRender();
+  }catch(e){
+    toast('❌ ' + e.message, 'error');
+    if(btn){ btn.disabled = false; btn.textContent = '💾 احفظ التغييرات'; }
+  }
+}
+
 // 🆕 v128: منتجات ماراحتش المحل قبل كده خالص
 async function smgrLoadNeverInStore(){
   const c=$('smgr-content'); if(!c) return; c.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">⏳ بيفحص الكتالوج...</div>';
@@ -10891,6 +11103,7 @@ async function smgrLoadTab(tab){
     else if(tab === 'transfers') await smgrLoadTransferIntel();
     else if(tab === 'never') await smgrLoadNeverInStore();
     else if(tab === 'audit') await smgrLoadCartAudit();
+    else if(tab === 'pinned') await smgrLoadPinned();
     else if(tab === 'promos') await smgrLoadPromos();
     else if(tab === 'expiry') await sbLoad();
   } catch(e) {
