@@ -2544,7 +2544,7 @@ window.addEventListener('unhandledrejection', (ev) => {
 // 🏷️ v832: رقم نسخة ستارز — deploy.sh بيختمه مع كل رفعة ويتأكد إن
 //   اللي على جيت هب هو نفسه. من غيره كان الرفع بيقول «متطابق» وهو
 //   بيقارن الكوميت بس، مش محتوى الملف اللي الكاشير بيفتحه فعلاً.
-const STARS_BUILD = 'v849';
+const STARS_BUILD = 'v850';
 const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
 
 // ===== STATE =====
@@ -10363,14 +10363,23 @@ function pickupOpenDeliverModal(orderId){
           const qty = parseInt(it.quantity || it.qty || 1) || 1;
           const price = parseFloat(it.price || 0) || 0;
           const variant = it.variant_title || '';
+          // 🏷️ v850: الخصم — السعر بعد الخصم هو اللي بيتحصّل
+          const disc = parseFloat(it.discount || 0) || 0;
+          const unit = Number.isFinite(parseFloat(it.unitPrice))
+            ? parseFloat(it.unitPrice) : price;
+          const priceLine = disc > 0
+            ? `<span style="text-decoration:line-through;opacity:.55">${price.toLocaleString()}</span>
+               <b style="color:#16a34a">${unit.toLocaleString()} ج</b> × ${qty}
+               <span style="color:#16a34a">(−${disc.toLocaleString()})</span>`
+            : `${price.toLocaleString()} ج × ${qty}`;
           return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;margin-bottom:8px">
             <div style="flex:1;min-width:0">
               <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(title)}${variant ? ' · ' + escapeHtml(variant) : ''}</div>
-              <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${price.toLocaleString()} ج × ${qty}</div>
+              <div style="font-size:10px;color:var(--muted);font-family:Roboto,sans-serif">${priceLine}</div>
             </div>
             <div style="display:flex;align-items:center;gap:4px">
               <span style="font-size:10px;color:var(--muted)">استلم</span>
-              <input type="number" class="pickup-qty" data-lid="${escapeHtml(lid)}" data-price="${price}" data-orig="${qty}" value="${qty}" min="0" max="${qty}" oninput="pickupRecalc()" style="width:52px;padding:5px;border:1px solid var(--border);border-radius:8px;text-align:center;background:var(--elev);color:var(--text);font-family:Roboto,sans-serif">
+              <input type="number" class="pickup-qty" data-lid="${escapeHtml(lid)}" data-price="${price}" data-net="${unit}" data-orig="${qty}" value="${qty}" min="0" max="${qty}" oninput="pickupRecalc()" style="width:52px;padding:5px;border:1px solid var(--border);border-radius:8px;text-align:center;background:var(--elev);color:var(--text);font-family:Roboto,sans-serif">
               <span style="font-size:10px;color:var(--muted)">/${qty}</span>
             </div>
           </div>`;
@@ -10408,14 +10417,21 @@ function pickupOpenDeliverModal(orderId){
   modal.style.display = 'flex';
 }
 
+// 🏷️ v850: سعر القطعة **بعد الخصم**. مصدر واحد للتلات حسابات
+//   (العرض · المطلوب · المبلغ اللي بيتبعت للسيرفر) عشان ما يتفرقوش
+//   تاني. data-net مش موجود في الطلبات القديمة → بنقع على السعر الأصلي.
+function _pkUnit(inp){
+  const net = parseFloat(inp.dataset.net);
+  return Number.isFinite(net) ? net : (parseFloat(inp.dataset.price) || 0);
+}
+
 // 🆕 v96: إعادة حساب المستلم + المرتجع لترفيوم عند تغيير الكميات
 function pickupRecalc(){
   let total = 0, returned = 0;
   document.querySelectorAll('.pickup-qty').forEach(inp => {
     const orig = parseInt(inp.dataset.orig) || 0;
     let taken = parseInt(inp.value); if(isNaN(taken) || taken < 0) taken = 0; if(taken > orig) taken = orig;
-    const price = parseFloat(inp.dataset.price) || 0;
-    total += price * taken;
+    total += _pkUnit(inp) * taken;    // 🏷️ v850: بعد الخصم
     returned += (orig - taken);
   });
   const tEl = $('pickup-picked-total'); if(tEl) tEl.textContent = Math.round(total).toLocaleString();
@@ -10425,16 +10441,30 @@ function pickupRecalc(){
 }
 
 // 🆕 v106: دفع مقسّم لاستلام المحل (زي الكاشير)
+// 🚨 v850: ده كان بيحسب **السعر قبل الخصم**.
+//   كان: سعر الصنف × الكمية — والسعر ده الأصلي من شوبيفاي من غير خصم.
+//   فطلب فيه خصم ٢٠٪ كان الكاشير يتطلب منه يحصّل ٣,٩٩٠ بدل ٣,١٩٢،
+//   والعميل يدفع ٧٩٨ ج زيادة.
+//   دلوقتي:
+//     • العميل واخد الطلب كله → إجمالي الطلب زي ما هو (أدق حاجة،
+//       وفيه الشحن وأي خصم على مستوى الطلب كمان)
+//     • استلام جزئي → السعر **بعد** الخصم للقطعة (unitPrice)
 function pickupPayTarget(){
   const order = _pickupSelectedOrder; if(!order) return 0;
-  let t = 0, hasQty = false;
+  const orderTotal = parseFloat(order.total) || 0;
+  let t = 0, hasQty = false, allTaken = true;
   document.querySelectorAll('.pickup-qty').forEach(inp => {
     hasQty = true;
     const orig = parseInt(inp.dataset.orig)||0;
     let taken = parseInt(inp.value); if(isNaN(taken)||taken<0) taken=0; if(taken>orig) taken=orig;
-    t += (parseFloat(inp.dataset.price)||0) * taken;
+    if(taken !== orig) allTaken = false;
+    // net = السعر بعد الخصم. القديم (price) احتياطي للطلبات اللي
+    // اتسجّلت قبل ما نخزّن الخصم.
+    t += _pkUnit(inp) * taken;
   });
-  return hasQty ? Math.round(t) : (parseFloat(order.total)||0);
+  if(!hasQty) return orderTotal;
+  if(allTaken && orderTotal > 0) return orderTotal;   // واخد الكل = إجمالي الطلب
+  return Math.round(t * 100) / 100;
 }
 function _pickupAmt(id){ const v = parseFloat(($(id)?.value)||''); return isNaN(v)?0:v; }
 function pickupSplitSum(){ return _pickupAmt('pickup-amt-cash') + _pickupAmt('pickup-amt-visa') + _pickupAmt('pickup-amt-instapay'); }
@@ -10498,9 +10528,8 @@ async function pickupConfirmDeliver(){
   document.querySelectorAll('.pickup-qty').forEach(inp => {
     const orig = parseInt(inp.dataset.orig) || 0;
     let taken = parseInt(inp.value); if(isNaN(taken) || taken < 0) taken = 0; if(taken > orig) taken = orig;
-    const price = parseFloat(inp.dataset.price) || 0;
     pickedItems.push({ lineItemId: inp.dataset.lid, quantity: taken });
-    pickedTotal += price * taken;
+    pickedTotal += _pkUnit(inp) * taken;   // 🏷️ v850: بعد الخصم
     returnedCount += (orig - taken);
   });
   const hasItems = pickedItems.length > 0;
