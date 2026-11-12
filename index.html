@@ -2544,7 +2544,7 @@ window.addEventListener('unhandledrejection', (ev) => {
 // 🏷️ v832: رقم نسخة ستارز — deploy.sh بيختمه مع كل رفعة ويتأكد إن
 //   اللي على جيت هب هو نفسه. من غيره كان الرفع بيقول «متطابق» وهو
 //   بيقارن الكوميت بس، مش محتوى الملف اللي الكاشير بيفتحه فعلاً.
-const STARS_BUILD = 'v857';
+const STARS_BUILD = 'v859';
 const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
 
 // ===== STATE =====
@@ -10545,7 +10545,11 @@ async function pickupConfirmDeliver(){
 
   if(!isPaid){
     // 🆕 v106: دفع مقسّم — اجمع الدفعات من الحقول الثلاثة
-    const target = hasItems ? Math.round(pickedTotal) : (parseFloat(order.total) || 0);
+    // 🚨 v859: ده كان رابع حساب مختلف للمطلوب. الشاشة بتعرض رقم من
+    //   pickupPayTarget والتحقق هنا كان بيحسب رقم تاني — فالكاشير
+    //   يشوف «مظبوط» وبعدين الحفظ يرفض برقم مش شايفه.
+    //   مصدر واحد: نفس الدالة اللي بتعرض.
+    const target = pickupPayTarget();
     const parts = [
       { method:'cash',     amount:_pickupAmt('pickup-amt-cash'),     ref:null },
       { method:'visa',     amount:_pickupAmt('pickup-amt-visa'),     ref:($('pickup-ref-visa')?.value||'').trim()||null },
