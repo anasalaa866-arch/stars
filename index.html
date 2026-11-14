@@ -2544,7 +2544,7 @@ window.addEventListener('unhandledrejection', (ev) => {
 // 🏷️ v832: رقم نسخة ستارز — deploy.sh بيختمه مع كل رفعة ويتأكد إن
 //   اللي على جيت هب هو نفسه. من غيره كان الرفع بيقول «متطابق» وهو
 //   بيقارن الكوميت بس، مش محتوى الملف اللي الكاشير بيفتحه فعلاً.
-const STARS_BUILD = 'v881';
+const STARS_BUILD = 'v882';
 const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
 
 // ===== STATE =====
@@ -14346,7 +14346,7 @@ function smgrRenderPromos(){
   const local = _smgrAllPromosCache?.local || [];
   const shopify = _smgrAllPromosCache?.shopify || [];
   
-  const today = new Date().toISOString().slice(0,10);
+  const today = _todayCairo();
   const isExpired = (p) => p.valid_until && p.valid_until < today;
   const isActive = (p) => p.is_active && !isExpired(p);
   
@@ -14947,6 +14947,16 @@ function toggleCard(e, id){
   const c = $('card-' + id);
   if(c) c.classList.toggle('open');
 }
+
+// 📅 v882: «النهاردة» بتوقيت القاهرة — مش UTC ومش توقيت الجهاز.
+//   `_todayCairo()` بيحوّل لـ UTC، فمن ١٠ مساءً
+//   لنص الليل بيرجّع **بكرة**. ومتوقيت الجهاز ماينفعش كمان لأن الشغل
+//   كله بتوقيت القاهرة حتى لو فتحت الصفحة من بلد تانية. ولازم تطابق
+//   _todayCairo() اللي في السيرفر وإلا الفلاتر هتختلف.
+const _CAIRO_YMD = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit'
+});
+function _todayCairo(){ return _CAIRO_YMD.format(new Date()); }
 
 function escapeHtml(s){
   if(s == null) return '';
@@ -15906,7 +15916,7 @@ function _renderDashboardChart(daily){
   const max = Math.max(...daily.map(d => d.count), 1);
   el.innerHTML = daily.map(d => {
     const h = (d.count / max) * 100;
-    const isToday = d.date === new Date().toISOString().slice(0,10);
+    const isToday = d.date === _todayCairo();
     const color = isToday ? '#fbbf24' : (d.count === 0 ? 'var(--border)' : 'linear-gradient(180deg,#3b82f6,#8b5cf6)');
     const date = new Date(d.date);
     const day = date.getDate();
