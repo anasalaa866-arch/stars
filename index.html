@@ -2544,7 +2544,7 @@ window.addEventListener('unhandledrejection', (ev) => {
 // 🏷️ v832: رقم نسخة ستارز — deploy.sh بيختمه مع كل رفعة ويتأكد إن
 //   اللي على جيت هب هو نفسه. من غيره كان الرفع بيقول «متطابق» وهو
 //   بيقارن الكوميت بس، مش محتوى الملف اللي الكاشير بيفتحه فعلاً.
-const STARS_BUILD = 'v884';
+const STARS_BUILD = 'v885';
 const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
 
 // ===== STATE =====
@@ -17394,6 +17394,8 @@ async function completePre() {
             + (sid ? '&store_id=' + sid : '');
       var d = await api(q);
       if(!d || !d.ok) return;
+      // ⏱️ v885: السيرفر بيقول نستنى قد إيه (إعداد «كل كام ثانية تشيك على الفيزا»)
+      if(d.next_ms && d.next_ms !== WAIT){ WAIT = d.next_ms; reschedule(); }
 
       for(var i = 0; i < (d.events || []).length; i++){
         var e = d.events[i];
@@ -17412,7 +17414,11 @@ async function completePre() {
     }catch(_){ /* النت — الدورة الجاية هتلحق */ }
   }
 
-  function start(){ if(!TIMER) TIMER = setInterval(tick, 4000); tick(); }
+  // ⏱️ v885: الفترة بقت بتيجي من السيرفر، فالمؤقّت لازم يعرف يتظبّط من جديد.
+  //   4000 هي البداية بس لو السيرفر مارد لسه.
+  var WAIT = 4000;
+  function reschedule(){ if(TIMER) clearInterval(TIMER); TIMER = setInterval(tick, WAIT); }
+  function start(){ if(!TIMER) reschedule(); tick(); }
   // أول ما الصفحة ترجع من الخلفية، نلحق اللي فات فوراً
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) tick(); });
   if(document.readyState === 'complete') start();
