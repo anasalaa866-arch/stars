@@ -2544,7 +2544,7 @@ window.addEventListener('unhandledrejection', (ev) => {
 // 🏷️ v832: رقم نسخة ستارز — deploy.sh بيختمه مع كل رفعة ويتأكد إن
 //   اللي على جيت هب هو نفسه. من غيره كان الرفع بيقول «متطابق» وهو
 //   بيقارن الكوميت بس، مش محتوى الملف اللي الكاشير بيفتحه فعلاً.
-const STARS_BUILD = 'v920';
+const STARS_BUILD = 'v926';
 const DEFAULT_API = 'https://orderpro-backend-production.up.railway.app';
 
 // ===== STATE =====
@@ -14818,10 +14818,22 @@ function renderOrders(tabId, orders){
   container.innerHTML = html;
 }
 
+// 💳 v925: الدفع الجزئي — المندوب بيحصّل المتبقي بس (الإجمالي − اللي اتدفع مقدّماً).
+//   السيرفر بيبعت prepaidAmount مع كل طلب. الحساب هنا مش من cod الجاهز عشان
+//   لو الطلب اتحوّل مدفوع/COD على الجهاز الرقم يفضل صح.
+function codOf(o){
+  if(!o || o.paid) return 0;
+  return Math.max(0, Math.round(((parseFloat(o.total) || 0) - (parseFloat(o.prepaidAmount) || 0)) * 100) / 100);
+}
+function _partialHint(o){
+  const pre = parseFloat(o && o.prepaidAmount) || 0;
+  return (o && !o.paid && pre > 0.01)
+    ? `<div style="font-size:11px;color:#f59e0b;margin-top:4px">💳 العميل دافع ${pre.toLocaleString()} ج مقدّماً — حصّل ${codOf(o).toLocaleString()} بس</div>` : '';
+}
 function renderOrderCard(o, tabId){
   const isExpress = o.deliveryType === 'express';
   const isLate = isOrderLate(o);
-  const codAmount = o.paid ? 0 : o.total;
+  const codAmount = codOf(o);   // 💳 v925
   const badges = [];
   
   // رقم الترتيب (يظهر بس في tab "معاي")
@@ -14979,7 +14991,7 @@ function openDeliver(orderId){
   $('deliver-order-info').innerHTML = `<strong>${o.id}</strong> — ${escapeHtml(o.name)}`;
   if(!o.paid){
     $('deliver-cod-section').style.display = 'block';
-    $('deliver-amount').textContent = o.total.toLocaleString() + ' ج';
+    $('deliver-amount').innerHTML = codOf(o).toLocaleString() + ' ج' + _partialHint(o);   // 💳 v925
     // reset selection
     document.querySelectorAll('#m-deliver .radio-option').forEach((r, i) => {
       r.classList.toggle('selected', i === 0);
@@ -16002,7 +16014,7 @@ function renderStatement(r){
         </div>
         <div style="text-align:left">
           ${o.paid ? '<div style="font-size:11px;color:#60a5fa">💳 مدفوع</div>' : ''}
-          <div style="font-weight:800;color:${o.paid ? 'var(--muted)' : 'var(--gold)'}">${o.total.toLocaleString()} ج</div>
+          <div style="font-weight:800;color:${o.paid ? 'var(--muted)' : 'var(--gold)'}">${(o.paid ? o.total : codOf(o)).toLocaleString()} ج</div>
           <div style="font-size:11px;color:var(--muted)">شحن: ${o.ship.toLocaleString()} ج</div>
         </div>
       </div>
@@ -16137,7 +16149,7 @@ function renderShopOrders(tabId, orders){
 }
 
 function renderShopOrderCard(o, tabId){
-  const codAmount = o.paid ? 0 : o.total;
+  const codAmount = codOf(o);   // 💳 v925
   const badges = [];
   if(o.paid) badges.push('<span class="badge badge-paid">💳 مدفوع</span>');
   else badges.push('<span class="badge badge-cod">💵 ' + codAmount.toLocaleString() + ' ج</span>');
@@ -16217,7 +16229,7 @@ function renderShopOrderCard(o, tabId){
       </div>` : ''}
       <div class="order-field">
         <div class="order-field-label">القيمة</div>
-        <div class="order-field-value" style="font-weight:800;color:var(--gold)">${o.total.toLocaleString()} ج${o.paid ? ' (مدفوع)' : ' (COD)'}</div>
+        <div class="order-field-value" style="font-weight:800;color:var(--gold)">${o.paid ? o.total.toLocaleString() + ' ج (مدفوع)' : codOf(o).toLocaleString() + ' ج (COD)'}</div>${_partialHint(o)}
       </div>
       ${notes.map(n => `<div class="order-note-box" style="border-color:${n.color}33;background:${n.color}14">
         <div class="order-note-label" style="color:${n.color}">${n.label}</div>
@@ -16242,7 +16254,7 @@ function openShopPickedUp(orderId){
   $('shop-picked-info').innerHTML = `<strong>${o.id}</strong> — ${escapeHtml(o.name)}`;
   if(!o.paid){
     $('shop-picked-cod-section').style.display = 'block';
-    $('shop-picked-amount').textContent = o.total.toLocaleString() + ' ج';
+    $('shop-picked-amount').innerHTML = codOf(o).toLocaleString() + ' ج' + _partialHint(o);   // 💳 v925
     document.querySelectorAll('#m-shop-picked .radio-option').forEach((r, i) => r.classList.toggle('selected', i === 0));
   } else {
     $('shop-picked-cod-section').style.display = 'none';
