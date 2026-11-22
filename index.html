@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v233 — 🛵 رقم طلب طلبات + كاش/آجل كبير أول وآخر الريسيت (2026-11-22)
+  🛵 v233: في وضع طلبات، الكود اللي بيتكتب قبل الدفع (#) بيتطبع كبير في أول
+  الريسيت وآخره، ومعاه «كاش من المندوب» أو «آجل على طلبات» — في طباعة المتصفح
+  وطابعة البلوتوث/USB، وفي إعادة الطباعة من السجل.
+  ═══════════════════════════════════════════════════════════════════
   Stars v232 — ✏️ تعديل كامل للباتش + إصلاح مسارات الـ PWA (2026-11-05)
   ✏️ v232: (1) التعديل كان prompt للكمية بس — بقى نافذة فيها الكمية
   والتاريخ والملاحظة، والتاريخ عليه نفس حماية الإضافة. بيبعت المتغيّر بس.
@@ -7739,7 +7744,9 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     customer: _posCustomer,
     promo: _posPromo,
     isOffline: !_posIsOnline,
-    talabat: _posTalabatMode   // 🆕 v102: طلب طلبات → نسختين ريسيت
+    talabat: _posTalabatMode,   // 🆕 v102: طلب طلبات → نسختين ريسيت
+    talabatCode: _posTalabatMode ? (_posTalabatCode || '') : '',          // 🛵 v233
+    talabatDeferred: !!(_posTalabatMode && _posTalabatDeferred)
   });
   
   // 🆕 v38: audit log - بيع تم
@@ -8179,9 +8186,24 @@ function _rcpCashier(data){
   return raw;
 }
 
+// 🛵 v233: بلوك طلبات كبير — رقم الطلب + كاش/آجل (أول وآخر الريسيت)
+function _rcpTalabatBlock(data){
+  if(!data || !data.talabat) return '';
+  const code = String(data.talabatCode || '').replace(/^#/, '');
+  const pay = data.talabatDeferred ? '📆 آجل على طلبات — DEFERRED' : '💵 كاش من المندوب — CASH';
+  return `<div style="border:3px solid #000;border-radius:8px;padding:8px 6px;margin:8px 0;text-align:center;font-family:Cairo,Tahoma,sans-serif;color:#000">
+    <div style="font-size:13px;font-weight:900;letter-spacing:1px">🛵 TALABAT · طلبات</div>
+    ${code ? `<div style="font-size:34px;font-weight:900;line-height:1.15;font-family:Roboto,Arial,sans-serif;direction:ltr"># ${escapeHtml(code)}</div>` : ''}
+    <div style="font-size:17px;font-weight:900;margin-top:4px;padding:4px;${data.talabatDeferred ? 'background:#000;color:#fff' : 'border-top:2px dashed #000'}">${pay}</div>
+  </div>`;
+}
+function _talCodeFromNotes(notes){
+  const m = String(notes || '').match(/كود طلبات:\s*([^\s·|،,]+)/);
+  return m ? m[1] : '';
+}
 function _buildProfessionalReceipt(data){
-  const methodNames = { cash: 'Cash', visa: 'Visa', instapay: 'InstaPay' };
-  const methodIcons = { cash: '💵', visa: '💳', instapay: '📱' };
+  const methodNames = { cash: 'Cash', visa: 'Visa', instapay: 'InstaPay', talabat_deferred: 'Talabat (Deferred)' };
+  const methodIcons = { cash: '💵', visa: '💳', instapay: '📱', talabat_deferred: '📆' };
   
   // الـ banner للـ reprint أو offline
   const topBadge = data.isReprint 
@@ -8437,8 +8459,9 @@ function _buildProfessionalReceipt(data){
   .rcp-qr-sub { font-size: 9px; font-weight: 600; color: #333; margin-top: 2px; }
 </style>
 
-<div class="rcp-wrap">
+ <div class="rcp-wrap">
   ${topBadge}
+  ${_rcpTalabatBlock(data)}
   
   <div class="rcp-header">
     <img class="rcp-logo" src="${CAFELAX_LOGO_B64}" alt="CAFELAX">
@@ -8476,7 +8499,8 @@ function _buildProfessionalReceipt(data){
     </div>
   </div>
   
-  ${paymentsHtml ? `<div class="rcp-pay">${paymentsHtml}</div>` : ''}
+ ${paymentsHtml ? `<div class="rcp-pay">${paymentsHtml}</div>` : ''}
+  ${_rcpTalabatBlock(data)}
   
   <div class="rcp-footer">
     <div class="rcp-footer-thanks">Thank you for your visit! ☕</div>
@@ -8524,7 +8548,8 @@ function posShowReceipt(data){
     total: data.total,
     payments: data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []),
     isOffline: data.isOffline,
-    isReprint: false
+    isReprint: false,
+    talabat: !!data.talabat, talabatCode: data.talabatCode || '', talabatDeferred: !!data.talabatDeferred   // 🛵 v233
   });
   
   $('pos-receipt-modal').style.display = 'block';
@@ -9951,6 +9976,7 @@ function uprBuildReceiptBytes(data){
     push(UPR_CMD.BOLD_OFF);
   }
   push(_uprDivider('='));
+  _uprTalabatBlock(push, data);   // 🛵 v233
 
   // ── بيانات البيع ──
   push(UPR_CMD.ALIGN_LEFT);
@@ -10013,6 +10039,7 @@ function uprBuildReceiptBytes(data){
   }
   push('\n');
 
+  _uprTalabatBlock(push, data);   // 🛵 v233 — آخر الريسيت كمان
   // ── الفوتر ──
   push(UPR_CMD.ALIGN_CENTER);
   push(UPR_CMD.BOLD_ON);
@@ -10034,6 +10061,25 @@ function uprBuildReceiptBytes(data){
   push(UPR_CMD.CUT);
 
   return _uprConcatBytes(parts);
+}
+
+// 🛵 v233: رقم طلب طلبات + كاش/آجل — كبير (عرض وطول مضاعف)
+function _uprTalabatBlock(push, data){
+  if(!data || !data.talabat) return;
+  const code = String(data.talabatCode || '').replace(/^#/, '').replace(/[^\x20-\x7E]/g, '');
+  push(UPR_CMD.ALIGN_CENTER);
+  push(_uprDivider('*'));
+  push(UPR_CMD.BOLD_ON);
+  push('TALABAT ORDER\n');
+  if(code){ push(UPR_CMD.DBL_BOTH); push('# ' + code + '\n'); push(UPR_CMD.NORMAL); push(UPR_CMD.BOLD_ON); }
+  push(UPR_CMD.DBL_BOTH);
+  push(data.talabatDeferred ? 'DEFERRED\n' : 'CASH\n');
+  push(UPR_CMD.NORMAL);
+  push(UPR_CMD.BOLD_ON);
+  push(data.talabatDeferred ? '(on Talabat account)\n' : '(cash from rider)\n');
+  push(UPR_CMD.BOLD_OFF);
+  push(_uprDivider('*'));
+  push(UPR_CMD.ALIGN_LEFT);
 }
 
 // عمودين على عرض مضاعف (TOTAL) — العرض الفعلي نص عدد الأحرف
@@ -11956,7 +12002,8 @@ async function smgrPrintSaleReceipt(){
     payments: payments.map(p => ({ method: p.method, amount: parseFloat(p.amount) })),
     shopifyOrderName: s.shopify_order_name,
     isReprint: true,
-    isOffline: false
+    isOffline: false,
+    talabat: !!s.talabat, talabatCode: _talCodeFromNotes(s.notes), talabatDeferred: !!s.talabat_deferred   // 🛵 v233
   });
 
   // جهز sale-like object للـ universal printer
@@ -11973,7 +12020,8 @@ async function smgrPrintSaleReceipt(){
     subtotal: parseFloat(s.subtotal || 0),
     discount: parseFloat(s.discount_total || 0),
     total: parseFloat(s.total || 0),
-    isReprint: true
+    isReprint: true,
+    talabat: !!s.talabat, talabatCode: _talCodeFromNotes(s.notes), talabatDeferred: !!s.talabat_deferred   // 🛵 v233
   };
 
   try {
