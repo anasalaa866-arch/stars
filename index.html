@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v234 — 🪟 رقم الشباك (# طلبات) إجباري جنب كود الطلب (2026-11-22)
+  🪟 v234: خانتين منفصلتين وبشروط عشان مايتلخبطوش: كود الطلب على طلبات
+  (أرقام بس، 9 خانات أو أكتر) ورقم الشباك # (1 لـ 1000، لحد 4 خانات، ممكن
+  يبدأ بصفر). الشباك هو اللي بيتطبع كبير أول وآخر الريسيت، والكود تحته.
+  ═══════════════════════════════════════════════════════════════════
   Stars v233 — 🛵 رقم طلب طلبات + كاش/آجل كبير أول وآخر الريسيت (2026-11-22)
   🛵 v233: في وضع طلبات، الكود اللي بيتكتب قبل الدفع (#) بيتطبع كبير في أول
   الريسيت وآخره، ومعاه «كاش من المندوب» أو «آجل على طلبات» — في طباعة المتصفح
@@ -5808,6 +5813,7 @@ function _tproPrice(base){
 }
 let _posTalabatDeferred = false;
 let _posTalabatCode = '';   // 🆕 v99: كود الطلب على تطبيق طلبات
+let _posTalabatWin = '';    // 🪟 v234: رقم الشباك (# طلبات)
 let _talabatPendingPay = false; // 🆕 v100: تسجيل العميل إجباري قبل دفع طلبات
 async function posLoadTalabatPrices(){
   try {
@@ -6591,9 +6597,12 @@ function posOpenTalabatPay(){
   ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;width:340px;max-width:92vw;text-align:center;font-family:Cairo,sans-serif">
     <div style="font-size:18px;font-weight:800;margin-bottom:4px">🛵 طلب طلبات</div>
     <div style="color:#6b7280;font-size:13px;margin-bottom:14px">الإجمالي: <b style="font-family:Roboto,sans-serif">${total.toLocaleString()}</b> ج</div>
-    <div style="text-align:right;font-size:12px;font-weight:700;color:#b45309;margin-bottom:4px">كود طلبات (إجباري)</div>
-    <input id="tal-order-code" type="text" inputmode="numeric" placeholder="رقم الطلب على تطبيق طلبات" oninput="$('tal-code-err').style.display='none'" style="width:100%;padding:12px;margin-bottom:4px;border:2px solid #FF5A00;border-radius:12px;text-align:center;font-family:Roboto,sans-serif;font-size:16px;box-sizing:border-box">
-    <div id="tal-code-err" style="display:none;color:#dc2626;font-size:12px;margin-bottom:8px">⚠️ لازم تدخل كود طلبات</div>
+    <div style="text-align:right;font-size:12px;font-weight:700;color:#b45309;margin-bottom:4px">كود الطلب على طلبات (إجباري — 9 أرقام أو أكتر)</div>
+    <input id="tal-order-code" type="text" inputmode="numeric" maxlength="20" placeholder="مثال: 123456789" oninput="this.value=this.value.replace(/\D/g,'');$('tal-code-err').style.display='none'" style="width:100%;padding:12px;margin-bottom:4px;border:2px solid #FF5A00;border-radius:12px;text-align:center;font-family:Roboto,sans-serif;font-size:16px;box-sizing:border-box">
+    <div id="tal-code-err" style="display:none;color:#dc2626;font-size:12px;margin-bottom:8px"></div>
+    <div style="text-align:right;font-size:12px;font-weight:700;color:#b45309;margin:6px 0 4px"># رقم الشباك (إجباري — من 1 لـ 1000)</div>
+    <input id="tal-win" type="text" inputmode="numeric" maxlength="4" placeholder="مثال: 0127" oninput="this.value=this.value.replace(/\D/g,'');$('tal-win-err').style.display='none'" style="width:100%;padding:12px;margin-bottom:4px;border:2px solid #111;border-radius:12px;text-align:center;font-family:Roboto,sans-serif;font-size:22px;font-weight:800;box-sizing:border-box">
+    <div id="tal-win-err" style="display:none;color:#dc2626;font-size:12px;margin-bottom:8px"></div>
     <div style="height:8px"></div>
     <button onclick="posTalabatComplete('cash')" style="width:100%;padding:14px;margin-bottom:10px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">💵 كاش من المندوب</button>
     <button onclick="posTalabatComplete('talabat_deferred')" style="width:100%;padding:14px;margin-bottom:10px;background:#FF5A00;color:#fff;border:none;border-radius:12px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer">📆 آجل على طلبات</button>
@@ -6604,14 +6613,17 @@ function posOpenTalabatPay(){
 }
 async function posTalabatComplete(payMethod){
   // 🆕 v99: كود طلبات إجباري (كاش وآجل)
-  const codeInput = $('tal-order-code');
+  const codeInput = $('tal-order-code'), winInput = $('tal-win');
   const code = codeInput ? codeInput.value.trim() : '';
-  if(!code){
-    const err = $('tal-code-err'); if(err) err.style.display='block';
-    if(codeInput) codeInput.focus();
-    return; // مايكملش من غير كود
-  }
+  const win = winInput ? winInput.value.trim() : '';
+  const bad = (inp, errId, msg) => { const e = $(errId); if(e){ e.textContent = '⚠️ ' + msg; e.style.display = 'block'; } if(inp) inp.focus(); };
+  // 🪟 v234: شروط عشان الرقمين مايتلخبطوش — الكود طويل، الشباك قصير
+  if(!/^\d{9,}$/.test(code)) return bad(codeInput, 'tal-code-err',
+    !code ? 'لازم تدخل كود الطلب' : (/^\d{1,4}$/.test(code) ? 'ده شكله رقم الشباك — كود الطلب 9 أرقام أو أكتر' : 'كود الطلب لازم 9 أرقام أو أكتر'));
+  if(!/^\d{1,4}$/.test(win) || Number(win) < 1 || Number(win) > 1000) return bad(winInput, 'tal-win-err',
+    !win ? 'لازم تدخل رقم الشباك' : 'رقم الشباك من 1 لـ 1000 (لحد 4 أرقام)');
   _posTalabatCode = code;
+  _posTalabatWin = win;
   const ov = $('_talpay-ov'); if(ov) ov.remove();
   // 🆕 v100: العميل اتسجّل إجبارياً قبل النافذة دي (مفيش fallback لعميل عام)
   _posTalabatDeferred = (payMethod === 'talabat_deferred');
@@ -6621,6 +6633,7 @@ async function posTalabatComplete(payMethod){
   await posCompleteSale({ payments: [{ method: payMethod, amount: total }], total, subtotal, discount });
   _posTalabatDeferred = false;
   _posTalabatCode = '';
+  _posTalabatWin = '';
 }
 
 // 🆕 v119: بند صيانة مكن بسعر مفتوح — منتج خدمة في Shopify (SKU بيتحدد من
@@ -7686,6 +7699,7 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
   const _noteParts = [payMsg]; // payMsg = "طريقة الدفع: ..."
   if(_posTalabatMode) _noteParts.unshift('🛵 طلب طلبات' + (_posTalabatDeferred ? ' (آجل — على حساب طلبات)' : ' (كاش من المندوب)'));
   if(_posTalabatMode && _posTalabatCode) _noteParts.unshift(`كود طلبات: ${_posTalabatCode}`); // 🆕 v99
+  if(_posTalabatMode && _posTalabatWin) _noteParts.unshift(`شباك طلبات: #${_posTalabatWin}`);   // 🪟 v234
   if(_custSource) _noteParts.push(`مصدر العميل: ${_custSource}`);
   const _saleNotes = _noteParts.join('\n');
   
@@ -7746,6 +7760,7 @@ async function posCompleteSale({ payments, total, subtotal, discount }){
     isOffline: !_posIsOnline,
     talabat: _posTalabatMode,   // 🆕 v102: طلب طلبات → نسختين ريسيت
     talabatCode: _posTalabatMode ? (_posTalabatCode || '') : '',          // 🛵 v233
+    talabatWin: _posTalabatMode ? (_posTalabatWin || '') : '',            // 🪟 v234
     talabatDeferred: !!(_posTalabatMode && _posTalabatDeferred)
   });
   
@@ -8190,12 +8205,18 @@ function _rcpCashier(data){
 function _rcpTalabatBlock(data){
   if(!data || !data.talabat) return '';
   const code = String(data.talabatCode || '').replace(/^#/, '');
+  const win = String(data.talabatWin || '').replace(/^#/, '');
   const pay = data.talabatDeferred ? '📆 آجل على طلبات — DEFERRED' : '💵 كاش من المندوب — CASH';
   return `<div style="border:3px solid #000;border-radius:8px;padding:8px 6px;margin:8px 0;text-align:center;font-family:Cairo,Tahoma,sans-serif;color:#000">
     <div style="font-size:13px;font-weight:900;letter-spacing:1px">🛵 TALABAT · طلبات</div>
-    ${code ? `<div style="font-size:34px;font-weight:900;line-height:1.15;font-family:Roboto,Arial,sans-serif;direction:ltr"># ${escapeHtml(code)}</div>` : ''}
+    ${win ? `<div style="font-size:40px;font-weight:900;line-height:1.1;font-family:Roboto,Arial,sans-serif;direction:ltr"># ${escapeHtml(win)}</div>` : ''}
+    ${code ? `<div style="font-size:12px;font-weight:800;font-family:Roboto,Arial,sans-serif;direction:ltr">Order ${escapeHtml(code)}</div>` : ''}
     <div style="font-size:17px;font-weight:900;margin-top:4px;padding:4px;${data.talabatDeferred ? 'background:#000;color:#fff' : 'border-top:2px dashed #000'}">${pay}</div>
   </div>`;
+}
+function _talWinFromNotes(notes){
+  const m = String(notes || '').match(/شباك طلبات:\s*#?(\d+)/);
+  return m ? m[1] : '';
 }
 function _talCodeFromNotes(notes){
   const m = String(notes || '').match(/كود طلبات:\s*([^\s·|،,]+)/);
@@ -8549,7 +8570,7 @@ function posShowReceipt(data){
     payments: data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []),
     isOffline: data.isOffline,
     isReprint: false,
-    talabat: !!data.talabat, talabatCode: data.talabatCode || '', talabatDeferred: !!data.talabatDeferred   // 🛵 v233
+    talabat: !!data.talabat, talabatCode: data.talabatCode || '', talabatWin: data.talabatWin || '', talabatDeferred: !!data.talabatDeferred   // 🛵 v233
   });
   
   $('pos-receipt-modal').style.display = 'block';
@@ -10067,11 +10088,13 @@ function uprBuildReceiptBytes(data){
 function _uprTalabatBlock(push, data){
   if(!data || !data.talabat) return;
   const code = String(data.talabatCode || '').replace(/^#/, '').replace(/[^\x20-\x7E]/g, '');
+  const win = String(data.talabatWin || '').replace(/^#/, '').replace(/[^\x20-\x7E]/g, '');
   push(UPR_CMD.ALIGN_CENTER);
   push(_uprDivider('*'));
   push(UPR_CMD.BOLD_ON);
   push('TALABAT ORDER\n');
-  if(code){ push(UPR_CMD.DBL_BOTH); push('# ' + code + '\n'); push(UPR_CMD.NORMAL); push(UPR_CMD.BOLD_ON); }
+  if(win){ push(UPR_CMD.DBL_BOTH); push('# ' + win + '\n'); push(UPR_CMD.NORMAL); push(UPR_CMD.BOLD_ON); }
+  if(code) push('Order ' + code + '\n');
   push(UPR_CMD.DBL_BOTH);
   push(data.talabatDeferred ? 'DEFERRED\n' : 'CASH\n');
   push(UPR_CMD.NORMAL);
@@ -12003,7 +12026,7 @@ async function smgrPrintSaleReceipt(){
     shopifyOrderName: s.shopify_order_name,
     isReprint: true,
     isOffline: false,
-    talabat: !!s.talabat, talabatCode: _talCodeFromNotes(s.notes), talabatDeferred: !!s.talabat_deferred   // 🛵 v233
+    talabat: !!s.talabat, talabatCode: _talCodeFromNotes(s.notes), talabatWin: _talWinFromNotes(s.notes), talabatDeferred: !!s.talabat_deferred   // 🛵 v233
   });
 
   // جهز sale-like object للـ universal printer
@@ -12021,7 +12044,7 @@ async function smgrPrintSaleReceipt(){
     discount: parseFloat(s.discount_total || 0),
     total: parseFloat(s.total || 0),
     isReprint: true,
-    talabat: !!s.talabat, talabatCode: _talCodeFromNotes(s.notes), talabatDeferred: !!s.talabat_deferred   // 🛵 v233
+    talabat: !!s.talabat, talabatCode: _talCodeFromNotes(s.notes), talabatWin: _talWinFromNotes(s.notes), talabatDeferred: !!s.talabat_deferred   // 🛵 v233
   };
 
   try {
