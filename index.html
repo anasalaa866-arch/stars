@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v235 — 🖼️ طباعة الريسيت كصورة على الطابعة الحرارية (2026-11-22)
+  🖼️ v235: الطابعة المتوصلة (بلوتوث/USB/شبكة) كانت بتاخد نص بخطها الداخلي —
+  من غير لوجو والعربي رموز. دلوقتي الريسيت بيترسم بنفس التصميم (اللوجو،
+  العربي، بلوك طلبات) ويتبعت صورة. «وضع الطباعة» في إعدادات الطابعة:
+  صورة (افتراضي) أو نص — ولو الصورة فشلت بيرجع للنص لوحده.
+  ═══════════════════════════════════════════════════════════════════
   Stars v234 — 🪟 رقم الشباك (# طلبات) إجباري جنب كود الطلب (2026-11-22)
   🪟 v234: خانتين منفصلتين وبشروط عشان مايتلخبطوش: كود الطلب على طلبات
   (أرقام بس، 9 خانات أو أكتر) ورقم الشباك # (1 لـ 1000، لحد 4 خانات، ممكن
@@ -1678,6 +1684,13 @@ a{color:inherit;text-decoration:none}
               <option value="1">نعم - بعد كل بيعة</option>
             </select>
           </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">وضع الطباعة</label>
+          <select id="upr-raster" onchange="uprSaveCommonSettings()" style="width:100%;padding:9px;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-size:12px">
+            <option value="image">🖼️ صورة — باللوجو والعربي (مُفضّل)</option>
+            <option value="text">🔤 نص — أسرع، من غير لوجو ولا عربي</option>
+          </select>
         </div>
         <button onclick="uprTestPrint()" id="upr-test-btn" style="width:100%;padding:12px;background:#f59e0b;color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:800;font-size:13px;cursor:pointer">🧪 طباعة اختبار</button>
       </div>
@@ -9446,6 +9459,7 @@ function uprGetConfig(){
     activeDriver: _uprActiveDriver,
     paperWidth: _uprPaperWidth,
     autoPrint: _uprAutoPrint,
+    rasterMode: _uprRasterMode,
     network: _uprNetConfig,
     usbVendorId: _uprUSBDevice?.vendorId || null,
     usbProductId: _uprUSBDevice?.productId || null,
@@ -9547,6 +9561,7 @@ async function posOpenPrinterSettings(){
     document.getElementById('upr-net-ip').value = cfg.network.ip || '';
     document.getElementById('upr-net-port').value = cfg.network.port || 9100;
   }
+  if(document.getElementById('upr-raster')) document.getElementById('upr-raster').value = _uprRasterMode ? 'image' : 'text';   // 🖼️ v235
   if(document.getElementById('upr-paper-width')){
     document.getElementById('upr-paper-width').value = String(_uprPaperWidth);
     document.getElementById('upr-autoprint').value = _uprAutoPrint ? '1' : '0';
@@ -9567,6 +9582,8 @@ function uprSaveCommonSettings(){
   const ap = document.getElementById('upr-autoprint').value === '1';
   _uprPaperWidth = w === 58 ? 58 : 80;
   _uprAutoPrint = ap;
+  const rm = document.getElementById('upr-raster');
+  if(rm) _uprRasterMode = rm.value !== 'text';
   uprPersist();
   toast('💾 الإعدادات اتحفظت', 'success');
 }
@@ -9800,7 +9817,10 @@ async function uprConnectBluetooth(){
 
 async function uprWriteBluetooth(bytes){
   if(!_uprBTChar) throw new Error('BT غير متصلة');
-  const CHUNK = 100;
+  // 🖼️ v235: الصورة ~100 كيلو — بالشرايح القديمة (100 بايت/30ms) كانت هتاخد
+  //   ٣٠ ثانية. الشغل الكبير بشرايح أكبر وفاصل أقل (~٥ ثواني)
+  const big = bytes.length > 8000;
+  const CHUNK = big ? 180 : 100, WAIT = big ? 10 : 30;
   for(let i=0; i<bytes.length; i+=CHUNK){
     const slice = bytes.slice(i, i+CHUNK);
     if(_uprBTChar.properties.writeWithoutResponse){
@@ -9808,7 +9828,7 @@ async function uprWriteBluetooth(bytes){
     } else {
       await _uprBTChar.writeValue(slice);
     }
-    await new Promise(r=>setTimeout(r,30));
+    await new Promise(r=>setTimeout(r,WAIT));
   }
 }
 
@@ -10123,6 +10143,154 @@ async function uprWrite(bytes){
   throw new Error('مفيش driver نشط');
 }
 
+// ════════════════════════════════════════════════════════════
+// 🖼️ v235: طباعة الريسيت كصورة (Raster) على طابعة البلوتوث/USB/الشبكة
+//   وضع النص بيطبع بخط الطابعة: من غير لوجو، والعربي بيطلع رموز.
+//   هنا بنرسم نفس تصميم الريسيت على canvas بعرض الورق (576 نقطة لـ 80مم
+//   · 384 لـ 58مم)، نحوّله أبيض وأسود، ونبعته بأمر GS v 0 على شرايح.
+// ════════════════════════════════════════════════════════════
+let _uprRasterMode = true;   // الافتراضي صورة — يتقفل من إعدادات الطابعة
+
+function _uprLoadImg(src){
+  return new Promise(res => { if(!src) return res(null); const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+}
+async function _uprRenderReceiptCanvas(data){
+  const W = _uprPaperWidth === 58 ? 384 : 576;
+  const S = W / 576;                         // مقياس الخطوط للورق الصغير
+  try{ await Promise.all(['400','700','800','900'].map(w => document.fonts.load(`${w} 20px Cairo`))); }catch(e){}
+  const F = (sz, wt) => `${wt || 700} ${Math.round(sz * S)}px Cairo, Tahoma, Arial, sans-serif`;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = 6000;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#fff'; c.fillRect(0, 0, W, cv.height);
+  c.fillStyle = '#000'; c.strokeStyle = '#000'; c.textBaseline = 'top';
+  const M = Math.round(14 * S);              // هامش جانبي
+  let y = Math.round(10 * S);
+  const text = (t, x, sz, wt, align) => { c.font = F(sz, wt); c.textAlign = align || 'left'; c.fillText(String(t ?? ''), x, y); };
+  const center = (t, sz, wt, gap) => { text(t, W / 2, sz, wt, 'center'); y += Math.round(sz * S * 1.35) + (gap || 0); };
+  const row = (l, r, sz, wt) => { text(l, M, sz, wt, 'left'); text(r, W - M, sz, wt, 'right'); y += Math.round(sz * S * 1.4); };
+  const line = (dash, th) => { c.lineWidth = th || 2; c.setLineDash(dash ? [8 * S, 6 * S] : []); c.beginPath(); c.moveTo(M, y); c.lineTo(W - M, y); c.stroke(); c.setLineDash([]); y += Math.round(10 * S); };
+  const wrap = (t, maxW, sz, wt) => {
+    c.font = F(sz, wt); const words = String(t || '').split(/\s+/); const out = []; let cur = '';
+    for(const w of words){ const tryS = cur ? cur + ' ' + w : w; if(c.measureText(tryS).width > maxW && cur){ out.push(cur); cur = w; } else cur = tryS; }
+    if(cur) out.push(cur); return out;
+  };
+  const talBlock = () => {
+    if(!data.talabat) return;
+    const code = String(data.talabatCode || '').replace(/^#/, ''), win = String(data.talabatWin || '').replace(/^#/, '');
+    const top = y; y += Math.round(10 * S);
+    center('TALABAT · طلبات', 22, 900);
+    if(win) center('# ' + win, 70, 900, 2);
+    if(code) center('Order ' + code, 22, 800, 4);
+    const pay = data.talabatDeferred ? 'آجل على طلبات — DEFERRED' : 'كاش من المندوب — CASH';
+    const bh = Math.round(46 * S);
+    if(data.talabatDeferred){ c.fillRect(M + 6, y, W - 2 * M - 12, bh); c.fillStyle = '#fff'; }
+    else { c.lineWidth = 2; c.setLineDash([8 * S, 6 * S]); c.beginPath(); c.moveTo(M + 6, y); c.lineTo(W - M - 6, y); c.stroke(); c.setLineDash([]); }
+    const y0 = y; y += Math.round(6 * S); center(pay, 28, 900); y = y0 + bh; c.fillStyle = '#000';
+    y += Math.round(10 * S);
+    c.lineWidth = Math.max(3, Math.round(4 * S)); c.strokeRect(M, top, W - 2 * M, y - top); y += Math.round(14 * S);
+  };
+
+  // ── الترويسة ──
+  if(data.isReprint) center('★ REPRINT — DUPLICATE COPY ★', 20, 800, 4);
+  if(data.isOffline) center('⏳ OFFLINE SALE — PENDING UPLOAD', 20, 800, 4);
+  talBlock();
+  const logo = typeof CAFELAX_LOGO_B64 !== 'undefined' ? await _uprLoadImg(CAFELAX_LOGO_B64) : null;
+  if(logo){ const lw = Math.round(W * 0.55), lh = Math.round(logo.height * lw / logo.width); c.drawImage(logo, (W - lw) / 2, y, lw, lh); y += lh + Math.round(8 * S); }
+  else center('CAFELAX', 48, 900);
+  center('WE BRING YOU HAPPINESS', 18, 800, 2);
+  const store = data.storeName || (typeof _posStore !== 'undefined' && _posStore?.name) || '';
+  if(store) center(store, 22, 800);
+  center(data.dateStr || new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false }), 18, 600);
+  if(data.shopifyOrderName) center('Shopify: ' + data.shopifyOrderName, 18, 700);
+  y += Math.round(4 * S); line(false, 2);
+
+  // ── بيانات البيع ──
+  row('Sale No.', data.saleNumber || '', 21, 800);
+  const cashier = (typeof _uprCashierEn === 'function' && _uprCashierEn()) || data.cashierName || '';
+  if(cashier) row('Cashier', cashier, 21, 700);
+  const cust = data.customer?.name || data.customerName, phone = data.customer?.phone || data.customerPhone;
+  if(cust) row('Customer', cust, 21, 700);
+  if(phone) row('Phone', phone, 21, 700);
+  line(true, 2);
+  center('ITEMS', 18, 900); line(true, 2);
+
+  // ── الأصناف ──
+  for(const it of (data.items || [])){
+    const title = (it.productTitle || '') + (it.variantTitle && it.variantTitle !== 'Default Title' ? ' — ' + it.variantTitle : '');
+    const ar = /[\u0600-\u06FF]/.test(title);   // العربي يتكتب من اليمين
+    for(const ln of wrap(title, W - 2 * M, 21, 800)){ c.direction = ar ? 'rtl' : 'ltr'; text(ln, ar ? W - M : M, 21, 800, ar ? 'right' : 'left'); c.direction = 'ltr'; y += Math.round(21 * S * 1.35); }
+    const q = parseFloat(it.qty || 0), u = parseFloat(it.unitPrice || 0);
+    row(`${q} × ${u.toFixed(0)}`, `EGP ${(q * u).toFixed(0)}`, 20, 600);
+    y += Math.round(4 * S);
+  }
+  line(false, 2);
+
+  // ── الإجماليات ──
+  row('Subtotal', 'EGP ' + (+data.subtotal || 0).toFixed(0), 21, 700);
+  const disc = +(data.discount || 0);
+  if(disc > 0) row('Discount' + (data.promo?.code || data.promoCode ? ` (${data.promo?.code || data.promoCode})` : ''), '−EGP ' + disc.toFixed(0), 21, 700);
+  y += Math.round(4 * S);
+  const th = Math.round(58 * S);
+  c.fillRect(M, y, W - 2 * M, th); c.fillStyle = '#fff';
+  const y0 = y; y += Math.round(8 * S); text('TOTAL', M + 12, 34, 900, 'left'); text('EGP ' + (+data.total || 0).toFixed(0), W - M - 12, 34, 900, 'right');
+  c.fillStyle = '#000'; y = y0 + th + Math.round(12 * S);
+
+  // ── الدفع ──
+  const names = { cash:'Cash', visa:'Visa', card:'Card', instapay:'InstaPay', wallet:'Wallet', talabat_deferred:'Talabat (Deferred)', transfer:'Transfer', bank_transfer:'Bank Transfer' };
+  const pays = data.payments || (data.method ? [{ method: data.method, amount: data.total }] : []);
+  for(const p of pays){
+    row(pays.length > 1 ? (names[p.method] || p.method) : 'Payment', pays.length > 1 ? 'EGP ' + parseFloat(p.amount).toFixed(0) : (names[p.method] || p.method), 21, 800);
+    if(p.method === 'cash' && p.tenderedAmount && parseFloat(p.tenderedAmount) > parseFloat(p.amount)){
+      row('  Tendered', 'EGP ' + parseFloat(p.tenderedAmount).toFixed(0), 19, 600);
+      row('  Change', 'EGP ' + (parseFloat(p.tenderedAmount) - parseFloat(p.amount)).toFixed(0), 19, 600);
+    }
+  }
+  y += Math.round(8 * S);
+  talBlock();
+  line(false, 2);
+
+  // ── الفوتر ──
+  center('Thank you for your visit!', 22, 900);
+  center('We hope to see you again', 19, 600);
+  center('www.cafelax.com', 19, 800);
+  center('Instagram: @cafelaxstore · TikTok: @cafelax', 17, 700, 6);
+  const qr = typeof CAFELAX_APP_QR_B64 !== 'undefined' ? await _uprLoadImg(CAFELAX_APP_QR_B64) : null;
+  if(qr){ const q = Math.round(200 * S); c.imageSmoothingEnabled = false; c.drawImage(qr, (W - q) / 2, y, q, q); y += q + Math.round(6 * S); }
+  center('DOWNLOAD OUR APP', 21, 900);
+  center('Scan to order faster & get exclusive offers!', 16, 600);
+  if(data.isReprint) center(`★ Reprinted at ${new Date().toLocaleString('en-GB')} ★`, 16, 700);
+  y += Math.round(30 * S);
+
+  const out = document.createElement('canvas'); out.width = W; out.height = Math.ceil(y / 8) * 8;
+  out.getContext('2d').drawImage(cv, 0, 0);
+  return out;
+}
+function _uprCanvasToRaster(cv){
+  const W = cv.width, H = cv.height, bw = W / 8;
+  const px = cv.getContext('2d').getImageData(0, 0, W, H).data;
+  const parts = [ _uprStrToBytes(UPR_CMD.INIT), _uprStrToBytes(UPR_CMD.ALIGN_CENTER) ];
+  const BAND = 120;   // شرايح عشان الطابعات اللي ذاكرتها صغيرة
+  for(let y0 = 0; y0 < H; y0 += BAND){
+    const h = Math.min(BAND, H - y0);
+    const buf = new Uint8Array(8 + bw * h);
+    buf.set([0x1D, 0x76, 0x30, 0x00, bw & 0xFF, (bw >> 8) & 0xFF, h & 0xFF, (h >> 8) & 0xFF]);
+    for(let y = 0; y < h; y++){
+      for(let x = 0; x < W; x++){
+        const i = ((y0 + y) * W + x) * 4;
+        const lum = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+        if(px[i + 3] > 128 && lum < 150) buf[8 + y * bw + (x >> 3)] |= (0x80 >> (x & 7));
+      }
+    }
+    parts.push(buf);
+  }
+  parts.push(_uprStrToBytes(UPR_CMD.FEED_3));
+  parts.push(_uprStrToBytes(UPR_CMD.CUT));
+  return _uprConcatBytes(parts);
+}
+async function uprBuildReceiptRaster(data){
+  return _uprCanvasToRaster(await _uprRenderReceiptCanvas(data));
+}
+
 // Print a receipt - uses fallback chain: active driver → browser
 async function uprPrintReceipt(data, optsHTML){
   // Browser driver: render HTML directly
@@ -10132,6 +10300,13 @@ async function uprPrintReceipt(data, optsHTML){
   if(!uprIsConnected()){
     // Fallback to browser
     return uprPrintBrowser(optsHTML || '');
+  }
+  // 🖼️ v235: صورة الأول، ولو فشلت نرجع للنص
+  if(_uprRasterMode){
+    try {
+      await uprWrite(await uprBuildReceiptRaster(data));
+      return true;
+    } catch(e){ console.warn('raster print failed, falling back to text:', e); }
   }
   try {
     const bytes = uprBuildReceiptBytes(data);
@@ -10189,6 +10364,7 @@ async function uprInitFromSavedConfig(){
   if(!cfg) return;
   _uprPaperWidth = cfg.paperWidth || 80;
   _uprAutoPrint = !!cfg.autoPrint;
+  _uprRasterMode = cfg.rasterMode !== false;   // 🖼️ v235
 
   // Try to reconnect USB silently
   if(cfg.activeDriver === 'usb' && navigator.usb){
