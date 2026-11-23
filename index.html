@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v237 — 🔎 فوتر الريسيت (الشكر، الموقع، السوشيال، QR) أكبر وأتقل (2026-11-23)
+  ═══════════════════════════════════════════════════════════════════
   Stars v236 — 👤 اسم الكاشير على الريسيت + «عميل عام» مابيتطبعش (2026-11-23)
   ═══════════════════════════════════════════════════════════════════
   Stars v235 — 🖼️ طباعة الريسيت كصورة على الطابعة الحرارية (2026-11-22)
@@ -10253,14 +10255,18 @@ async function _uprRenderReceiptCanvas(data){
   line(false, 2);
 
   // ── الفوتر ──
-  center('Thank you for your visit!', 22, 900);
-  center('We hope to see you again', 19, 600);
-  center('www.cafelax.com', 19, 800);
-  center('Instagram: @cafelaxstore · TikTok: @cafelax', 17, 700, 6);
+  // 🔎 v237: الفوتر أكبر وأتقل عشان يتقري من الريسيت
+  y += Math.round(6 * S);
+  center('Thank you for your visit!', 30, 900, 2);
+  center('We hope to see you again', 23, 800, 4);
+  center('www.cafelax.com', 27, 900, 2);
+  center('Instagram: @cafelaxstore', 23, 800);
+  center('TikTok: @cafelax', 23, 800, 10);
   const qr = typeof CAFELAX_APP_QR_B64 !== 'undefined' ? await _uprLoadImg(CAFELAX_APP_QR_B64) : null;
-  if(qr){ const q = Math.round(200 * S); c.imageSmoothingEnabled = false; c.drawImage(qr, (W - q) / 2, y, q, q); y += q + Math.round(6 * S); }
-  center('DOWNLOAD OUR APP', 21, 900);
-  center('Scan to order faster & get exclusive offers!', 16, 600);
+  if(qr){ const q = Math.round(270 * S); c.imageSmoothingEnabled = false; c.drawImage(qr, (W - q) / 2, y, q, q); y += q + Math.round(10 * S); }
+  center('DOWNLOAD OUR APP', 30, 900, 2);
+  center('Scan to order faster', 22, 800);
+  center('& get exclusive offers!', 22, 800);
   if(data.isReprint) center(`★ Reprinted at ${new Date().toLocaleString('en-GB')} ★`, 16, 700);
   y += Math.round(30 * S);
 
