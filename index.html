@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v236 — 👤 اسم الكاشير على الريسيت + «عميل عام» مابيتطبعش (2026-11-23)
+  ═══════════════════════════════════════════════════════════════════
   Stars v235 — 🖼️ طباعة الريسيت كصورة على الطابعة الحرارية (2026-11-22)
   🖼️ v235: الطابعة المتوصلة (بلوتوث/USB/شبكة) كانت بتاخد نص بخطها الداخلي —
   من غير لوجو والعربي رموز. دلوقتي الريسيت بيترسم بنفس التصميم (اللوجو،
@@ -8208,11 +8210,10 @@ async function posConfirmRefForMixed(){
 function _rcpCashier(data){
   const en = String((data && data.cashierNameEn) || window.cachedCourierNameEn || '').trim();
   if(en) return en;
-  const raw = String((data && data.cashierName) || '').trim();
-  if(!raw) return '';
-  if(/[\u0600-\u06FF]/.test(raw)) return '';
-  return raw;
+  // 👤 v236: طباعة المتصفح والصورة بيطبعوا عربي — الاسم العربي يظهر عادي
+  return String((data && data.cashierName) || window.cachedCourierName || '').trim();
 }
+function _rcpIsWalkIn(n){ return /^\s*(عميل\s*عام|walk[\s-]*in|guest|عميل)\s*$/i.test(String(n || '')); }
 
 // 🛵 v233: بلوك طلبات كبير — رقم الطلب + كاش/آجل (أول وآخر الريسيت)
 function _rcpTalabatBlock(data){
@@ -8508,7 +8509,7 @@ function _buildProfessionalReceipt(data){
   <div class="rcp-meta">
     <div class="rcp-meta-row"><strong>Sale No.</strong><span class="rcp-meta-val">${escapeHtml(data.saleNumber || '')}</span></div>
     ${_rcpCashier(data) ? `<div class="rcp-meta-row"><strong>Cashier</strong><span class="rcp-meta-val">${escapeHtml(_rcpCashier(data))}</span></div>` : ''}
-    ${data.customerName ? `<div class="rcp-meta-row"><strong>Customer</strong><span class="rcp-meta-val">${escapeHtml(data.customerName)}</span></div>` : ''}
+    ${data.customerName && !_rcpIsWalkIn(data.customerName) ? `<div class="rcp-meta-row"><strong>Customer</strong><span class="rcp-meta-val">${escapeHtml(data.customerName)}</span></div>` : ''}
   </div>
   
   <div class="rcp-items">
@@ -10206,9 +10207,11 @@ async function _uprRenderReceiptCanvas(data){
 
   // ── بيانات البيع ──
   row('Sale No.', data.saleNumber || '', 21, 800);
-  const cashier = (typeof _uprCashierEn === 'function' && _uprCashierEn()) || data.cashierName || '';
+  // 👤 v236: الصورة بتطبع عربي، فاسم الكاشير بيطلع زي ما هو
+  const cashier = data.cashierName || String(window.cachedCourierName || '').trim() || (typeof _uprCashierEn === 'function' && _uprCashierEn()) || '';
   if(cashier) row('Cashier', cashier, 21, 700);
-  const cust = data.customer?.name || data.customerName, phone = data.customer?.phone || data.customerPhone;
+  let cust = data.customer?.name || data.customerName; const phone = data.customer?.phone || data.customerPhone;
+  if(cust && /^\s*(عميل\s*عام|walk[\s-]*in|guest|عميل)\s*$/i.test(cust)) cust = '';   // عميل عام مابيتطبعش
   if(cust) row('Customer', cust, 21, 700);
   if(phone) row('Phone', phone, 21, 700);
   line(true, 2);
