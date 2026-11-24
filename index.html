@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v238 — 📉 بادج طلبات الاستلام بيطلب العدد بس (توفير egress) (2026-11-24)
   Stars v237 — 🔎 فوتر الريسيت (الشكر، الموقع، السوشيال، QR) أكبر وأتقل (2026-11-23)
   ═══════════════════════════════════════════════════════════════════
   Stars v236 — 👤 اسم الكاشير على الريسيت + «عميل عام» مابيتطبعش (2026-11-23)
@@ -10472,15 +10473,18 @@ let _pickupSelectedOrder = null;
 let _pickupSelectedMethod = null;
 let _pickupSearchDebounce = null;
 
+function _pickupSetBadge(count){
+  const badge = $('pickup-orders-badge');
+  if(badge){
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-block' : 'none';
+  }
+}
 async function pickupCheckCount(){
   try {
-    const r = await apiFetch('/api/cashier/pickup-orders');
-    const count = r?.count || 0;
-    const badge = $('pickup-orders-badge');
-    if(badge){
-      badge.textContent = count;
-      badge.style.display = count > 0 ? 'inline-block' : 'none';
-    }
+    // 📉 v238: العدد بس (بدل القايمة كاملة) — توفير استهلاك السيرفر
+    const r = await apiFetch('/api/cashier/pickup-orders?count_only=1');
+    _pickupSetBadge(r?.count || 0);
   } catch(e){}
 }
 
@@ -10504,8 +10508,9 @@ async function pickupRefresh(){
     $('pickup-stats').textContent = `${_pickupOrdersCache.length} طلب جاهز`;
     pickupRender();
     
-    // update badge
-    pickupCheckCount();
+    // update badge (من نفس النتيجة — من غير طلب تاني)
+    if(!search) _pickupSetBadge(r?.count ?? _pickupOrdersCache.length);
+    else pickupCheckCount();
   } catch(e){
     list.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">❌ ${escapeHtml(e.message || 'خطأ')}</div>`;
   }
