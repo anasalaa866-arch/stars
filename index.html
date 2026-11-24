@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v239 — 🔎 البحث بالكلمات بأي ترتيب (2026-11-24)
   Stars v238 — 📉 بادج طلبات الاستلام بيطلب العدد بس (توفير egress) (2026-11-24)
   Stars v237 — 🔎 فوتر الريسيت (الشكر، الموقع، السوشيال، QR) أكبر وأتقل (2026-11-23)
   ═══════════════════════════════════════════════════════════════════
@@ -2635,6 +2636,14 @@ function searchFilterOrders(orders, query){
       o.orderNote,
     ];
 
+    // 🔎 v239: كذا كلمة → كل كلمة لوحدها في أي حقل وبأي ترتيب
+    {
+      const _t = String(q).split(/\s+/).filter(Boolean);
+      if(_t.length > 1){
+        const _all = _normalizeText(candidates.filter(Boolean).join(' '));
+        if(_t.every(t => _all.includes(t))) return true;
+      }
+    }
     for(const c of candidates){
       if(!c) continue;
       const norm = _normalizeText(c);
@@ -8895,10 +8904,7 @@ function posFilterHistory(query){
   let filtered = all;
   if(q.length >= 2){
     filtered = all.filter(s =>
-      (s.sale_number || '').toLowerCase().includes(q) ||
-      (s.customer_phone || '').toLowerCase().includes(q) ||
-      (s.customer_name || '').toLowerCase().includes(q) ||
-      (s.shopify_order_name || '').toLowerCase().includes(q)
+      matchTokens([s.sale_number, s.customer_phone, s.customer_name, s.shopify_order_name].join(' '), q)
     );
   }
   const list = $('pos-history-list');
@@ -17219,7 +17225,7 @@ function renderPrepList(ords) {
       const id = String(o.id || '').toLowerCase();
       const name = String(o.name || '').toLowerCase();
       const phone = String(o.phone || '').toLowerCase();
-      return id.includes(q) || name.includes(q) || phone.includes(q);
+      return matchTokens(id + ' ' + name + ' ' + phone, q);
     });
   }
 
@@ -17305,7 +17311,7 @@ async function onPrepSearchKey(e) {
       const id = String(o.id || '').toLowerCase();
       const name = String(o.name || '').toLowerCase();
       const phone = String(o.phone || '').toLowerCase();
-      return id.includes(q) || name.includes(q) || phone.includes(q);
+      return matchTokens(id + ' ' + name + ' ' + phone, q);
     });
 
     if (matches.length === 1) {
