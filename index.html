@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
-  Stars v239 — 🔎 البحث بالكلمات بأي ترتيب (2026-11-24)
+  Stars v240 — 🚚 طلبات «محتاج شحن» في استلام المحل (2026-11-27)
   Stars v238 — 📉 بادج طلبات الاستلام بيطلب العدد بس (توفير egress) (2026-11-24)
   Stars v237 — 🔎 فوتر الريسيت (الشكر، الموقع، السوشيال، QR) أكبر وأتقل (2026-11-23)
   ═══════════════════════════════════════════════════════════════════
@@ -10511,7 +10511,8 @@ async function pickupRefresh(){
     const r = await apiFetch(url);
     _pickupOrdersCache = r?.orders || [];
     
-    $('pickup-stats').textContent = `${_pickupOrdersCache.length} طلب جاهز`;
+    const _ns = _pickupOrdersCache.filter(o => o.needs_shipping).length;
+    $('pickup-stats').textContent = `${_pickupOrdersCache.length - _ns} طلب جاهز` + (_ns ? ` · 🚚 ${_ns} محتاج شحن` : '');
     pickupRender();
     
     // update badge (من نفس النتيجة — من غير طلب تاني)
@@ -10560,6 +10561,17 @@ function pickupRender(){
       }
     } catch(e){}
     
+    // 🚚 v240: العميل طلب يتحوّل لشحن — مايتسلّمش في المحل
+    if(o.needs_shipping) return `<div onclick="toast('🚚 الطلب ده العميل طلب يتحوّل لشحن — جهّزه للشحن وماتسلّمهوش هنا','warning')"
+                 style="background:#fef2f2;border:2px solid #ef4444;border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer">
+      <div style="background:#ef4444;color:#fff;border-radius:8px;padding:6px 10px;font-weight:800;font-size:13px;margin-bottom:8px;text-align:center">🚚 محتاج شحن — العميل طلب الشحن للمنزل</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="font-weight:800;font-size:15px;color:#b91c1c;font-family:Roboto,sans-serif">${escapeHtml(orderNum)}</div>
+        <div style="font-weight:800;font-size:15px;color:#b91c1c;font-family:Roboto,sans-serif">${(parseFloat(o.total) || 0).toLocaleString('en-US')} ج</div>
+      </div>
+      <div style="font-weight:700;font-size:14px;margin-top:4px;color:#111">${escapeHtml(o.name || '—')}</div>
+      <div style="font-size:12px;color:#7f1d1d;margin-top:6px">جهّز الطلب للشحن — الإدارة هتوزعه على مندوب أو بوسطة</div>
+    </div>`;
     return `<div onclick="pickupOpenDeliverModal(${JSON.stringify(o.id).replace(/"/g, '&quot;')})" 
                  style="background:var(--elev);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;transition:transform .1s">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
