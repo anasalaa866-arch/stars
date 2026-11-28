@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v242 — ⚙️ سؤال مصدر العميل من إعدادات أوردر برو (نص/إجابات/تشغيل) (2026-11-28)
   Stars v241 — 📶 النت الضعيف: مهلة لكل طلب، حالة نت حقيقية (🟢/🟠/🔴)، وضع طلبات فوري، PIN أوفلاين (2026-11-28)
   Stars v240 — 🚚 طلبات «محتاج شحن» في استلام المحل (2026-11-27)
   Stars v238 — 📉 بادج طلبات الاستلام بيطلب العدد بس (توفير egress) (2026-11-24)
@@ -5972,6 +5973,7 @@ posLoadServiceSku(); setInterval(posLoadServiceSku, 10 * 60 * 1000);
 async function posLoadOffers(){
   if(!_posStore || !_posStore.id) return;
   posLoadTalabatPrices(); // 🆕 v97 (بالتوازي)
+  posLoadUiConfig();      // ⚙️ v242
   
   // جرب من cache أولاً (لو offline)
   try {
@@ -7763,24 +7765,35 @@ function posCancelPin(){
 
 // 🆕 v24: shared completion logic
 // 🆕 v94: سؤال مصدر العميل — الكاشير يسأله في نهاية الطلب، والرد يتحط في النوتس
+// ⚙️ v242: السؤال والإجابات والتشغيل من إعدادات أوردر برو («ستارز — سؤال مصدر العميل»)
+//   بيتحفظوا على الجهاز عشان يشتغلوا أوفلاين، وبيتحدّثوا في الخلفية.
+const _SRC_DEF = { on:true, q:'نوّرتنا 🙏 سؤال سريع — حضرتك قصدت كافيلاكس، ولا لقيتنا وإنت بتلف في المول؟',
+  answers:[ { label:'🎯 قصدت كافيلاكس', value:'جاي مخصوص لكافيلاكس 🎯' }, { label:'👀 لقيتكم وأنا بلف في المول', value:'ماشي في المول 🚶' } ] };
+function _srcCfg(){ try{ const c = JSON.parse(localStorage.getItem('stars_src_cfg') || 'null'); if(c && Array.isArray(c.answers)) return c; }catch(e){} return _SRC_DEF; }
+async function posLoadUiConfig(){
+  try{ const r = await apiFetch('/api/pos/ui-config'); if(r?.src) localStorage.setItem('stars_src_cfg', JSON.stringify(r.src)); }catch(e){}
+}
 function posAskCustomerSource(){
+  const cfg = _srcCfg();
+  posLoadUiConfig();   // تحديث للمرة الجاية
+  if(!cfg.on || !cfg.answers?.length) return Promise.resolve(null);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  const colors = ['#16a34a', '#f59e0b', '#2563eb', '#9333ea', '#0891b2'];
   return new Promise(resolve => {
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px';
     ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:22px;text-align:center;box-shadow:0 12px 50px rgba(0,0,0,.3)">
       <div style="font-size:34px">🙏</div>
       <div style="font-size:17px;font-weight:800;margin:10px 0 4px;color:#111827">مصدر العميل</div>
-      <div style="font-size:14px;color:#374151;margin-bottom:18px;line-height:1.7">اسأل العميل:<br><b>«نوّرتنا 🙏 سؤال سريع — حضرتك قصدت كافيلاكس، ولا لقيتنا وإنت بتلف في المول؟»</b></div>
+      <div style="font-size:14px;color:#374151;margin-bottom:18px;line-height:1.7">اسأل العميل:<br><b>«${esc(cfg.q)}»</b></div>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <button id="pcs-dedicated" style="padding:15px;border:none;border-radius:12px;background:#16a34a;color:#fff;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">🎯 قصدت كافيلاكس</button>
-        <button id="pcs-walkin" style="padding:15px;border:none;border-radius:12px;background:#f59e0b;color:#fff;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">👀 لقيتكم وأنا بلف في المول</button>
+        ${cfg.answers.map((a, i) => `<button data-i="${i}" class="pcs-ans" style="padding:15px;border:none;border-radius:12px;background:${colors[i % colors.length]};color:#fff;font-family:Cairo,sans-serif;font-weight:800;font-size:15px;cursor:pointer">${esc(a.label)}</button>`).join('')}
         <button id="pcs-skip" style="padding:10px;border:none;border-radius:10px;background:transparent;color:#9ca3af;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer">تخطّي</button>
       </div>
     </div>`;
     document.body.appendChild(ov);
     const done = v => { try{ ov.remove(); }catch(e){} resolve(v); };
-    ov.querySelector('#pcs-dedicated').onclick = () => done('جاي مخصوص لكافيلاكس 🎯');
-    ov.querySelector('#pcs-walkin').onclick = () => done('ماشي في المول 🚶');
+    ov.querySelectorAll('.pcs-ans').forEach(b => b.onclick = () => { const a = cfg.answers[+b.dataset.i]; done(a.value || a.label); });
     ov.querySelector('#pcs-skip').onclick = () => done(null);
   });
 }
