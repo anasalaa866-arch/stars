@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-//  Cafelax Stars — Service Worker (v231 · 2026-11-05)
+//  Cafelax Stars — Service Worker (v241 · 2026-11-28)
 //  ───────────────────────────────────────────────────────────────────
 //  اللي كان غلط في النسخة القديمة:
 //   ١) urlsToCache فيه '/CafelaxStars.html' وهو مش موجود في الريبو
@@ -18,7 +18,7 @@
 //  على طول، والكاش بيشتغل وقت قطع النت بس. باقي الملفات cache-first
 //  مع تحديث في الخلفية. يعني مش هتحتاج تزوّد رقم نسخة مع كل رفعة.
 // ═══════════════════════════════════════════════════════════════════
-const CACHE = 'cafelax-stars-v240';
+const CACHE = 'cafelax-stars-v241';
 
 // ⚠️ كل المسارات نسبية: الصفحة متستضافة تحت /stars/ على GitHub Pages،
 //    والمسار المطلق '/...' بيروح على الروت ويرجع 404 — وده اللي كان
@@ -66,14 +66,22 @@ self.addEventListener('fetch', event => {
 
   // ── الصفحة: الشبكة الأول ──
   if(isPage){
+    // ⚡ v241: النت الضعيف — بنستنى الشبكة 3 ثواني بس. لو اتأخرت، بنفتح النسخة
+    //   المحفوظة على طول، والشبكة بتكمّل في الخلفية وتحفظ النسخة الجديدة للمرة الجاية.
     event.respondWith((async () => {
-      try{
-        const net = await fetch(req, { cache: 'no-store' });
+      const netP = fetch(req, { cache: 'no-store' }).then(async net => {
         if(net && net.ok){
           const cache = await caches.open(CACHE);
-          cache.put(req, net.clone()).catch(()=>{});
+          await cache.put(req, net.clone()).catch(()=>{});
         }
         return net;
+      });
+      event.waitUntil(netP.catch(()=>{}));
+      try{
+        const cached = await caches.match(req) || await caches.match('./');
+        if(!cached) return await netP;
+        const net = await Promise.race([netP, new Promise(r => setTimeout(() => r(null), 3000))]);
+        return (net && net.ok) ? net : cached;
       }catch(e){
         // مفيش نت — هات آخر نسخة متكاشة
         return (await caches.match(req))

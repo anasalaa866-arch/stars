@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!--
   ═══════════════════════════════════════════════════════════════════
+  Stars v241 — 📶 النت الضعيف: مهلة لكل طلب، حالة نت حقيقية (🟢/🟠/🔴)، وضع طلبات فوري، PIN أوفلاين (2026-11-28)
   Stars v240 — 🚚 طلبات «محتاج شحن» في استلام المحل (2026-11-27)
   Stars v238 — 📉 بادج طلبات الاستلام بيطلب العدد بس (توفير egress) (2026-11-24)
   Stars v237 — 🔎 فوتر الريسيت (الشكر، الموقع، السوشيال، QR) أكبر وأتقل (2026-11-23)
@@ -2789,15 +2790,31 @@ async function prayerToggle(){
   _prayerBusy = false; prayerRender();
 }
 
+// 📶 v241: كل طلب للسيرفر ليه مهلة — النت الضعيف مابقاش يعلّق الشاشة.
+//   لو المهلة خلصت أو الشبكة وقعت، الجهاز بيعتبر نفسه Offline لحد ما الـ ping ينجح.
+const NET_TIMEOUT_MS = 7000;
 async function api(path, opts = {}){
   const url = API_URL.replace(/\/$/, '') + path;
   const headers = { 'Content-Type': 'application/json' };
   if(TOKEN) headers.Authorization = 'Bearer ' + TOKEN;
-  const res = await fetch(url, {
-    method: opts.method || 'GET',
-    headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined
-  });
+  const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const tms = opts.timeout || NET_TIMEOUT_MS;
+  const timer = ctl ? setTimeout(() => ctl.abort(), tms) : null;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: opts.method || 'GET',
+      headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      signal: ctl ? ctl.signal : undefined
+    });
+  } catch(e) {
+    if(typeof netMarkBad === 'function') netMarkBad();
+    const err = new Error(e && e.name === 'AbortError' ? 'النت بطيء — المهلة خلصت' : 'مفيش نت');
+    err.offline = true;
+    throw err;
+  } finally { if(timer) clearTimeout(timer); }
+  if(typeof netMarkGood === 'function') netMarkGood();
   if(res.status === 401){
     // 🆕 v72: نعمل logout بس لو السيرفر قال صراحة إن الـ token باظ
     // (مش لازم كل 401 = token expired — ممكن endpoint مش متاح للـ role ده)
@@ -2830,8 +2847,8 @@ async function api(path, opts = {}){
 // 🆕 v27 FIX: apiFetch wrapper (للتوافق مع OrderPro signature)
 // signature: apiFetch(path, method, body)
 // internally: api(path, { method, body })
-async function apiFetch(path, method = 'GET', body = null){
-  return api(path, { method, body });
+async function apiFetch(path, method = 'GET', body = null, timeout){
+  return api(path, { method, body, timeout });
 }
 
 // ===== ROLE SELECTOR =====
@@ -5804,13 +5821,53 @@ async function loadPosPage(){
   }
 }
 
-function posUpdateOnlineIndicator(){
-  _posIsOnline = navigator.onLine;
+// 📶 v241: حالة النت الحقيقية — navigator.onLine بيقول Online طول ما فيه واي فاي حتى لو النت واقع.
+//   بنعمل ping خفيف للسيرفر: بيرد بسرعة = 🟢، بيرد ببطء = 🟠 نت ضعيف، مابيردش = 🔴 Offline.
+let _netState = navigator.onLine ? 'online' : 'offline';
+let _netPingBusy = false, _netBadAt = 0;
+function netMarkBad(){
+  _netBadAt = Date.now();
+  if(_netState !== 'offline'){ _netState = 'offline'; _posIsOnline = false; posUpdateOnlineIndicator(true); }
+  setTimeout(netPing, 5000);
+}
+function netMarkGood(){
+  if(_netState === 'offline'){ _netState = 'online'; _posIsOnline = true; posUpdateOnlineIndicator(true); posOnReconnect().catch(()=>{}); }
+}
+async function netPing(){
+  if(_netPingBusy || typeof API_URL === 'undefined' || !API_URL) return;
+  if(!navigator.onLine){ if(_netState !== 'offline'){ _netState = 'offline'; _posIsOnline = false; posUpdateOnlineIndicator(true); } return; }
+  _netPingBusy = true;
+  const ctl = new AbortController(); const t0 = Date.now();
+  const timer = setTimeout(() => ctl.abort(), 4000);
+  let ok = false;
+  try { const r = await fetch(API_URL.replace(/\/$/, '') + '/api/version', { cache:'no-store', signal:ctl.signal }); ok = r.ok; }
+  catch(e){ ok = false; }
+  finally { clearTimeout(timer); _netPingBusy = false; }
+  const ms = Date.now() - t0;
+  const was = _netState;
+  _netState = !ok ? 'offline' : (ms > 2000 ? 'slow' : 'online');
+  _posIsOnline = _netState !== 'offline';
+  if(was !== _netState){
+    posUpdateOnlineIndicator(true);
+    if(was === 'offline' && _posIsOnline) posOnReconnect().catch(()=>{});
+  }
+}
+setInterval(netPing, 20000);
+setTimeout(netPing, 1500);
+function posUpdateOnlineIndicator(fromPing){
+  if(fromPing !== true){
+    // حدث online/offline من المتصفح — offline أكيد، online محتاج تأكيد بالـ ping
+    if(!navigator.onLine){ _netState = 'offline'; } else { netPing(); }
+  }
+  _posIsOnline = _netState !== 'offline';
   const ind = $('pos-online-indicator');
   if(ind){
-    if(_posIsOnline){
+    if(_netState === 'online'){
       ind.className = 'pos-online-pill online';
       ind.textContent = '🟢 Online';
+    } else if(_netState === 'slow'){
+      ind.className = 'pos-online-pill online';
+      ind.textContent = '🟠 نت ضعيف';
     } else {
       ind.className = 'pos-online-pill offline';
       ind.textContent = '🔴 Offline';
@@ -6526,19 +6583,22 @@ function posComputeUnitPrice(product){
 
 // 🆕 v113: تفعيل الوضع بيجيب الأسعار من السيرفر الأول — الجهاز الفاتح
 //   من الصبح كان بيفضل بايع بأسعار قديمة في صمت.
+// ⚡ v241: التحويل فوري بالأسعار المحفوظة على الجهاز، والتحديث من السيرفر في الخلفية
+//   (كان بيستنى السيرفر الأول، فمع النت الضعيف الزرار كان بيعلّق)
 async function posToggleTalabat(){
   const turningOn = !_posTalabatMode;
-  if(turningOn && _posIsOnline){
-    const btn = document.getElementById('pos-talabat-toggle');
-    const old = btn ? btn.innerHTML : '';
-    if(btn){ btn.innerHTML = '🛵 ⏳'; btn.disabled = true; }
-    try{ await posLoadTalabatPrices(); }
-    catch(e){ console.warn('talabat refresh:', e.message); }
-    finally{ if(btn){ btn.innerHTML = old; btn.disabled = false; } }
+  if(turningOn && !Object.keys(_talabatPrices || {}).length){
+    try{ const c = await posDBGet('meta', 'talabatPrices'); if(c?.value){ _talabatPrices = c.value; if(c.divisor != null) _talabatDivisor = c.divisor; if(c.savedAt) _talabatPricesAt = c.savedAt; if(c.ver != null) _talabatPriceVer = String(c.ver); if(c.tpro) _tproCfg = c.tpro; } }catch(e){}
   }
   posSetTalabatMode(turningOn);
+  if(turningOn && _posIsOnline){
+    const ver0 = _talabatPriceVer, at0 = _talabatPricesAt;
+    posLoadTalabatPrices().then(() => {
+      if(_posTalabatMode && (_talabatPriceVer !== ver0 || _talabatPricesAt !== at0)) posSetTalabatMode(true, true);
+    }).catch(e => console.warn('talabat refresh:', e.message));
+  }
 }
-function posSetTalabatMode(on){
+function posSetTalabatMode(on, quiet){
   _posTalabatMode = on;
   if(!on) _posTproOn = false;                   // 🆕 v138: خصم برو تبع وضع طلبات بس
   // أعد تسعير السلة
@@ -6585,7 +6645,7 @@ function posSetTalabatMode(on){
   document.body.classList.toggle('talabat-active', on); // 🆕 v103: ثيم برتقالي
   posRenderCart();
   if(typeof posRenderProducts === 'function') posRenderProducts();
-  toast(on ? '🛵 وضع طلبات مُفعّل' : '↩️ رجع للوضع العادي', on ? 'warning' : 'info');
+  if(!quiet) toast(on ? '🛵 وضع طلبات مُفعّل' : '↩️ رجع للوضع العادي', on ? 'warning' : 'info');
 }
 
 // 🆕 v138: زرار خصم عميل برو
@@ -7233,7 +7293,7 @@ async function posApplyPromo(){
       $('pos-promo-error').style.display = 'block';
     }
   } catch(e) {
-    $('pos-promo-error').textContent = e.message || 'فشل';
+    $('pos-promo-error').textContent = e && e.offline ? '📶 الكود محتاج نت عشان يتأكد — جرّب تاني لما النت يرجع' : (e.message || 'فشل');
     $('pos-promo-error').style.display = 'block';
   }
 }
@@ -7653,6 +7713,7 @@ async function posSubmitPin(){
     return;
   }
   
+  const pinKey = async () => 'pin:' + await sha256(String(_posStore?.id || '') + ':' + pin);
   try {
     const r = await apiFetch('/api/pos/verify-manager-pin', 'POST', {
       pin,
@@ -7660,6 +7721,8 @@ async function posSubmitPin(){
     });
     
     if(r?.success){
+      // 🔐 v241: نحفظ بصمة الـ PIN (مش الـ PIN نفسه) عشان يشتغل لو النت وقع بعدين
+      try{ const k = await pinKey(); const m = JSON.parse(localStorage.getItem('stars_pin_cache') || '{}'); m[k] = { id:r.manager?.id, name:r.manager?.name, at:Date.now() }; localStorage.setItem('stars_pin_cache', JSON.stringify(m)); }catch(_){}
       $('pos-pin-modal').style.display = 'none';
       if(_pinResolver){
         _pinResolver(r.manager);
@@ -7667,6 +7730,23 @@ async function posSubmitPin(){
       }
     }
   } catch(e) {
+    // 📶 v241: مفيش نت → نتشيّك على البصمة المحفوظة على الجهاز
+    if(e && e.offline){
+      try{
+        const m = JSON.parse(localStorage.getItem('stars_pin_cache') || '{}');
+        const hit = m[await pinKey()];
+        if(hit){
+          $('pos-pin-modal').style.display = 'none';
+          toast('🔐 موافقة المدير أوفلاين — هتتسجّل لما النت يرجع', 'warning');
+          if(_pinResolver){ _pinResolver({ id:hit.id, name:(hit.name || 'مدير') + ' (أوفلاين)', offline:true }); _pinResolver = null; }
+          return;
+        }
+        $('pin-error').textContent = '📶 مفيش نت — الـ PIN ده ماتستخدمش على الجهاز ده قبل كده، استنى النت يرجع';
+        $('pin-error').style.display = 'block';
+        $('pin-input').value = '';
+        return;
+      }catch(_){}
+    }
     $('pin-error').textContent = '❌ ' + (e.message || 'PIN غير صحيح');
     $('pin-error').style.display = 'block';
     $('pin-input').value = '';
@@ -7906,7 +7986,7 @@ function showShopifyOrderToast(shopifyName, saleNumber){
 // 🆕 v22: ابعت بيعة واحدة للسيرفر
 async function posSendSale(sale){
   try {
-    const r = await apiFetch('/api/pos/sales', 'POST', sale);
+    const r = await apiFetch('/api/pos/sales', 'POST', sale, 20000);   // v241: مهلة أطول للبيعة
     
     if(r?.success){
       // امسح من الـ pending
